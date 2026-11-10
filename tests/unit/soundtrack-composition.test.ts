@@ -14,14 +14,14 @@ describe("soundtrack composition (pure)", () => {
     expect(JSON.stringify(compose(1))).not.toEqual(JSON.stringify(compose(2)));
   });
 
-  it("keeps the tempo within 118-132 BPM (default about 124) and the key minor", () => {
-    expect(MIN_BPM).toBe(118);
-    expect(MAX_BPM).toBe(132);
-    expect(DEFAULT_BPM).toBe(124);
+  it("keeps the tempo within 130-142 BPM (default 136) and the key minor", () => {
+    expect(MIN_BPM).toBe(130);
+    expect(MAX_BPM).toBe(142);
+    expect(DEFAULT_BPM).toBe(136);
     for (const seed of SEEDS) {
       const c = compose(seed);
-      expect(c.bpm).toBeGreaterThanOrEqual(118);
-      expect(c.bpm).toBeLessThanOrEqual(132);
+      expect(c.bpm).toBeGreaterThanOrEqual(130);
+      expect(c.bpm).toBeLessThanOrEqual(142);
       // natural minor: intervals 0 2 3 5 7 8 10 from the root
       const root = c.rootMidi % 12;
       expect([...c.scale].sort((a: number, b: number) => a - b)).toEqual(
