@@ -13,15 +13,21 @@ describe("autoConnectFromEnv", () => {
     expect(conn.connect).not.toHaveBeenCalled();
   });
 
-  it("connects with UTS_IP and the default port", async () => {
+  it("connects with UTS_IP, the default port and the auto transport", async () => {
     const conn = fakeConnection();
     const log = vi.fn();
     expect(await autoConnectFromEnv({ UTS_IP: "192.168.1.100" }, conn, log)).toBe(true);
-    expect(conn.connect).toHaveBeenCalledWith("192.168.1.100", 5025, expect.objectContaining({ transport: "raw", vxi11Device: "inst0" }));
+    expect(conn.connect).toHaveBeenCalledWith("192.168.1.100", 5025, expect.objectContaining({ transport: "auto", vxi11Device: "inst0" }));
     expect(log.mock.calls.join(" ")).toContain("UTS0000X");
   });
 
-  it("honors UTS_PORT", async () => {
+  it("a UTS_TRANSPORT of auto or vxi11 is used even when UTS_PORT is set", async () => {
+    const conn = fakeConnection();
+    await autoConnectFromEnv({ UTS_IP: "192.168.1.100", UTS_PORT: "5555", UTS_TRANSPORT: "auto" }, conn, vi.fn());
+    expect(conn.connect).toHaveBeenCalledWith("192.168.1.100", 5555, expect.objectContaining({ transport: "auto" }));
+  });
+
+  it("honors UTS_PORT (and then means the raw transport unless UTS_TRANSPORT says otherwise)", async () => {
     const conn = fakeConnection();
     await autoConnectFromEnv({ UTS_IP: "192.168.1.100", UTS_PORT: "5555" }, conn, vi.fn());
     expect(conn.connect).toHaveBeenCalledWith("192.168.1.100", 5555, expect.objectContaining({ transport: "raw" }));
@@ -86,7 +92,7 @@ describe("autoConnectFromEnv transport selection (#74)", () => {
   it("logs which transport was used", async () => {
     const conn = fakeConnection();
     const log = vi.fn();
-    await autoConnectFromEnv({ UTS_IP: "192.168.1.100" }, conn, log);
+    await autoConnectFromEnv({ UTS_IP: "192.168.1.100", UTS_TRANSPORT: "raw" }, conn, log);
     expect(log.mock.calls.join(" ")).toMatch(/raw/i);
   });
 });

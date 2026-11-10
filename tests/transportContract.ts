@@ -43,6 +43,11 @@ export interface TransportHarness {
   startFake(handler: FakeHandler): Promise<FakeInstrument>;
   /** The capability flags this transport must advertise. */
   expectedCapabilities: TransportCapabilities;
+  /**
+   * How long the first call after a timed-out query may take (default 40 ms). The UTS3036B is busy
+   * with the abandoned read for up to about a second over VXI-11; the call is delayed, not lost.
+   */
+  stallAfterTimeoutMs?: number;
 }
 
 export const FAKE_IDN = "UNI-TREND,UTS0000X,<serial>,V0.0.0";
@@ -249,7 +254,7 @@ export function runTransportContract(harness: TransportHarness): void {
         if (harness.expectedCapabilities.holdOffAfterTimeout) {
           expect(waited).toBeGreaterThanOrEqual(30);
         } else {
-          expect(waited).toBeLessThan(40);
+          expect(waited).toBeLessThan(harness.stallAfterTimeoutMs ?? 40);
         }
         expect(f.received).toContain(":NOPE?");
       });
@@ -260,7 +265,7 @@ export function runTransportContract(harness: TransportHarness): void {
         expect(conn!.msSinceQueryTimeout()).toBe(Infinity);
         const t0 = Date.now();
         await conn!.query("*IDN?", 1000);
-        expect(Date.now() - t0).toBeLessThan(40);
+        expect(Date.now() - t0).toBeLessThan(harness.stallAfterTimeoutMs ?? 40);
       });
 
       it("reports a lost link with the command in flight, then 'lost' on later calls", async () => {

@@ -80,6 +80,12 @@ export class Vxi11LockedError extends Vxi11DeviceError {}
 export class Vxi11ConnectError extends Vxi11Error {}
 /** The RPC connection failed during a call (dropped, no RPC reply in time, RPC-level rejection). */
 export class Vxi11TransportError extends Vxi11Error {}
+/**
+ * No RPC reply arrived within the deadline (the I/O timeout plus the RPC margin) although the
+ * connection is still open. The UTS3036B never answers a device_read that has nothing to deliver
+ * (no error 15), so this is how a "query timeout" shows up on a live link.
+ */
+export class Vxi11RpcTimeoutError extends Vxi11TransportError {}
 /** The reply violated the protocol (malformed, out of range, never terminating). */
 export class Vxi11ProtocolError extends Vxi11Error {}
 /** The client was closed (or its connection is gone) before or during the call. */
@@ -122,6 +128,12 @@ export interface Vxi11ReadOptions {
   maxBytes?: number;
   /** Cap on device_read calls for this read (default 10000). */
   maxCalls?: number;
+  /**
+   * Send only this fraction (0 < f <= 1, default 1) of the remaining time as the io_timeout of each
+   * device_read, while the RPC deadline still covers all of it plus the margin. For instruments that wait
+   * a multiple of the io_timeout before giving up silently (the UTS3036B waits 5.4 times as long).
+   */
+  ioTimeoutFraction?: number;
 }
 
 export interface Vxi11ReadResult {
@@ -258,13 +270,15 @@ export class Vxi11Client {
       throw new RangeError(`maxBytes must be an integer from 1 to ${DEFAULT_MAX_READ_BYTES}, got ${maxBytes}`);
     }
     const maxCalls = checkCalls(options.maxCalls, DEFAULT_MAX_CALLS);
+    const fraction = options.ioTimeoutFraction ?? 1;
+    if (!(fraction > 0 && fraction <= 1)) throw new RangeError(`ioTimeoutFraction must be greater than 0 and at most 1, got ${fraction}`);
     const deadline = Date.now() + timeoutMs;
     const chunks: Buffer[] = [];
     let total = 0;
     let end = false;
     for (let calls = 0; !end && total < maxBytes; calls++) {
       if (calls >= maxCalls) throw new Vxi11ProtocolError(`device_read needed more than ${maxCalls} calls without END (${total} bytes so far)`);
-      const { ioMs, rpcMs } = this.budget(deadline, calls > 0, "device_read");
+      const { ioMs, rpcMs } = this.budget(deadline, calls > 0, "device_read", fraction);
       const requestSize = Math.min(maxBytes - total, MAX_READ_CHUNK);
       // (link, requestSize, io_timeout, lock_timeout, flags, termChar)
       const args = new XdrWriter().u32(this.linkId).u32(requestSize).u32(ioMs).u32(0).u32(0).u32(0).toBuffer();
@@ -291,11 +305,12 @@ export class Vxi11Client {
    * 0), and the RPC deadline never extends past `deadline + rpcMarginMs`. Past the deadline,
    * later calls are refused with {@link Vxi11IoTimeoutError}.
    */
-  private budget(deadline: number, later: boolean, name: string): { ioMs: number; rpcMs: number } {
+  private budget(deadline: number, later: boolean, name: string, fraction = 1): { ioMs: number; rpcMs: number } {
     const now = Date.now();
     if (later && now >= deadline) throw new Vxi11IoTimeoutError(15, `${name} (overall timeout exceeded)`);
-    const ioMs = Math.max(later ? 1 : 0, deadline - now);
-    return { ioMs, rpcMs: ioMs + this.rpcMarginMs };
+    const remaining = Math.max(later ? 1 : 0, deadline - now);
+    const ioMs = fraction === 1 ? remaining : Math.max(remaining > 0 ? 1 : 0, Math.ceil(remaining * fraction));
+    return { ioMs, rpcMs: remaining + this.rpcMarginMs };
   }
 
   /** device_readstb: the IEEE 488.1 status byte (0-255). */
@@ -374,7 +389,8 @@ function rpcFailure(err: unknown, operation: string, connecting: boolean): Vxi11
   const detail = `VXI-11 ${operation}: ${errMessage(err)}`;
   if (connecting && err instanceof RpcError) return new Vxi11ConnectError(detail, { cause: err });
   if (err instanceof RpcProtocolError) return new Vxi11ProtocolError(detail, { cause: err });
-  if (err instanceof RpcClosedError || err instanceof RpcTimeoutError || err instanceof RpcError) return new Vxi11TransportError(detail, { cause: err });
+  if (err instanceof RpcTimeoutError) return new Vxi11RpcTimeoutError(detail, { cause: err });
+  if (err instanceof RpcClosedError || err instanceof RpcError) return new Vxi11TransportError(detail, { cause: err });
   return new Vxi11TransportError(detail, { cause: err });
 }
 

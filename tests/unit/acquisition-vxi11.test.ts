@@ -11,6 +11,7 @@ let fake: FakeVxi11Instrument | undefined;
 
 async function setup(sweepMs: number, sweepTime = "3.000000e-01") {
   fake = await startFakeVxi11Instrument({
+    firmware: true,
     sweepMs,
     scpi: (c) => (/^\*IDN\?$/i.test(c) ? "UNI-T,UTS3036B,FAKE,1.0" : c === ":SENSe:SWEep:TIME?" ? sweepTime + " " : undefined),
   });
@@ -71,9 +72,32 @@ describe("sweep wait over VXI-11", () => {
     expect(hasPendingSweep()).toBe(false);
   });
 
+  it("a too-short timeout fails the wait, keeps the link, and the commands sent afterwards are answered once the sweep ends", async () => {
+    await setup(900, "9.000000e-01");
+    await startSweep("immediate");
+    const err = await waitForSweepComplete({ timeoutMs: 150 }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SweepTimeoutError);
+    expect(connection.isConnected()).toBe(true);
+    // queued behind the running sweep: nothing was dropped
+    expect(await connection.query("*IDN?", 4000)).toMatch(/UTS3036B/);
+  });
+
   it("waiting without a started sweep returns as soon as the instrument answers *OPC?", async () => {
     await setup(0);
     const res = await waitForSweepComplete();
     expect(res.waitedMs).toBeLessThan(500);
+  });
+});
+
+describe("unsupported query over VXI-11 (the real firmware never answers it, not even with error 15)", () => {
+  it("is a query timeout naming VXI-11, the connection survives and the next query works", async () => {
+    await setup(0);
+    const t0 = Date.now();
+    const err = await connection.query(":NOT:ACOMMAND?", 150).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/^Query timeout after 150ms for command: :NOT:ACOMMAND\?.*VXI-11/);
+    expect(Date.now() - t0).toBeLessThan(2000);
+    expect(connection.isConnected()).toBe(true);
+    expect(await connection.query("*IDN?", 3000)).toMatch(/UTS3036B/);
   });
 });

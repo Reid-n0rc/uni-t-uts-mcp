@@ -100,7 +100,7 @@ The server connects automatically at startup when `UTS_IP` is set (a failed auto
 |----------|-------------|
 | `UTS_IP` | Analyzer hostname or IP. Enables auto-connect and is the default host for the `connect` tool |
 | `UTS_PORT` | TCP port of the raw transport, default `5025` |
-| `UTS_TRANSPORT` | `raw` (default), `vxi11` or `auto` (VXI-11 if the analyzer offers it, otherwise raw). Default for the `connect` tool's `transport` parameter |
+| `UTS_TRANSPORT` | `auto` (default: VXI-11 if the analyzer offers it, otherwise raw), `raw` or `vxi11`. Default for the `connect` tool's `transport` parameter; setting only `UTS_PORT` means raw |
 | `UTS_VXI11_DEVICE` | VXI-11 logical device name, default `inst0` |
 | `UTS_BUSY_TIMEOUT_S` | How many seconds a tool call waits for another call to finish before failing with `Instrument busy`, default `120` |
 
@@ -108,7 +108,7 @@ To set the address in a shell instead of the client configuration: `export UTS_I
 
 ### Raw TCP or VXI-11
 
-The default transport is raw SCPI over TCP port 5025. VXI-11 (`UTS_TRANSPORT=vxi11`, or `auto`) is also available; it uses TCP port 111 (the portmapper) and a port the portmapper reports, which changes between instrument restarts, so a host firewall must allow outbound connections to the analyzer. Over VXI-11 the analyzer queues commands sent during a sweep instead of dropping them, and `single_sweep` waits with one blocking `*OPC?`. VXI-11 has so far been verified against a fake instrument and prototype measurements, and the default stays raw until it has been verified on the hardware ([issue #75](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/75)). Details: [Architecture](Architecture) and the [programming guide](https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/docs/programming-guide.md#vxi-11-transport-srctransportsvxi11ts-srctransportsselectts).
+The default transport is `auto`: VXI-11 when the analyzer offers it, otherwise raw SCPI over TCP port 5025 (`UTS_TRANSPORT=raw` or `vxi11` forces one). VXI-11 uses TCP port 111 (the portmapper) and a port the portmapper reports, which changes between instrument restarts, so a host firewall must allow outbound connections to the analyzer. Over VXI-11 the analyzer queues commands sent during a sweep instead of dropping them, and `single_sweep` waits with one blocking `*OPC?`. VXI-11 was verified against the real UTS3036B ([issue #75](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/75)): every tool gives the same values as over raw, nothing is dropped during a sweep, and the screen image is not truncated. Details: [Architecture](Architecture) and the [programming guide](https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/docs/programming-guide.md#vxi-11-transport-srctransportsvxi11ts-srctransportsselectts).
 
 ## First steps
 

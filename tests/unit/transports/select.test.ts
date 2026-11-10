@@ -1,9 +1,11 @@
 import { describe, it, expect, afterEach } from "vitest";
 import * as net from "node:net";
 import {
+  DEFAULT_TRANSPORT,
   DEFAULT_VXI11_DEVICE,
   isValidDeviceName,
   parseTransportChoice,
+  resolveTransport,
   transportFromEnv,
   vxi11DeviceFromEnv,
   probeVxi11,
@@ -24,11 +26,31 @@ describe("transport choice parsing", () => {
     }
   });
 
-  it("defaults to raw when UTS_TRANSPORT is unset or empty", () => {
-    expect(transportFromEnv(undefined)).toBe("raw");
-    expect(transportFromEnv("")).toBe("raw");
+  it("defaults to auto when UTS_TRANSPORT is unset or empty (decision of issue #75)", () => {
+    expect(DEFAULT_TRANSPORT).toBe("auto");
+    expect(transportFromEnv(undefined)).toBe("auto");
+    expect(transportFromEnv("")).toBe("auto");
     expect(transportFromEnv("auto")).toBe("auto");
     expect(() => transportFromEnv("bogus")).toThrow(/Invalid UTS_TRANSPORT "bogus"/);
+  });
+});
+
+describe("resolveTransport", () => {
+  it("an explicit transport always wins, then UTS_TRANSPORT, then auto", () => {
+    expect(resolveTransport({ param: "vxi11", env: "raw", portGiven: true })).toBe("vxi11");
+    expect(resolveTransport({ env: "vxi11", portGiven: true })).toBe("vxi11");
+    expect(resolveTransport({ env: "auto", portGiven: true })).toBe("auto");
+    expect(resolveTransport({})).toBe("auto");
+    expect(resolveTransport({ env: "" })).toBe("auto");
+  });
+
+  it("a port given without any transport choice means raw (the port is a raw transport setting)", () => {
+    expect(resolveTransport({ portGiven: true })).toBe("raw");
+    expect(resolveTransport({ env: "", portGiven: true })).toBe("raw");
+  });
+
+  it("an invalid UTS_TRANSPORT is an error naming the variable", () => {
+    expect(() => resolveTransport({ env: "bogus" })).toThrow(/UTS_TRANSPORT/);
   });
 });
 
