@@ -464,6 +464,11 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
       <p class="sub reveal">Works today with Node.js 22+ (or Docker) and an analyzer reachable on your network. Use your analyzer's address in place of <code>192.168.1.100</code>.</p>
       <div class="steps">
         <div class="step reveal">
+          <h3>Claude Desktop: download the .mcpb and double-click</h3>
+          <p class="callout">Available from the next release: v0.1.0 does not include the <code>.mcpb</code> file yet. Until then use the JSON configuration below, or build it with <code>npm run build:mcpb</code> from a clone.</p>
+          <p>Download <code>uni-t-uts-mcp-&lt;version&gt;.mcpb</code> from the GitHub release and double-click it. In the install dialog enter the analyzer address (optional: you can also say "connect to the analyzer at 192.168.1.100"), keep port 5025 and transport <code>raw</code>, and install. Claude Desktop already includes the Node.js it needs.</p>
+        </div>
+        <div class="step reveal">
           <h3>Claude Code</h3>
           <div class="win"><div class="win-bar"><h3 class="win-title">terminal (macOS / Linux)</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
             <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz">Copy</button>
@@ -474,7 +479,7 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
           <p class="callout">Windows needs <code>cmd /c</code> because <code>npx</code> is a <code>.cmd</code> file. <code>UTS_IP</code> is optional: without it, tell the assistant "connect to the analyzer at 192.168.1.100".</p>
         </div>
         <div class="step reveal">
-          <h3>Claude Desktop, Cursor, VS Code and others</h3>
+          <h3>Claude Desktop (JSON), Cursor, VS Code and others</h3>
           <div class="win"><div class="win-bar"><h3 class="win-title">mcp config (JSON, macOS / Linux)</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
             <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;npx&quot;,&#10;      &quot;args&quot;: [&quot;-y&quot;, &quot;https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz&quot;],&#10;      &quot;env&quot;: { &quot;UTS_IP&quot;: &quot;192.168.1.100&quot; }&#10;    }&#10;  }&#10;}">Copy</button>
 <pre class="code"><code>{

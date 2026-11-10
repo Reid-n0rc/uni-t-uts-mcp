@@ -6,8 +6,8 @@ maintainer's explicit go-ahead (see [AGENTS.md](../AGENTS.md)).
 
 **Release channels.** The package is not on the npm registry yet (the first publish is pending), so a release is:
 
-1. a **GitHub release** for the tag `v<version>` with the packed tarball `uni-t-uts-mcp-<version>.tgz` attached
-   and the changelog section as notes, and
+1. a **GitHub release** for the tag `v<version>` with the packed tarball `uni-t-uts-mcp-<version>.tgz` and the
+   Claude Desktop MCP bundle `uni-t-uts-mcp-<version>.mcpb` attached and the changelog section as notes, and
 2. a **Docker image** `ghcr.io/reid-n0rc/uni-t-uts-mcp:<version>` on GHCR.
 
 npm publishing is wired up but optional (it skips while the `NPM_TOKEN` secret is absent); see
@@ -29,6 +29,30 @@ docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:<vers
 In an MCP client configuration use `"command": "npx"` with `"args": ["-y", "<one of the specs above>"]`
 (on Windows clients that cannot launch `npx` directly: `cmd /c npx -y ...`). Newer npm versions may ask to allow the
 install script of a git dependency; the tarball URL has no install scripts and is the most robust choice.
+
+## The Claude Desktop bundle (`.mcpb`)
+
+`release.yml` also builds `uni-t-uts-mcp-<version>.mcpb` (issue #86) and attaches it next to the tarball. It is a zip
+made by the official packer `@anthropic-ai/mcpb` (version pinned in `scripts/build-mcpb.mjs`, fetched from npm into a
+temporary folder; it is not a dependency of the project) from `mcpb/manifest.json`, `build/**/*.js`, the production
+dependencies (`npm ci --omit=dev --ignore-scripts`), `package.json`, `LICENSE`, `README.md` and a generated `icon.png`.
+Users double-click it in Claude Desktop; see the README for the settings dialog.
+
+- The manifest `version` must equal `package.json`; the build stops otherwise. A test also keeps the manifest's tool
+  list equal to the registered tools, so adding or renaming a tool means updating `mcpb/manifest.json` in the same PR.
+- Local build: `npm ci && npm run build && npm run build:mcpb` writes `dist/uni-t-uts-mcp-<version>.mcpb`.
+  `npm run test:mcpb` builds it again, checks the file list (no source maps, tests, docs, secrets, addresses or serial
+  numbers), validates the manifest with the official validator, unpacks it into an empty folder and runs its entry
+  point over stdio (`initialize` and `tools/list`, via `scripts/smoke-mcp.mjs`).
+- CI: the `mcpb bundle` job does the same on Ubuntu, macOS and Windows for every pull request.
+- The bundle is not signed (signing needs a code-signing certificate; the packer's `sign` command can add one later).
+- Releases made before the PR for #86 (v0.1.0) have no `.mcpb`. The README and site say "available from the next
+  release"; change that to the real download instructions once a release carries the file.
+- Manual check before announcing it (CI cannot run Claude Desktop): on macOS and on Windows, double-click the downloaded
+  file, confirm the settings dialog shows Analyzer address (empty is allowed), Port (5025) and Transport (raw), install,
+  start a new chat, check that the tools are listed under the extension, and ask "connect to the analyzer at
+  <address>" (or enter the address in the settings and ask for the identification). Confirm nothing else needs to be
+  installed on a machine without Node.js.
 
 ## Version policy
 
@@ -61,6 +85,7 @@ package is caught before a tag exists:
 | `package contents` | `npm pack --dry-run --json` lists only `build/**/*.js`, `build/**/*.d.ts`, `README.md`, `LICENSE`, `package.json` (no tests, docs, scripts, sources, source maps, `node_modules`); `npm publish --dry-run` makes no `package.json` auto-corrections (for example a dropped `bin`, which a `./` prefix in `bin` caused) | `npm run build && node scripts/check-pack.mjs` |
 | `npm install smoke` | packs the tarball, installs it (`file:` spec) into an empty project on Ubuntu (Node 22 and 24), macOS and Windows, starts the installed `bin` over stdio, sends `initialize` and `tools/list`, and asserts the server name and that the tool count equals the number registered in the repo's build (never hard-coded) | see below |
 | `git install smoke` | installs a `git+file://` URL of the checkout into an empty project (the code path of `npx github:...`, which builds through `prepare`), runs the bin over stdio and repeats the checks. The `github:` spec itself can only be verified once a tag exists | see below |
+| `mcpb bundle` | builds the `.mcpb` on Ubuntu, macOS and Windows, validates the manifest with the official validator, checks the exact file list, and starts the unpacked bundle over stdio | `npm run build && npm run test:mcpb` |
 | `docker image smoke` | builds the image (no push), checks the `org.opencontainers.image.source` label, runs it through `docker run -i` and repeats the same checks | `docker build -t uni-t-uts-mcp:ci . && node scripts/smoke-mcp.mjs -- docker run -i --rm uni-t-uts-mcp:ci` |
 
 Local run of the install smoke test (POSIX shell, from the repo root after `npm run build`):
@@ -103,7 +128,7 @@ Only what needs the maintainer's GitHub account; agents cannot do these.
 
 | Workflow | Result |
 |----------|--------|
-| `release.yml` | checks the tag equals `v<package.json version>`, builds, tests, checks and smoke-tests the tarball, creates the GitHub release with the matching CHANGELOG section as notes (generated notes if there is none; hyphenated tags are marked pre-release) and attaches `uni-t-uts-mcp-<version>.tgz`; needs only `contents: write` |
+| `release.yml` | checks the tag equals `v<package.json version>`, builds, tests, checks and smoke-tests the tarball, creates the GitHub release with the matching CHANGELOG section as notes (generated notes if there is none; hyphenated tags are marked pre-release) and attaches `uni-t-uts-mcp-<version>.tgz` and the `.mcpb` bundle (built and checked first); needs only `contents: write` |
 | `docker-publish.yml` | checks the tag, builds `linux/amd64` and `linux/arm64`, pushes `ghcr.io/reid-n0rc/uni-t-uts-mcp` tagged `<version>`, `<major>.<minor>` and (not for pre-releases) `latest`, with OCI labels including `org.opencontainers.image.source` |
 | `npm-publish.yml` | with no `NPM_TOKEN` secret: succeeds with a notice and publishes nothing. With the secret: checks the tag, builds, re-checks the tarball and runs `npm publish --provenance --access public` |
 

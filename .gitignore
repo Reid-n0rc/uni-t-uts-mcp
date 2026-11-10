@@ -5,4 +5,5 @@ build/
 .claude/
 .DS_Store
 _site/
+dist/
 _wiki/
