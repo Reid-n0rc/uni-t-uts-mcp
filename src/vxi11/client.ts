@@ -48,6 +48,8 @@ export const vxi11ErrorName = (code: number): string => VXI11_ERROR_NAMES[code] 
 /** Largest single device_read the client asks for, and the cap on maxBytes. */
 export const MAX_READ_CHUNK = 1024 * 1024;
 export const DEFAULT_MAX_READ_BYTES = 16 * 1024 * 1024;
+/** Default cap on RPC calls made by one read() or write() (a hostile server could answer 1 byte at a time). */
+export const DEFAULT_MAX_CALLS = 10_000;
 const MAX_DEVICE_NAME = 256;
 const MAX_TIMEOUT_MS = 0xffffffff;
 
@@ -109,13 +111,17 @@ export interface Vxi11WriteOptions {
   timeoutMs?: number;
   /** Set the END flag on the last chunk (default true). */
   end?: boolean;
+  /** Cap on device_write calls for this write, chunks plus partial-write retries (default 10000 plus the chunk count). */
+  maxCalls?: number;
 }
 
 export interface Vxi11ReadOptions {
-  /** Overall time allowed for the whole read, in ms (default 5000). */
+  /** Overall time allowed for the whole read, in ms (default 5000); the call also gives up after the deadline passes between chunks. */
   timeoutMs?: number;
   /** Stop after this many bytes even without END (default 16 MiB). */
   maxBytes?: number;
+  /** Cap on device_read calls for this read (default 10000). */
+  maxCalls?: number;
 }
 
 export interface Vxi11ReadResult {
@@ -215,27 +221,29 @@ export class Vxi11Client {
     const timeoutMs = checkTimeout(options.timeoutMs, 5000, "write");
     const end = options.end ?? true;
     const bytes = typeof data === "string" ? Buffer.from(data, "latin1") : data;
+    const maxCalls = checkCalls(options.maxCalls, DEFAULT_MAX_CALLS + Math.ceil(bytes.length / this.maxRecvSize));
+    const deadline = Date.now() + timeoutMs;
     let offset = 0;
-    do {
+    for (let calls = 0; ; calls++) {
+      if (calls >= maxCalls) throw new Vxi11ProtocolError(`device_write needed more than ${maxCalls} calls to send ${bytes.length} bytes`);
+      const { ioMs, rpcMs } = this.budget(deadline, calls > 0, "device_write");
       const chunk = bytes.subarray(offset, offset + this.maxRecvSize);
       const last = offset + chunk.length >= bytes.length;
       const args = new XdrWriter()
         .u32(this.linkId)
-        .u32(timeoutMs)
+        .u32(ioMs)
         .u32(0)
         .u32(last && end ? FLAG_END : 0)
         .opaque(chunk)
         .toBuffer();
-      const reply = await this.call(PROC_DEVICE_WRITE, args, timeoutMs, "device_write");
+      const reply = await this.call(PROC_DEVICE_WRITE, args, rpcMs, "device_write");
       const { error, size } = parse(reply, "device_write", (r) => ({ error: r.u32(), size: r.u32() }));
       if (error !== 0) throw deviceError(error, "device_write");
       if (size > chunk.length) throw new Vxi11ProtocolError(`device_write reported ${size} bytes written but only ${chunk.length} were sent`);
       if (size === 0 && chunk.length > 0) throw new Vxi11ProtocolError("device_write accepted 0 bytes");
       offset += size;
-      if (size < chunk.length || !last) continue;
-      break;
-    } while (offset < bytes.length);
-    return offset;
+      if (offset >= bytes.length && (size === chunk.length || chunk.length === 0)) return offset;
+    }
   }
 
   /**
@@ -249,16 +257,18 @@ export class Vxi11Client {
     if (!Number.isInteger(maxBytes) || maxBytes < 1 || maxBytes > DEFAULT_MAX_READ_BYTES) {
       throw new RangeError(`maxBytes must be an integer from 1 to ${DEFAULT_MAX_READ_BYTES}, got ${maxBytes}`);
     }
+    const maxCalls = checkCalls(options.maxCalls, DEFAULT_MAX_CALLS);
     const deadline = Date.now() + timeoutMs;
     const chunks: Buffer[] = [];
     let total = 0;
     let end = false;
-    while (!end && total < maxBytes) {
-      const remainingMs = Math.max(0, deadline - Date.now());
+    for (let calls = 0; !end && total < maxBytes; calls++) {
+      if (calls >= maxCalls) throw new Vxi11ProtocolError(`device_read needed more than ${maxCalls} calls without END (${total} bytes so far)`);
+      const { ioMs, rpcMs } = this.budget(deadline, calls > 0, "device_read");
       const requestSize = Math.min(maxBytes - total, MAX_READ_CHUNK);
       // (link, requestSize, io_timeout, lock_timeout, flags, termChar)
-      const args = new XdrWriter().u32(this.linkId).u32(requestSize).u32(remainingMs).u32(0).u32(0).u32(0).toBuffer();
-      const reply = await this.call(PROC_DEVICE_READ, args, remainingMs, "device_read");
+      const args = new XdrWriter().u32(this.linkId).u32(requestSize).u32(ioMs).u32(0).u32(0).u32(0).toBuffer();
+      const reply = await this.call(PROC_DEVICE_READ, args, rpcMs, "device_read");
       const { error, reason, data } = parse(reply, "device_read", (r) => {
         const v = { error: r.u32(), reason: r.u32(), data: r.opaque(MAX_READ_CHUNK) };
         r.expectEnd();
@@ -275,11 +285,24 @@ export class Vxi11Client {
     return { data: Buffer.concat(chunks, total), end };
   }
 
+  /**
+   * Time budget for one call of a multi-call operation: the I/O timeout is the time left until
+   * `deadline` (at least 1 ms after the first call; 0 on the first call only if the caller asked for
+   * 0), and the RPC deadline never extends past `deadline + rpcMarginMs`. Past the deadline,
+   * later calls are refused with {@link Vxi11IoTimeoutError}.
+   */
+  private budget(deadline: number, later: boolean, name: string): { ioMs: number; rpcMs: number } {
+    const now = Date.now();
+    if (later && now >= deadline) throw new Vxi11IoTimeoutError(15, `${name} (overall timeout exceeded)`);
+    const ioMs = Math.max(later ? 1 : 0, deadline - now);
+    return { ioMs, rpcMs: ioMs + this.rpcMarginMs };
+  }
+
   /** device_readstb: the IEEE 488.1 status byte (0-255). */
   async readStb(options: { timeoutMs?: number } = {}): Promise<number> {
     const timeoutMs = checkTimeout(options.timeoutMs, 5000, "readStb");
     const args = new XdrWriter().u32(this.linkId).u32(0).u32(0).u32(timeoutMs).toBuffer();
-    const reply = await this.call(PROC_DEVICE_READSTB, args, timeoutMs, "device_readstb");
+    const reply = await this.call(PROC_DEVICE_READSTB, args, timeoutMs + this.rpcMarginMs, "device_readstb");
     const { error, stb } = parse(reply, "device_readstb", (r) => ({ error: r.u32(), stb: r.u32() }));
     if (error !== 0) throw deviceError(error, "device_readstb");
     if (stb > 255) throw new Vxi11ProtocolError(`device_readstb returned a status byte of ${stb}`);
@@ -290,7 +313,7 @@ export class Vxi11Client {
   async clear(options: { timeoutMs?: number } = {}): Promise<void> {
     const timeoutMs = checkTimeout(options.timeoutMs, 5000, "clear");
     const args = new XdrWriter().u32(this.linkId).u32(0).u32(0).u32(timeoutMs).toBuffer();
-    const reply = await this.call(PROC_DEVICE_CLEAR, args, timeoutMs, "device_clear");
+    const reply = await this.call(PROC_DEVICE_CLEAR, args, timeoutMs + this.rpcMarginMs, "device_clear");
     const { error } = parse(reply, "device_clear", (r) => ({ error: r.u32() }));
     if (error !== 0) throw deviceError(error, "device_clear");
   }
@@ -318,10 +341,10 @@ export class Vxi11Client {
     this.rpc.close();
   }
 
-  private async call(procedure: number, args: Buffer, ioTimeoutMs: number, name: string): Promise<XdrReader> {
+  private async call(procedure: number, args: Buffer, rpcTimeoutMs: number, name: string): Promise<XdrReader> {
     if (this.closed || this.closing) throw new Vxi11ClosedError(`${name} on a closed VXI-11 client`);
     try {
-      const reply = await this.rpc.call(VXI11_CORE_PROGRAM, VXI11_CORE_VERSION, procedure, args, { timeoutMs: ioTimeoutMs + this.rpcMarginMs });
+      const reply = await this.rpc.call(VXI11_CORE_PROGRAM, VXI11_CORE_VERSION, procedure, args, { timeoutMs: rpcTimeoutMs });
       // A close() issued while this call was in flight wins, whatever the instrument answered.
       if (this.closing) throw new Vxi11ClosedError(`${name} aborted: the VXI-11 client was closed`);
       return reply;
@@ -331,6 +354,12 @@ export class Vxi11Client {
       throw rpcFailure(err, name, false);
     }
   }
+}
+
+function checkCalls(value: number | undefined, fallback: number): number {
+  const v = value ?? fallback;
+  if (!Number.isInteger(v) || v < 1) throw new RangeError(`maxCalls must be a positive integer, got ${v}`);
+  return v;
 }
 
 function randomClientId(): number {
