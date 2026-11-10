@@ -102,6 +102,26 @@ All parameters are optional, but at least one is required. The settings are re-r
 
 Commands are sent in dependency order (unit, preamp, attenuation, impedance, scale, offset, then reference level) because the reference level is limited by the attenuation and preamp. Numbers are sent without unit suffixes. Before applying, the error queue is cleared with `*CLS`; afterwards it is checked and any error is returned as an error result (settings may be partially applied).
 
+## Bandwidth, sweep and detector
+
+Command syntax: [programming-guide.md](programming-guide.md) section 2. Verified on the UTS3036B: see [verified-hardware.md](verified-hardware.md). All setters clamp silently, so every setter re-reads the state and lists adjusted values in `warnings`.
+
+### `get_bandwidth` / `set_bandwidth`
+
+`get_bandwidth` (read-only) returns `rbw_hz`, `rbw_auto`, `vbw_hz`, `vbw_auto`, `vbw_rbw_ratio` and `filter_shape` (`gaussian` or `flattop`).
+
+`set_bandwidth` parameters (all optional, at least one): `rbw_hz`, `rbw_auto`, `vbw_hz`, `vbw_auto`, `vbw_rbw_ratio`, `filter_shape`. A manual value turns the matching auto flag off, so `rbw_hz` with `rbw_auto=true` (and likewise for VBW) is rejected. RBW/VBW snap to 1-3-10 steps and clamp to 1 Hz..3 MHz (UTS3036B); the VBW follows RBW times the ratio while VBW is auto. Order sent: shape, RBW, ratio, VBW.
+
+### `get_sweep` / `set_sweep`
+
+`get_sweep` (read-only) returns `sweep_time_s`, `sweep_time_auto`, `sweep_time_rule` (`normal`/`accuracy`), `sweep_type` (`sweep`/`fft`), `sweep_type_auto`, `sweep_points`, `trigger_source` (`immediate`/`video`) and `trigger_video_level_dbm`.
+
+`set_sweep` parameters (all optional, at least one): `sweep_points` (integer 11-40001; this is the trace length), `sweep_time_s` (1 ms-4000 s, turns auto off), `sweep_time_auto`, `sweep_time_rule`, `sweep_type`, `sweep_type_auto`, `trigger_source`, `trigger_video_level_dbm` (-170..30). External trigger is rejected by the instrument and not offered. Order sent: points, type, rule, auto flags, trigger level then source (setting the level selects the video trigger), and the manual sweep time last. Changing the span or RBW re-enables or recomputes automatic sweep time, so re-read after changing them.
+
+### `get_detector` / `set_detector`
+
+Uses `:SENSe:DETector:TRACe<n>` (the plain `:DETector[:FUNCtion]` is for measurements). `get_detector` (read-only) takes an optional `trace` (1-6) and returns `{traces: [{trace, detector, auto}]}`. `set_detector` takes `trace` plus `detector` (`sample`, `positive`, `negative`, `normal`, `average`; turns auto off for that trace) or `auto`.
+
 ## Environment variables
 
 | Variable | Description |

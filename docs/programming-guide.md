@@ -114,8 +114,8 @@ All are SA-module commands. Query form is the same string with `?`. Max frequenc
 | Points | `[:SENSe]:SWEep:POINts <int>` | 11 to 40001 (UTS3036B; UTS1015B 10001) |
 | Single/continuous | `:INITiate:CONTinuous {1\|ON\|0\|OFF}` / `?` | 1 = continuous, 0 = single (manual text mislabels both as 1|ON on p.39; 1K p.69 confirms 0 = single). |
 | Start/restart/stop/pause/resume sweep | `:INITiate:IMMediate`, `:INITiate:RESTart`, `:INITiate:STOP`, `:INITiate:PAUSe`, `:INITiate:RESume` | **Documented only in the EMI module section (3K p.114-115)**, not in the SA section. Also `*TRG` (1K). Verify on SA. |
-| Trigger source | `:TRIGger[:SEQuence]:SOURce {IMMediate\|EXTernal\|VIDeo}` | p.91 |
-| Ext trigger slope | `:TRIGger[:SEQuence]:EXTernal:SLOPe {POSitive\|NEGative}` | p.91 |
+| Trigger source | `:TRIGger[:SEQuence]:SOURce {IMMediate\|EXTernal\|VIDeo}` | p.91; UTS3036B rejects EXTernal (-224). Setting the video level selects VIDeo |
+| Ext trigger slope | `:TRIGger[:SEQuence]:EXTernal:SLOPe {POSitive\|NEGative}` | p.91; query gets no reply on the UTS3036B |
 | Ext trigger delay | `:TRIGger[:SEQuence]:EXTernal:DELay <time>` | 1 ns to 500 ms (manual writes "1000ps") p.92 |
 | Video trigger level | `:TRIGger[:SEQuence]:VIDeo:LEVel <ampl>` | dBm p.92 |
 
@@ -125,7 +125,7 @@ All are SA-module commands. Query form is the same string with `?`. Max frequenc
 |---|---|
 | `[:SENSe]:DETector[:FUNCtion] {SAMPle\|POSitive\|NEGative\|NORMal\|AVERage}` | Current trace; manual says "for advanced measurement ... not suitable for spectrum sweep, TOI, harmonics" |
 | `[:SENSe]:DETector:TRACe<n> {same}` | Per trace n (1-6 on UTS3036B) |
-| `[:SENSe]:DETector:TRACe<n>:AUTO {1\|0}` | **(1K only)** 1K p.113 |
+| `[:SENSe]:DETector:TRACe<n>:AUTO {1\|0}` | Documented for the 1K only (1K p.113), but **works on the UTS3036B** |
 
 ## 3. Trace (3K p.89-91, p.31)
 
