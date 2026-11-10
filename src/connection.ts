@@ -16,6 +16,7 @@ const DEFAULT_IDENT_TIMEOUT = 5000;
 const DEFAULT_QUERY_TIMEOUT = 5000;
 const DEFAULT_BINARY_TIMEOUT = 30000;
 const LF = 0x0a;
+const CR = 0x0d;
 
 const NOT_CONNECTED =
   "Not connected to the spectrum analyzer. Use the 'connect' tool first.";
@@ -52,8 +53,11 @@ export class UtsConnection {
   private jobs: Job[] = [];
   private active: Job | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
-  /** A binary block's trailing LF may arrive after the payload was resolved; drop it. */
-  private dropLeadingLF = false;
+  /**
+   * The terminator (LF or CRLF) of a binary block may arrive after the payload was
+   * resolved. `any`: nothing seen yet; `lf`: a CR was seen, an LF should follow.
+   */
+  private pendingTerminator: "none" | "any" | "lf" = "none";
 
   async connect(
     host: string,
@@ -84,7 +88,7 @@ export class UtsConnection {
 
     this.socket = socket;
     this.buffer = Buffer.alloc(0);
-    this.dropLeadingLF = false;
+    this.pendingTerminator = "none";
     socket.on("data", (chunk) => this.onData(chunk));
     socket.on("error", (err) => this.failActive(new Error(`Socket error: ${err.message}`)));
     socket.on("close", () => {
@@ -209,12 +213,26 @@ export class UtsConnection {
 
   // ---------- replies ----------
 
-  private onData(chunk: Buffer): void {
-    let data = chunk;
-    if (this.dropLeadingLF && data.length > 0) {
-      this.dropLeadingLF = false;
-      if (data[0] === LF) data = data.subarray(1);
+  private stripPendingTerminator(data: Buffer): Buffer {
+    let i = 0;
+    if (this.pendingTerminator === "any" && data.length > 0) {
+      if (data[0] === CR) {
+        i = 1;
+        this.pendingTerminator = "lf";
+      } else {
+        if (data[0] === LF) i = 1;
+        this.pendingTerminator = "none";
+      }
     }
+    if (this.pendingTerminator === "lf" && i < data.length) {
+      if (data[i] === LF) i++;
+      this.pendingTerminator = "none";
+    }
+    return data.subarray(i);
+  }
+
+  private onData(chunk: Buffer): void {
+    const data = this.stripPendingTerminator(chunk);
     this.buffer = Buffer.concat([this.buffer, data]);
     const job = this.active;
     if (!job || job.kind === "command") return;
@@ -227,10 +245,9 @@ export class UtsConnection {
 
     const result = parseBlock(this.buffer);
     if (result.status === "ok") {
-      // If the terminating LF has not arrived yet, remember to drop it when it does.
-      const headerLength = 2 + (this.buffer[1] - 0x30);
-      const lfConsumed = result.consumed > headerLength + result.data.length;
-      this.dropLeadingLF = !lfConsumed;
+      // Remember how much of the terminator still has to arrive so it is not read as a reply.
+      this.pendingTerminator =
+        result.terminator === "none" ? "any" : result.terminator === "cr" ? "lf" : "none";
       this.finishActive(result.data);
     } else if (result.status === "invalid") {
       this.failActive(new Error(`Expected a binary block reply: ${result.reason}`));
