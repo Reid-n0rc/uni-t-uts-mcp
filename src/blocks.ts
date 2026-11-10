@@ -8,7 +8,17 @@
  */
 
 export type BlockResult =
-  | { status: "ok"; data: Buffer; consumed: number }
+  | {
+      status: "ok";
+      data: Buffer;
+      /** Bytes used from `offset`, including any trailing terminator that was present. */
+      consumed: number;
+      /**
+       * How much of the trailing terminator (LF or CRLF) was seen: `complete` (consumed),
+       * `cr` (only a CR so far; an LF should follow) or `none` (nothing yet).
+       */
+      terminator: "none" | "cr" | "complete";
+    }
   /** More bytes are needed; `needed` (total from offset) is known once the header is complete. */
   | { status: "incomplete"; needed?: number }
   | { status: "invalid"; reason: string };
@@ -20,6 +30,7 @@ export interface BlockOptions {
 
 const HASH = 0x23;
 const NEWLINE = 0x0a;
+const CR = 0x0d;
 const DEFAULT_MAX_LENGTH = 256 * 1024 * 1024;
 
 export function parseBlock(buf: Buffer, offset = 0, options: BlockOptions = {}): BlockResult {
@@ -57,6 +68,23 @@ export function parseBlock(buf: Buffer, offset = 0, options: BlockOptions = {}):
   }
 
   const data = Buffer.from(buf.subarray(offset + headerLength, end));
-  const trailingNewline = buf.length > end && buf[end] === NEWLINE ? 1 : 0;
-  return { status: "ok", data, consumed: headerLength + length + trailingNewline };
+
+  // The UTS3036B ends blocks with CRLF; other instruments use LF.
+  let terminator: "none" | "cr" | "complete" = "none";
+  let terminatorBytes = 0;
+  if (end < buf.length) {
+    if (buf[end] === NEWLINE) {
+      terminator = "complete";
+      terminatorBytes = 1;
+    } else if (buf[end] === CR) {
+      if (end + 1 >= buf.length) {
+        terminator = "cr";
+        terminatorBytes = 1;
+      } else if (buf[end + 1] === NEWLINE) {
+        terminator = "complete";
+        terminatorBytes = 2;
+      }
+    }
+  }
+  return { status: "ok", data, consumed: headerLength + length + terminatorBytes, terminator };
 }
