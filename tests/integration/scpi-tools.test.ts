@@ -4,7 +4,7 @@ import { registerScpiTools } from "../../src/tools/scpi.js";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 const mockConnection = vi.hoisted(() => ({
-  query: vi.fn(async (cmd: string, _timeout?: number) =>
+  query: vi.fn(async (cmd: string, _timeout?: number): Promise<string> =>
     cmd === "*IDN?" ? "UNI-TREND,UTS0000X,<serial>,V0.0.0" : cmd === ":SYSTem:ERRor?" ? '0,"No error"' : "1"
   ),
   msSinceQueryTimeout: () => Infinity,
@@ -141,7 +141,7 @@ describe("scpi_command", () => {
 
 describe("scpi_command error checking (#58)", () => {
   it("uses applyCommands: *CLS first, then checks the error queue and reports instrument errors", async () => {
-    mockConnection.query.mockImplementation(async (cmd: string) => (cmd === ":SYSTem:ERRor?" ? '-131,"Invalid suffix"' : "1"));
+    mockConnection.query.mockResolvedValueOnce('-131,"Invalid suffix"');
     const res = await callTool(client, "scpi_command", { command: ":FREQ:CENT 1 XX" });
     expect(mockConnection.sendCommand.mock.calls.map((c) => c[0])).toEqual(["*CLS", ":FREQ:CENT 1 XX"]);
     expect(res.isError).toBe(true);
