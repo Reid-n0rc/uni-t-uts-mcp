@@ -4,3 +4,4 @@ build/
 .mcp.json
 .claude/
 .DS_Store
+_site/
