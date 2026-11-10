@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>UNI-T UTS MCP social preview source</title>
+<!-- Source of site/og.png (1200x630) and site/social-preview.png (1280x640).
+     Render with: node scripts/build-og-image.mjs   (headless Chrome, no network, no external assets).
+     {{TOOLS}} is replaced by the registered tool count at render time; --w/--h are set by the script. -->
+<style>
+:root { --w: 1200px; --h: 630px; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: var(--w); height: var(--h); overflow: hidden; background: #0f0630; }
+body { position: relative; font-family: "Arial Rounded MT Bold", "Avenir Next", "Segoe UI Black", "Segoe UI", system-ui, sans-serif; color: #fff; }
+/* The art is laid out on a 1200x630 stage, centred in the canvas, so the 1280x640 size only adds sky and floor. */
+.bg { position: absolute; inset: 0; background: linear-gradient(#0b0426 0%, #1f0c5c 30%, #5b2bc4 50%, #b648d0 62%, #ff71ce 73%, #ffc2ee 74.5%); }
+.stage { position: absolute; left: calc((var(--w) - 1200px) / 2); top: calc((var(--h) - 630px) / 2); width: 1200px; height: 630px; }
+svg.art { position: absolute; left: 0; top: 0; width: 1200px; height: 630px; overflow: visible; }
+.floor { position: absolute; left: -40px; right: -40px; top: 470px; bottom: 0; background: linear-gradient(#2a0c5e, #0d0420); border-top: 4px solid #01cdfe; box-shadow: 0 -3px 30px rgba(1,205,254,.6); }
+.copy { position: absolute; left: 80px; top: 80px; width: 760px; }
+.name { display: inline-block; font: 700 26px ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .08em; color: #1a0f33; background: #fffb96; padding: 6px 16px; border: 3px solid #1a0f33; box-shadow: 5px 5px 0 #6a35d9; }
+h1 { margin: 26px 0 0; font-size: 78px; line-height: 1.02; font-weight: 800; letter-spacing: -.01em; text-shadow: 0 4px 0 #3b1a78, 0 0 30px rgba(15,6,48,.8); }
+h1 em { font-style: normal; color: #05ffa1; }
+.chips { position: absolute; left: 80px; bottom: 80px; display: flex; gap: 16px; }
+.chip { font: 700 28px ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: #d9fff8; background: #1a0f33; border: 3px solid #01cdfe; padding: 8px 20px; box-shadow: 5px 5px 0 #6a35d9; }
+.chip:nth-child(2) { border-color: #ff71ce; }
+.chip:nth-child(3) { border-color: #05ffa1; }
+.readout { position: absolute; right: 80px; top: 80px; width: 250px; background: #fff; color: #1a0f33; border: 3px solid #1a0f33; box-shadow: 6px 6px 0 #6a35d9; }
+.readout .bar { background: #6a35d9; color: #fff; font: 700 17px ui-monospace, Menlo, monospace; padding: 3px 10px; }
+.readout .body { font: 700 22px/1.35 ui-monospace, "SF Mono", Menlo, monospace; padding: 8px 12px; }
+.readout b { color: #6a35d9; }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="stage">
+  <svg class="art" viewBox="0 0 1200 630" aria-hidden="true">
+    <defs>
+      <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffb96"/><stop offset=".5" stop-color="#ffb3e6"/><stop offset="1" stop-color="#b967ff"/></linearGradient>
+      
+      <clipPath id="disc"><circle cx="960" cy="430" r="170"/></clipPath>
+      <clipPath id="sky"><rect x="0" y="0" width="1200" height="470"/></clipPath>
+      <filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <g clip-path="url(#sky)"><circle cx="960" cy="430" r="170" fill="url(#sun)"/><g fill="#4a1f99" clip-path="url(#disc)"><rect x="780" y="372" width="360" height="6"/><rect x="780" y="394" width="360" height="9"/><rect x="780" y="418" width="360" height="12"/><rect x="780" y="446" width="360" height="16"/></g></g>
+      </svg>
+  <div class="floor"></div>
+  <svg class="art" viewBox="0 0 1200 630" aria-hidden="true" id="top">
+    <g id="floorlines" stroke-width="2" opacity=".75"></g>
+    <g id="grat" stroke="#fff" stroke-opacity=".16" stroke-width="1.5"></g>
+    <path id="live" fill="none" stroke="#b967ff" stroke-width="5" stroke-linejoin="miter" stroke-linecap="square"/>
+    <path id="avg" fill="none" stroke="#00e6d8" stroke-width="7" stroke-linejoin="miter" filter="url(#glow)"/>
+    <g id="flag"></g>
+  </svg>
+  <div class="copy">
+    <div class="name">UNI-T UTS MCP</div>
+    <h1>Talk to your <em>spectrum</em> analyzer.</h1>
+  </div>
+  <div class="readout"><div class="bar">MKR 1</div><div class="body"><b>2.440 GHz</b><br>-38.6 dBm</div></div>
+  <div class="chips"><span class="chip">{{TOOLS}} tools</span><span class="chip">SCPI over LAN</span><span class="chip">MIT</span></div>
+</div>
+<script>
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  function el(parent, name, attrs) { var e = document.createElementNS(NS, name); for (var k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; }
+  // seeded noise: the picture is identical on every render
+  var seed = 7; function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  // perspective floor: horizon y=440, vanishing point (600, 440)
+  var fl = document.getElementById("floorlines");
+  for (var i = -20; i <= 20; i++) el(fl, "line", { x1: 600 + i * 40, y1: 470, x2: 600 + i * 330, y2: 640, stroke: "#ff71ce" });
+  var y = 470, d = 6; while (y < 640) { y += d; d *= 1.32; el(fl, "line", { x1: -40, y1: y, x2: 1240, y2: y, stroke: "#01cdfe" }); }
+  // graticule
+  var g = document.getElementById("grat");
+  for (var gy = 230; gy <= 470; gy += 45) el(g, "line", { x1: -40, y1: gy, x2: 1240, y2: gy });
+  var base = 440;
+  var peaks = [[250, 38, 20], [470, 70, 14], [700, 52, 12], [960, 165, 17], [1110, 60, 12]];
+  function env(x) { var v = 0; peaks.forEach(function (p) { v += p[1] * Math.exp(-Math.pow((x - p[0]) / p[2], 2)); }); return v; }
+  var live = "", avg = "", top = { x: 0, y: 9999 };
+  for (var x = -50; x <= 1250; x += 5) {
+    var e = env(x), ya = base - e - 8 * Math.sin(x / 37) * 0.6 - 3;
+    var yl = base - e - 10 + (rnd() - 0.5) * (22 + e * 0.2) - 6 - (rnd() < 0.1 ? 12 : 0);
+    avg += (x === -50 ? "M" : "L") + x + " " + ya.toFixed(1); live += (x === -50 ? "M" : "L") + x + " " + yl.toFixed(1);
+    if (ya < top.y) top = { x: x, y: ya };
+  }
+  document.getElementById("live").setAttribute("d", live); document.getElementById("avg").setAttribute("d", avg);
+  var f = document.getElementById("flag");
+  el(f, "line", { x1: top.x, y1: top.y, x2: top.x, y2: 192, stroke: "#fffb96", "stroke-width": 3, "stroke-dasharray": "2 7", "stroke-linecap": "round" });
+  el(f, "path", { d: "M" + (top.x - 13) + " " + (top.y - 26) + " L" + (top.x + 13) + " " + (top.y - 26) + " L" + top.x + " " + (top.y - 4) + " Z", fill: "#fffb96", stroke: "#1a0f33", "stroke-width": 3, "stroke-linejoin": "round" });
+})();
+</script>
+</body>
+</html>

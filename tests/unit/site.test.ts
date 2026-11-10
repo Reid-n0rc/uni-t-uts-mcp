@@ -115,6 +115,9 @@ describe("renderToolGroups / renderSite", () => {
   });
 });
 
+// The one allowed link to the outside: the canonical URL of the site itself (a hint for search engines, not a request).
+const CANONICAL = '<link rel="canonical" href="https://reid-n0rc.github.io/uni-t-uts-mcp/">';
+
 describe("site/index.html template", () => {
   const html = readFileSync(new URL("../../site/index.html", import.meta.url), "utf8");
 
@@ -124,8 +127,9 @@ describe("site/index.html template", () => {
   });
 
   it("is self-contained: no external scripts, stylesheets, fonts, images or imports", () => {
+    expect(html).toContain(CANONICAL);
     expect(html).not.toMatch(/<script[^>]+\ssrc=/i);
-    expect(html).not.toMatch(/<link[^>]+href=["']?https?:/i);
+    expect(html.split(CANONICAL).join("")).not.toMatch(/<link[^>]+href=["']?https?:/i);
     expect(html).not.toMatch(/<img[^>]+src=["']?https?:/i);
     expect(html).not.toMatch(/url\(\s*["']?https?:/i);
     expect(html).not.toMatch(/@import/i);
@@ -301,7 +305,7 @@ describe("site soundtrack (issue #91)", () => {
   });
 
   it("uses no media elements, audio files or external requests", () => {
-    for (const page of [html, built.page, source]) {
+    for (const page of [html.split(CANONICAL).join(""), built.page.split(CANONICAL).join(""), source]) {
       expect(page).not.toMatch(/<(audio|video|source|track|embed|object|iframe)\b/i);
       expect(page).not.toMatch(/\.(mp3|ogg|oga|wav|flac|m4a|aac|opus|webm|mp4)\b/i);
       expect(page).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|WebSocket|new\s+Audio\s*\(|importScripts|sendBeacon/);
