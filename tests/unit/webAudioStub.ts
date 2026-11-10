@@ -4,7 +4,7 @@
  * a context created without user activation stays "suspended" (or rejects resume()) until
  * `policy.unlocked` is set to true, which tests do right before dispatching a real gesture.
  */
-export type Mode = "allowed" | "suspended" | "reject";
+export type Mode = "allowed" | "suspended" | "reject" | "pending";
 
 export const policy: { mode: Mode; unlocked: boolean; contexts: StubContext[]; resumeCalls: number } = {
   mode: "allowed",
@@ -85,7 +85,8 @@ export class StubContext {
   resume(): Promise<void> {
     policy.resumeCalls++;
     if (this.state === "closed") return Promise.reject(new Error("closed"));
-    if (this.state === "running" || policy.unlocked) { this.setState("running"); return Promise.resolve(); }
+    if (this.state === "running" || policy.unlocked || policy.mode === "allowed") { this.setState("running"); return Promise.resolve(); }
+    if (policy.mode === "pending") return new Promise<void>(() => {}); // Chrome: neither resolves nor rejects
     if (policy.mode === "reject") return Promise.reject(new DOMException("The AudioContext was not allowed to start.", "NotAllowedError"));
     return Promise.resolve(); // stays suspended
   }
@@ -114,7 +115,7 @@ export class FakeDocument {
   prompt = new FakeElement("sound-prompt");
   state = new FakeElement("sound-state");
   listeners: Record<string, Array<(e: any) => void>> = {};
-  constructor() { this.prompt.hidden = true; }
+  constructor() { this.prompt.hidden = true; this.prompt.textContent = "Tap anywhere to start the soundtrack"; }
   getElementById(id: string) {
     return ({ "sound-toggle": this.button, "sound-prompt": this.prompt, "sound-state": this.state } as Record<string, FakeElement>)[id] ?? null;
   }

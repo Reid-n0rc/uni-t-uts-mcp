@@ -20,7 +20,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function setup(mode: "allowed" | "suspended" | "reject", winOpts: Parameters<typeof fakeWindow>[0] = {}) {
+function setup(mode: "allowed" | "suspended" | "reject" | "pending", winOpts: Parameters<typeof fakeWindow>[0] = {}) {
   resetPolicy(mode);
   const doc = new FakeDocument();
   const win = fakeWindow({ ctor: StubContext, ...winOpts });
@@ -278,5 +278,40 @@ describe("visual reaction", () => {
     const { sound } = setup("suspended");
     await flush();
     expect(sound.getSpectrum(new Uint8Array(sound.binCount))).toBe(false);
+  });
+});
+
+describe("autoplay: resume() promise stays pending (Chrome)", () => {
+  it("does not wait forever: shows the prompt after a short grace period", async () => {
+    const { doc, sound } = setup("pending");
+    await flush();
+    expect(sound.state()).toBe("starting");
+    expect(doc.prompt.hidden).toBe(true);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(sound.state()).toBe("waiting");
+    expect(doc.prompt.hidden).toBe(false);
+  });
+
+  it("a gesture inside the grace period still calls resume() and starts", async () => {
+    const { doc, sound } = setup("pending");
+    await flush();
+    const before = policy.resumeCalls;
+    policy.unlocked = true;
+    doc.dispatch("pointerdown", { tagName: "BODY" });
+    await flush();
+    expect(policy.resumeCalls).toBeGreaterThan(before);
+    expect(sound.state()).toBe("playing");
+    expect(doc.prompt.hidden).toBe(true);
+  });
+
+  it("starts if the browser lets the context run later by itself (statechange)", async () => {
+    const { sound } = setup("pending");
+    await vi.advanceTimersByTimeAsync(400);
+    expect(sound.state()).toBe("waiting");
+    policy.unlocked = true;
+    policy.contexts[0].state = "suspended";
+    await policy.contexts[0].resume();
+    await flush();
+    expect(sound.state()).toBe("playing");
   });
 });
