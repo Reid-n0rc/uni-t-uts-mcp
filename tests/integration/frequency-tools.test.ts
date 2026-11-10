@@ -152,6 +152,14 @@ describe("set_frequency", () => {
     expect(fake.calls).toEqual([":FREQuency:STOP 3500000000 Hz", ":FREQuency:STARt 3000000000 Hz"]);
   });
 
+  it("allows setting only start or only stop", async () => {
+    await callTool(client, "set_frequency", { start_hz: 5e8 });
+    expect(fake.calls).toEqual([":FREQuency:STARt 500000000 Hz"]);
+    fake.calls.length = 0;
+    await callTool(client, "set_frequency", { stop_hz: 2e9 });
+    expect(fake.calls).toEqual([":FREQuency:STOP 2000000000 Hz"]);
+  });
+
   it("full_span and zero_span", async () => {
     await callTool(client, "set_frequency", { full_span: true });
     expect(fake.calls).toEqual([":FREQuency:SPAN:FULL"]);
@@ -207,8 +215,7 @@ describe("set_frequency", () => {
       ["full_span with center", { full_span: true, center_hz: 1e9 }],
       ["zero_span with span", { zero_span: true, span_hz: 1e6 }],
       ["full_span with zero_span", { full_span: true, zero_span: true }],
-      ["only start", { start_hz: 5e8 }],
-      ["only stop", { stop_hz: 5e8 }],
+      ["center_step_hz with center_step_auto=true", { center_step_hz: 1e6, center_step_auto: true }],
     ];
     it.each(invalid)("rejects %s", async (_name, args) => {
       const res = await callTool(client, "set_frequency", args);
