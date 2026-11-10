@@ -189,7 +189,7 @@ Read-only. Optional `marker` (1-10, default 1). Returns `marker`, `mode` (`off`,
 
 ### `set_marker`
 
-`marker` (1-10) plus at least one of `mode` (`off`, `normal`, `delta`, `fixed`), `trace` (1-6), `reference_marker` (1-10, another marker; used by delta mode) and `x_hz` (position in Hz, 0 or more). Sent in the order mode, trace, reference, x, then the marker is re-read and returned as `marker` with `warnings` for anything the instrument did not take. The instrument does **not** clamp `x_hz` to the sweep span (a position outside it is accepted and its level is meaningless), and a position set on a marker that is off is ignored (a warning says so): use `mode: "normal"` first or `marker_search`. For a delta marker the position is not compared because the readback is relative.
+`marker` (1-10) plus at least one of `mode` (`off`, `normal`, `delta`, `fixed`), `trace` (1-6), `reference_marker` (1-10, another marker; used by delta mode) and `x_hz` (position in Hz, 0 or more). Sent in the order mode, trace, reference, x, then the marker is re-read and returned as `marker` with `warnings` for anything the instrument did not take. The instrument does **not** clamp `x_hz` to the sweep span (a position outside it is accepted and its level is meaningless), and a position set on a marker that is off is ignored (a warning says so): use `mode: "normal"` first or `marker_search`. Setting `reference_marker` on a marker that is off turns it on in delta mode (verified). For a delta marker the position is not compared because the readback is relative.
 
 ### `marker_search`
 
