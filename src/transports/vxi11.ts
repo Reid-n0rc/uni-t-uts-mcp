@@ -18,20 +18,19 @@ import {
 /**
  * SCPI over VXI-11 (TCP/IP-IEEE 488.1), core channel only, on top of {@link Vxi11Client}.
  *
- * Capability flags. They follow the prototype findings on the UTS3036B (see
- * docs/verified-hardware.md): over VXI-11 the instrument QUEUES commands that arrive during a sweep
- * instead of dropping them, and a blocking `*OPC?` read is the sweep-complete signal. These are
- * explicit constants on purpose: hardware verification (issue #75) may show that a VXI-11 session
- * still needs `*OPC?` pacing after commands (`syncsCommands: true`) or a quiet period after a timed
- * out query (`holdOffAfterTimeout: true`). Change them HERE (nothing else needs to change: the
- * connection layer and src/acquisition.ts read the flags, not the transport name).
+ * Capability flags, all confirmed on the UTS3036B (docs/verified-hardware.md, "VXI-11 transport", issue #75):
+ * the instrument QUEUES commands that arrive during a sweep instead of dropping them, a blocking `*OPC?` read
+ * is the sweep-complete signal, bursts of commands need no `*OPC?` pacing, and no line is lost after a
+ * timed-out query. They are explicit constants on purpose: change them HERE if another firmware differs
+ * (nothing else needs to change: the connection layer and src/acquisition.ts read the flags, not the
+ * transport name).
  */
 export const VXI11_CAPABILITIES: TransportCapabilities = {
   /** device_write returns once the instrument accepted the line, so no `*OPC?` after each command. */
   syncsCommands: false,
   /** Commands issued during a single sweep are queued and answered when it ends. */
   dropsInputDuringSweep: false,
-  /** No stall after unsupported queries has been seen over VXI-11 (an I/O timeout error 15 is returned). */
+  /** After an unsupported query nothing sent later is lost: the instrument itself delays the next write while it is busy. */
   holdOffAfterTimeout: false,
 };
 

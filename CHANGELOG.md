@@ -13,13 +13,31 @@ The text of a release's section is also used as its GitHub release notes.
 
 ### Added
 
-- VXI-11 as a selectable transport (`UTS_TRANSPORT=raw|vxi11|auto`, default `raw`; `UTS_VXI11_DEVICE`,
-  default `inst0`; an optional `transport` parameter on `connect`). `auto` uses VXI-11 when the
-  analyzer registers it with the portmapper on port 111 and falls back to raw with a logged reason.
-  Over VXI-11 commands sent during a sweep are queued instead of dropped, and `single_sweep` waits
-  with one blocking `*OPC?` read instead of staying silent and polling. `connect` and `identify` name
-  the transport in use. Hardware verification of every tool over VXI-11 is still pending, so the
-  default stays raw. Allow outbound TCP to port 111 and the dynamic VXI-11 port in a firewall.
+- VXI-11 as a selectable transport (`UTS_TRANSPORT=raw|vxi11|auto`; `UTS_VXI11_DEVICE`, default `inst0`;
+  an optional `transport` parameter on `connect`). `auto` uses VXI-11 when the analyzer registers it with
+  the portmapper on port 111 and falls back to raw with a logged reason. Over VXI-11 commands sent during
+  a sweep are queued instead of dropped, `single_sweep` waits with one blocking `*OPC?` read instead of
+  staying silent and polling, and an unsupported query costs nothing but its timeout. `connect` and
+  `identify` name the transport in use. Allow outbound TCP to port 111 and the dynamic VXI-11 port in a
+  firewall. Verified on a UTS3036B against raw: every tool returns the same values, sweeps of 0.1 s to
+  20 s are timed within about 100 ms, a deliberately too short timeout loses nothing.
+- The screenshot transfer is **not truncated over VXI-11**: `:DISPlay:ZBmp?` returns its whole 200 KB
+  stream and `:DISPlay:DATA?` the whole 4 MB bitmap (a PNG after `:SYSTem:PICture:FORMat PNG`), where raw
+  TCP stops at 144,800 bytes. Readable today with `scpi_query` (`reply: "block"`); this unblocks the
+  screenshot tool (#20) and the investigation in #42.
+
+### Changed
+
+- The default transport is now `auto` (VXI-11 when the analyzer offers it, otherwise raw) instead of
+  `raw`. Giving only a port (`UTS_PORT` or the `connect` parameter) without a transport choice still
+  means raw. Set `UTS_TRANSPORT=raw` to keep the old behavior.
+
+### Fixed
+
+- VXI-11: a query that got no reply (an unsupported query, a too short timeout) declared the link lost
+  after the timeout plus 5 s and stalled the next write. The analyzer never answers such a read with an
+  I/O timeout error; the transport now sends a fifth of the timeout as the I/O timeout, fails the read
+  at the requested timeout plus 0.5 s and keeps the link.
 
 ## [0.1.0] - 2026-11-10
 
