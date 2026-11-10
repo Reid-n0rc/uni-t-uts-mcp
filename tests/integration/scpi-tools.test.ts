@@ -4,7 +4,10 @@ import { registerScpiTools } from "../../src/tools/scpi.js";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 const mockConnection = vi.hoisted(() => ({
-  query: vi.fn(async (cmd: string, _timeout?: number) => (cmd === "*IDN?" ? "UNI-TREND,UTS0000X,<serial>,V0.0.0" : "1")),
+  query: vi.fn(async (cmd: string, _timeout?: number) =>
+    cmd === "*IDN?" ? "UNI-TREND,UTS0000X,<serial>,V0.0.0" : cmd === ":SYSTem:ERRor?" ? '0,"No error"' : "1"
+  ),
+  msSinceQueryTimeout: () => Infinity,
   queryBinary: vi.fn(async (_cmd: string, _timeout?: number) => Buffer.from([0, 1, 2, 255])),
   sendCommand: vi.fn(async (_cmd: string) => {}),
 }));
@@ -133,5 +136,23 @@ describe("scpi_command", () => {
     const res = await callTool(client, "scpi_command", { command: ":FREQ:CENT 1 GHz" });
     expect(res.isError).toBe(true);
     expect(getText(res)).toContain("connect");
+  });
+});
+
+describe("scpi_command error checking (#58)", () => {
+  it("uses applyCommands: *CLS first, then checks the error queue and reports instrument errors", async () => {
+    mockConnection.query.mockImplementation(async (cmd: string) => (cmd === ":SYSTem:ERRor?" ? '-131,"Invalid suffix"' : "1"));
+    const res = await callTool(client, "scpi_command", { command: ":FREQ:CENT 1 XX" });
+    expect(mockConnection.sendCommand.mock.calls.map((c) => c[0])).toEqual(["*CLS", ":FREQ:CENT 1 XX"]);
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toContain("Invalid suffix");
+    expect(getText(res)).toContain(":FREQ:CENT 1 XX");
+  });
+
+  it("names the command when a block query fails", async () => {
+    mockConnection.queryBinary.mockRejectedValueOnce(new Error("Expected a binary block reply: bad header"));
+    const res = await callTool(client, "scpi_query", { command: ":DISP:ZBmp?", reply: "block" });
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toContain(":DISP:ZBmp?");
   });
 });
