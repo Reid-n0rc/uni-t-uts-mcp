@@ -139,6 +139,24 @@ describe("VXI-11 transport specifics", () => {
       expect(await t.readLine(3000)).toBe("ok");
     });
 
+    it("sends a fifth of the timeout as io_timeout (the instrument waits 5.4 times that, then stays busy)", async () => {
+      const t = await open({}, { ...fw, scpi: (c: string) => (c === "A?" ? "ok" : undefined) });
+      await t.write("A?");
+      await t.readLine(5000);
+      expect(fake!.readIoTimeouts.at(-1)).toBe(1000);
+    });
+
+    it("a timeout right after a timed-out query does not lose the link even when the instrument is busy for seconds", async () => {
+      const t = await open({}, { ...fw, scpi: (c: string) => (c === "A?" ? "ok" : undefined) });
+      await t.write("NOPE?");
+      await expect(t.readLine(500)).rejects.toBeInstanceOf(TransportTimeout);
+      await t.write("NOPE2?");
+      await expect(t.readLine(500)).rejects.toBeInstanceOf(TransportTimeout);
+      expect(t.isOpen()).toBe(true);
+      await t.write("A?");
+      expect(await t.readLine(3000)).toBe("ok");
+    }, 15_000);
+
     it("sends no device_read to drain after a timeout (a zero-timeout read never returns data on the instrument)", async () => {
       const t = await open({}, { ...fw, scpi: (c: string) => (c === "A?" ? "ok" : undefined) });
       await t.write("NOPE?");

@@ -40,14 +40,20 @@ const WRITE_TIMEOUT_MS = 5000;
 /** Upper bound for what one reply may be (the largest real reply is a 144,800 byte screenshot). */
 const MAX_REPLY_BYTES = 8 * 1024 * 1024;
 /**
- * Time allowed on top of an I/O timeout before a device_read or device_write counts as unanswered.
- * The UTS3036B does not honor the I/O timeout of a read that has nothing to deliver: it never answers
- * (no error 15) and drops the request silently about a second after the I/O timeout, so the RPC
- * deadline is what ends a timed-out query. Kept short so a timeout is reported close to the one asked
- * for; the instrument is still occupied by the abandoned read for up to a second, which only delays
- * the next device_write (it is not lost).
+ * Time allowed on top of the requested timeout before a device_read or device_write counts as unanswered.
+ *
+ * Measured on the UTS3036B: a device_read that has nothing to deliver is NEVER answered with error 15.
+ * The instrument keeps waiting for 5.4 times the io_timeout it was given, then drops the request without
+ * a reply, and it serves no other call on that link (a device_write is delayed, not lost) until it has
+ * given up. A zero io_timeout never returns data (error 15 at once). So the transport sends a fifth of the
+ * requested timeout as io_timeout (the instrument then waits about 1.08 times the timeout, long enough to
+ * deliver anything that arrives in time and short enough to be free again about when we give up) and ends
+ * a timed-out query with the RPC deadline: the requested timeout plus this margin.
  */
 const RPC_MARGIN_MS = 500;
+const READ_IO_FRACTION = 0.2;
+/** The instrument is busy with an abandoned read for about this many times its io_timeout. */
+const READ_BUSY_FACTOR = 5.5;
 const MAX_IO_TIMEOUT_MS = 0xffffffff;
 
 export interface Vxi11TransportOptions {
@@ -68,6 +74,8 @@ export class Vxi11Transport implements Transport {
   private readonly device: string;
   private client: Vxi11Client | null = null;
   private lostCallback: ((reason: string) => void) | null = null;
+  /** The instrument is busy with a read nobody waits for until this time (ms since the epoch). */
+  private busyUntil = 0;
 
   constructor(private readonly options: Vxi11TransportOptions = {}) {
     this.device = options.device ?? DEFAULT_VXI11_DEVICE;
@@ -95,6 +103,7 @@ export class Vxi11Transport implements Transport {
   close(): void {
     const client = this.client;
     this.client = null;
+    this.busyUntil = 0;
     // Best effort destroy_link; close() never rejects. Pending calls reject with "Connection closed".
     void client?.close();
   }
@@ -117,7 +126,9 @@ export class Vxi11Transport implements Transport {
   async write(line: string): Promise<void> {
     const client = this.requireClient();
     try {
-      await client.write(line, { timeoutMs: WRITE_TIMEOUT_MS, end: true });
+      // A write queues behind an abandoned read: allow for the time the instrument is still busy with it.
+      const busyMs = Math.max(0, this.busyUntil - Date.now());
+      await client.write(line, { timeoutMs: WRITE_TIMEOUT_MS + busyMs, end: true });
     } catch (err) {
       throw this.mapError(client, err, "write");
     }
@@ -156,21 +167,25 @@ export class Vxi11Transport implements Transport {
   private async readReply(timeoutMs: number): Promise<Buffer> {
     const client = this.requireClient();
     const io = Math.min(Math.max(0, Math.ceil(timeoutMs)), MAX_IO_TIMEOUT_MS);
+    const started = Date.now();
     try {
-      const result = await client.read({ timeoutMs: io, maxBytes: MAX_REPLY_BYTES });
+      const result = await client.read({ timeoutMs: io, maxBytes: MAX_REPLY_BYTES, ioTimeoutFraction: READ_IO_FRACTION });
       if (!result.end) throw new Error(`VXI-11 reply longer than ${MAX_REPLY_BYTES} bytes without an end marker`);
       return result.data;
     } catch (err) {
-      throw this.mapError(client, err, "read", timeoutMs);
+      throw this.mapError(client, err, "read", timeoutMs, started);
     }
   }
 
   /** Translate a client error: timeouts, a closed client, a lost link, or a plain error naming VXI-11. */
-  private mapError(client: Vxi11Client, err: unknown, op: "read" | "write", timeoutMs = 0): Error {
+  private mapError(client: Vxi11Client, err: unknown, op: "read" | "write", timeoutMs = 0, started = 0): Error {
     if (this.client !== client || err instanceof Vxi11ClosedError) return new Error("Connection closed");
     if (err instanceof Vxi11IoTimeoutError && op === "read") return new TransportTimeout(timeoutMs);
     // The usual timeout on this instrument: no reply at all, the link itself is fine.
-    if (err instanceof Vxi11RpcTimeoutError && op === "read") return new TransportTimeout(timeoutMs);
+    if (err instanceof Vxi11RpcTimeoutError && op === "read") {
+      this.busyUntil = Math.max(this.busyUntil, started + Math.ceil(timeoutMs * READ_IO_FRACTION) * READ_BUSY_FACTOR);
+      return new TransportTimeout(timeoutMs);
+    }
     if (err instanceof Vxi11TransportError || (err instanceof Vxi11DeviceError && (err.code === 4 || err.code === 6))) {
       const reason = `VXI-11: ${errMessage(err)}`;
       this.lose(reason);

@@ -10,9 +10,11 @@ import { portKey, startFakeRpcServer, type FakeRpcCall, type FakeRpcResult, type
  * With `firmware: true` it also reproduces what the real analyzer does with reads (issue #75):
  *  - a device_read with io_timeout 0 always answers error 15, even when a reply is waiting;
  *  - a device_read with a non-zero io_timeout and nothing to deliver is NEVER answered with error 15: the
- *    instrument waits io_timeout + 1 s and then drops the request silently, and later calls on the
+ *    instrument waits 5.4 x io_timeout and then drops the request silently, and later calls on the
  *    link (device_write) wait until it has given up;
- *  - the output buffer has one slot: a newer reply replaces an unread older one.
+ *  - the output buffer has one slot: starting any statement discards an unread older reply (also one
+ *    produced earlier by a statement that was queued behind a sweep), and readers are only woken after
+ *    the statements that run back to back have finished.
  * Scriptable SCPI handler, simulated I/O timeouts (error 15: a read with nothing to deliver waits
  * the io_timeout), injected errors (invalid link, locked, any code) and dropped connections.
  */
@@ -22,8 +24,8 @@ const PROC = { createLink: 10, write: 11, read: 12, readStb: 13, clear: 15, dest
 const FLAG_END = 8;
 const REASON_REQCNT = 1;
 const REASON_END = 4;
-/** Real firmware: how long past its io_timeout a blocked read lasts before the instrument gives up. */
-const FIRMWARE_GRACE_MS = 1000;
+/** Real firmware: a blocked read lasts this many times its io_timeout before the instrument gives up (measured 5.37). */
+export const FIRMWARE_READ_WAIT_FACTOR = 5.4;
 /** Real firmware: `:INITiate:IMMediate` starts a single sweep. */
 const SWEEP_START = /^:?INIT(iate)?(:IMM(ediate)?)?$/i;
 
@@ -67,6 +69,8 @@ export interface FakeVxi11Instrument {
   received: string[];
   /** requestSize of every device_read. */
   readRequests: number[];
+  /** io_timeout (ms) of every device_read. */
+  readIoTimeouts: number[];
   clears: number;
   destroyedLinks: number;
   /** Status byte returned by device_readstb (the real instrument keeps 0). */
@@ -107,6 +111,7 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
     writes: [],
     received: [],
     readRequests: [],
+    readIoTimeouts: [],
     clears: 0,
     destroyedLinks: 0,
     stb: 0,
@@ -136,8 +141,14 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
   const pushOutput = (linkId: number, message: Buffer): void => {
     const s = linkState.get(linkId);
     if (!s) return;
-    if (options.firmware) s.output = [message];
-    else s.output.push(message);
+    if (options.firmware) {
+      s.output = [message];
+      setTimeout(() => {
+        for (const w of [...s.waiters]) w();
+      }, 0);
+      return;
+    }
+    s.output.push(message);
     for (const w of [...s.waiters]) w();
   };
 
@@ -147,6 +158,10 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
       return;
     }
     fake.received.push(statement);
+    if (options.firmware) {
+      const link = linkState.get(linkId);
+      if (link) link.output = [];
+    }
     if ((options.sweepMs ?? 0) > 0 && SWEEP_START.test(statement)) {
       sweeping = true;
       sweepTimer = setTimeout(() => {
@@ -254,13 +269,14 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
     const requestSize = args.u32();
     const ioTimeout = args.u32();
     fake.readRequests.push(requestSize);
+    fake.readIoTimeouts.push(ioTimeout);
     const timeoutReply = new XdrWriter().u32(15).u32(0).opaque(Buffer.alloc(0));
     if (options.firmware && ioTimeout === 0) return timeoutReply;
     if (link.output.length === 0) {
       if (ioTimeout === 0) return timeoutReply;
       let release: () => void = () => {};
       if (options.firmware) link.busy = new Promise<void>((resolve) => (release = resolve));
-      const waitMs = options.firmware ? ioTimeout + FIRMWARE_GRACE_MS : ioTimeout;
+      const waitMs = options.firmware ? ioTimeout * FIRMWARE_READ_WAIT_FACTOR : ioTimeout;
       const delivered = await new Promise<boolean>((resolve) => {
         const finish = (ok: boolean): void => {
           clearTimeout(timer);
@@ -268,7 +284,10 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
           link.waiters.delete(wake);
           resolve(ok);
         };
-        const wake = (): void => finish(link.output.length > 0);
+        const wake = (): void => {
+          // A deferred wake-up for an older reply can arrive while nothing is there: keep waiting.
+          if (link.output.length > 0 || closed || !linkState.has(linkId)) finish(link.output.length > 0);
+        };
         const timer = setTimeout(() => finish(false), waitMs);
         timers.add(timer);
         link.waiters.add(wake);
