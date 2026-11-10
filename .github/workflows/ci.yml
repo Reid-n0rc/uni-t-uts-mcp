@@ -11,6 +11,8 @@ permissions:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -26,6 +28,19 @@ jobs:
       - run: npm run build
       - run: npm run typecheck
       - run: npm test
+        if: ${{ !(matrix.os == 'ubuntu-latest' && matrix.node-version == 24) }}
+      # One job also measures coverage and uploads it to Codecov (issue #124). The upload never fails the build,
+      # and runs without the secret (forks) are skipped.
+      - name: Test with coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == 24
+        run: npm run test:coverage
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == 24 && env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          fail_ci_if_error: false
 
   # The wiki is generated from the docs (issue #70): a docs change must not break the sync.
   wiki-check:
