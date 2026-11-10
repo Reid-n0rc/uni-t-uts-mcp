@@ -10,7 +10,7 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 
 - `src/connection.ts` – SCPI TCP connection with query queue
 - `src/tools/` – connection, frequency, amplitude, bandwidth, trace, marker, screenshot, raw SCPI
-- `docs/` – `references.md` (manuals and links), tools reference, programming-guide notes, manual testing guide
+- `docs/` – `references.md` (manuals and links), `verified-hardware.md` (what was tested on), tools reference, programming-guide notes, manual testing guide
 
 ## Documentation
 

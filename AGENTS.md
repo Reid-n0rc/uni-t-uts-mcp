@@ -10,7 +10,7 @@ MCP server (TypeScript, stdio) for UNI-T UTS series spectrum analyzers (UTS1000B
 - `src/connection.ts` – SCPI connection singleton with a query queue
 - `src/tools/*.ts` – one file per tool group, each exporting `register<Group>Tools(server)`
 - `tests/unit/`, `tests/integration/` – vitest; integration tests mock `src/connection.js`
-- `docs/` – `references.md` (manuals and links), tools reference, programming-guide notes, manual testing guide
+- `docs/` – `references.md` (manuals and links), `verified-hardware.md` (what was tested on), tools reference, programming-guide notes, manual testing guide
 
 Commands: `npm run build`, `npm test`, `npm run inspector`.
 
