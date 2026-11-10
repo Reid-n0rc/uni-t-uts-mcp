@@ -7,10 +7,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before 1.
 names, parameters and result shapes may still change between minor versions; see
 [docs/releasing.md](docs/releasing.md).
 
-Everything merged before the first release is listed under Unreleased; the release process moves
-it under the `0.1.0` heading. The text of a release's section is also used as its GitHub release notes.
+The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-11-10
+
+First release. Every tool listed here was tested against a real UNI-T UTS3036B (firmware V1.04.0040, the
+latest published at the time) over LAN; see [docs/verified-hardware.md](docs/verified-hardware.md).
 
 ### Added
 
@@ -70,4 +74,18 @@ it under the `0.1.0` heading. The text of a release's section is also used as it
 - Release process documentation ([docs/releasing.md](docs/releasing.md)) and release smoke tests
   (tarball contents, `npx`-style install and Docker image start-up) in CI.
 
-[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/commits/main
+### Known limitations
+
+- Parallel tool calls are not yet serialized per instrument: a client that issues several tool calls at the
+  same time can interleave their command sequences ([#66](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/66)).
+  Clients that call tools one after another are not affected.
+- Markers, measurements, trace data download and the screenshot tool are not implemented yet; the analyzer
+  stops sending screenshots after 144,800 bytes over the raw LAN port
+  ([#42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)).
+- Only the raw TCP transport (port 5025) is available; a VXI-11 transport is in progress
+  ([#64](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/64)).
+- Verified on one analyzer model and firmware (UTS3036B V1.04.0040); other UTS models are expected to be
+  similar but are untested.
+
+[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v0.1.0
