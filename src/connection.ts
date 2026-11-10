@@ -36,6 +36,14 @@ export interface ConnectOptions {
   recoveryMs?: number;
 }
 
+export interface QueryOptions {
+  /**
+   * The caller expects silence (polling an instrument that ignores input while it sweeps): a timeout
+   * neither holds off the next job nor counts as a failed query for `msSinceQueryTimeout()`.
+   */
+  expectSilence?: boolean;
+}
+
 export interface CommandOptions {
   /** Wait for `*OPC?` after the command so lines are never written back-to-back (default true). */
   sync?: boolean;
@@ -49,6 +57,7 @@ interface Job {
   timeoutMs: number;
   /** Commands only: follow with `*OPC?` and wait for its reply. */
   sync: boolean;
+  expectSilence: boolean;
   /** Commands only: the `*OPC?` has been written and its reply is awaited. */
   waitingForSync: boolean;
   resolve: (value: Buffer | string | void) => void;
@@ -158,8 +167,12 @@ export class UtsConnection {
     await this.enqueue("command", cmd, 0, options.sync ?? true);
   }
 
-  async query(cmd: string, timeoutMs: number = DEFAULT_QUERY_TIMEOUT): Promise<string> {
-    return (await this.enqueue("text", cmd, timeoutMs)) as string;
+  async query(
+    cmd: string,
+    timeoutMs: number = DEFAULT_QUERY_TIMEOUT,
+    options: QueryOptions = {}
+  ): Promise<string> {
+    return (await this.enqueue("text", cmd, timeoutMs, false, options.expectSilence ?? false)) as string;
   }
 
   async queryBinary(cmd: string, timeoutMs: number = DEFAULT_BINARY_TIMEOUT): Promise<Buffer> {
@@ -172,7 +185,8 @@ export class UtsConnection {
     kind: JobKind,
     cmd: string,
     timeoutMs: number,
-    sync = false
+    sync = false,
+    expectSilence = false
   ): Promise<Buffer | string | void> {
     if (!this.isConnected()) return Promise.reject(new Error(NOT_CONNECTED));
     try {
@@ -181,7 +195,7 @@ export class UtsConnection {
       return Promise.reject(err);
     }
     return new Promise((resolve, reject) => {
-      this.jobs.push({ kind, cmd, timeoutMs, sync, waitingForSync: false, resolve, reject });
+      this.jobs.push({ kind, cmd, timeoutMs, sync, expectSilence, waitingForSync: false, resolve, reject });
       this.pump();
     });
   }
@@ -207,8 +221,10 @@ export class UtsConnection {
     if (job.kind !== "command") {
       this.timer = setTimeout(() => {
         // The instrument is probably stalled by an unsupported query; keep clear of it.
-        this.holdUntil = Date.now() + Math.max(0, this.recoveryMs - job.timeoutMs);
-        this.lastQueryTimeoutAt = Date.now();
+        if (!job.expectSilence) {
+          this.holdUntil = Date.now() + Math.max(0, this.recoveryMs - job.timeoutMs);
+          this.lastQueryTimeoutAt = Date.now();
+        }
         this.failActive(
           new Error(
             `${job.kind === "binary" ? "Binary query" : "Query"} timeout after ${job.timeoutMs}ms for command: ${job.cmd}`

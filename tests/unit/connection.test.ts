@@ -396,7 +396,7 @@ describe("query with expectSilence (polling a busy instrument)", () => {
     await setup((line, s) => {
       if (line === "Q?") s.write("ok\r\n");
     }, undefined, { recoveryMs: 1000 });
-    await expect(conn.query("*OPC?", 50, { expectSilence: true })).rejects.toThrow(/timeout/i);
+    await expect(conn.query("BUSY?", 50, { expectSilence: true })).rejects.toThrow(/timeout/i);
     expect(conn.msSinceQueryTimeout()).toBe(Infinity);
     const t0 = Date.now();
     expect(await conn.query("Q?")).toBe("ok");
