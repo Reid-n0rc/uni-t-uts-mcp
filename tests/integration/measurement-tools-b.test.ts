@@ -336,7 +336,7 @@ describe("read_measurement for the new measurements", () => {
 
 describe("measure for the new measurements", () => {
   it("measures acpr and leaves the instrument as it was", async () => {
-    fake.state.center = 433e6; fake.state.span = 10e6;
+    fake.state.center = 433e6; fake.state.span = 10e6; fake.state.rbw = 3e4; fake.state.vbw = 3e4; fake.state.sweepTime = 6.2e-2;
     const before = JSON.stringify({ ...fake.state, params: 0 });
     const res = await callTool(client, "measure", { measurement: "acpr" });
     expect(res.isError).toBeFalsy();

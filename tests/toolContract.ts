@@ -187,7 +187,7 @@ export const CONTRACT: Record<string, ContractEntry> = {
   configure_measurement: {
     kind: "setter",
     args: { measurement: "channel_power", integration_bandwidth_hz: 1e6 },
-    invalid: [{}, { measurement: "nope" }, { measurement: "obw", integration_bandwidth_hz: 1e6 }, { measurement: "channel_power", average_count: 0 }, { measurement: "obw", xdb: 5 }],
+    invalid: [{}, { measurement: "nope" }, { measurement: "obw", integration_bandwidth_hz: 1e6 }, { measurement: "channel_power", average_count: 0 }, { measurement: "obw", xdb: 5 }, { measurement: "harmonics", harmonics_count: 11 }, { measurement: "cn", carrier_bandwidth_hz: 1e6 }],
     warn: [{ measurement: "channel_power", integration_bandwidth_hz: 5e6 }, { measurement: "channel_power", average: false }],
   },
   read_measurement: {
@@ -203,7 +203,7 @@ export const CONTRACT: Record<string, ContractEntry> = {
   measure: {
     kind: "setter",
     args: { measurement: "channel_power" },
-    invalid: [{}, { measurement: "obw", percent: 3 }, { measurement: "channel_power", timeout_s: 0 }, { measurement: "time_power", xdb: -5 }],
+    invalid: [{}, { measurement: "obw", percent: 3 }, { measurement: "channel_power", timeout_s: 0 }, { measurement: "time_power", xdb: -5 }, { measurement: "toi", offset_hz: 1 }],
   },
   set_peak_criteria: {
     kind: "setter",

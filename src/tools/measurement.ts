@@ -19,7 +19,9 @@ export const probeTuning = { recoveryMs: 3000, settleMs: 1500 };
 const DEFAULT_READ_TIMEOUT_S = 30;
 const SA = "spectrum_analyzer" as const;
 
-const MEASUREMENTS = { channel_power: "CHPower", time_power: "TPOWer", obw: "OBWidth" } as const;
+const MEASUREMENTS = {
+  channel_power: "CHPower", time_power: "TPOWer", obw: "OBWidth", acpr: "ACPower", toi: "TOI", cn: "CNRatio", harmonics: "HARMonics",
+} as const;
 type Measurement = keyof typeof MEASUREMENTS;
 type Mode = Measurement | typeof SA;
 const MEASUREMENT_NAMES = Object.keys(MEASUREMENTS) as [Measurement, ...Measurement[]];
@@ -47,33 +49,70 @@ const PARAMS = {
   average_count: z.number().finite().optional().describe("Averages, integer 1-999 (manual range)"),
   average_control: z.enum(["exponential", "repeat"]).optional().describe("Average termination control"),
   average_type: z.enum(["voltage", "power", "log"]).optional().describe("Average type"),
-  integration_bandwidth_hz: z.number().finite().optional().describe("channel_power only: integration bandwidth in Hz (clamped by the instrument to 100 Hz..3.61 GHz)"),
+  integration_bandwidth_hz: z.number().finite().optional().describe("channel_power, acpr or cn: integration bandwidth in Hz (channel_power: clamped by the instrument to 100 Hz..3.61 GHz)"),
   left_limit_s: z.number().finite().optional().describe("time_power only: left limit in s, 0-0.01 (10 ms)"),
   right_limit_s: z.number().finite().optional().describe("time_power only: right limit in s, 0-0.01 (10 ms)"),
   percent: z.number().finite().optional().describe("obw only: occupied power fraction, above 0 up to 1 (0.99 = 99 %); the instrument clamps to 0.9999"),
   xdb: z.number().finite().optional().describe("obw only: x dB level in dB, -100 to -0.1"),
+  carrier_bandwidth_hz: z.number().finite().optional().describe("acpr only: carrier (main channel) bandwidth in Hz"),
+  offset_hz: z.number().finite().optional().describe("acpr or cn: offset of the adjacent channel (acpr) or of the noise (cn) from the carrier, in Hz, 0 or more"),
+  offset_side: z.enum(["both", "negative", "positive"]).optional().describe("acpr only: which adjacent channels to measure"),
+  noise_bandwidth_hz: z.number().finite().optional().describe("cn only: noise bandwidth in Hz"),
+  fundamental_hz: z.number().finite().optional().describe("harmonics only: fundamental frequency in Hz"),
+  harmonics_count: z.number().finite().optional().describe("harmonics only: number of harmonics, integer 2-10"),
+  sweep_time_s: z.number().finite().optional().describe("harmonics only: sweep time in s, 0.001-100"),
 };
 type ParamArgs = { [K in keyof typeof PARAMS]?: z.infer<(typeof PARAMS)[K]> };
 const PARAM_KEYS = Object.keys(PARAMS) as Array<keyof typeof PARAMS>;
 
+// Measurement specific parameters in the order they are sent (the harmonics count last, after the sweep time).
 const SPECIFIC: Record<Measurement, Array<keyof typeof PARAMS>> = {
   channel_power: ["integration_bandwidth_hz"],
   time_power: ["left_limit_s", "right_limit_s"],
   obw: ["percent", "xdb"],
+  acpr: ["integration_bandwidth_hz", "carrier_bandwidth_hz", "offset_hz", "offset_side"],
+  toi: [],
+  cn: ["integration_bandwidth_hz", "noise_bandwidth_hz", "offset_hz"],
+  harmonics: ["fundamental_hz", "sweep_time_s", "harmonics_count"],
 };
-const ALL_SPECIFIC = Object.values(SPECIFIC).flat();
+const ALL_SPECIFIC = [...new Set(Object.values(SPECIFIC).flat())];
+
+const SIDES = { both: "BOTH", negative: "NEGative", positive: "POSitive" } as const;
+
+/** SCPI path (after :SENSe:<meas>:) of each specific parameter, per measurement. */
+const PATHS: Partial<Record<keyof typeof PARAMS, Partial<Record<Measurement, string>>>> = {
+  integration_bandwidth_hz: { channel_power: "BANDwidth:INTegration", acpr: "BANDwidth:INTegration", cn: "BANDwidth:INTegration" },
+  left_limit_s: { time_power: "LLIMit" },
+  right_limit_s: { time_power: "RLIMit" },
+  percent: { obw: "PERCent" },
+  xdb: { obw: "XDB" },
+  carrier_bandwidth_hz: { acpr: "CARRier:LIST:BANDwidth" },
+  offset_hz: { acpr: "OFFSet:LIST:FREQuency", cn: "OFFSet" },
+  offset_side: { acpr: "OFFSet:LIST:SIDE" },
+  noise_bandwidth_hz: { cn: "BANDwidth:NOISe" },
+  fundamental_hz: { harmonics: "FREQuency:FUNDamental" },
+  harmonics_count: { harmonics: "NUMBer" },
+  sweep_time_s: { harmonics: "SWEeptime" },
+};
 
 function validateParams(measurement: Measurement, a: ParamArgs): string | undefined {
   for (const key of ALL_SPECIFIC) {
     if (a[key] !== undefined && !SPECIFIC[measurement].includes(key)) {
-      const owner = (Object.keys(SPECIFIC) as Measurement[]).find((m) => SPECIFIC[m].includes(key));
-      return `${key} applies to ${owner} only, not ${measurement}.`;
+      const owners = (Object.keys(SPECIFIC) as Measurement[]).filter((m) => SPECIFIC[m].includes(key));
+      return `${key} applies to ${owners.join(" or ")} only, not ${measurement}.`;
     }
   }
   if (a.average_count !== undefined && (!Number.isInteger(a.average_count) || a.average_count < 1 || a.average_count > 999)) {
     return "average_count must be an integer from 1 to 999.";
   }
-  if (a.integration_bandwidth_hz !== undefined && !(a.integration_bandwidth_hz > 0)) return "integration_bandwidth_hz must be greater than 0.";
+  for (const key of ["integration_bandwidth_hz", "carrier_bandwidth_hz", "noise_bandwidth_hz", "fundamental_hz"] as const) {
+    if (a[key] !== undefined && !(a[key]! > 0)) return `${key} must be greater than 0.`;
+  }
+  if (a.offset_hz !== undefined && !(a.offset_hz >= 0)) return "offset_hz must be 0 or more.";
+  if (a.harmonics_count !== undefined && (!Number.isInteger(a.harmonics_count) || a.harmonics_count < 2 || a.harmonics_count > 10)) {
+    return "harmonics_count must be an integer from 2 to 10.";
+  }
+  if (a.sweep_time_s !== undefined && !(a.sweep_time_s >= 0.001 && a.sweep_time_s <= 100)) return "sweep_time_s must be between 0.001 and 100 s.";
   for (const key of ["left_limit_s", "right_limit_s"] as const) {
     const v = a[key];
     if (v !== undefined && !(v >= 0 && v <= 0.01)) return `${key} must be between 0 and 0.01 s.`;
@@ -90,11 +129,12 @@ function paramCommands(m: Measurement, a: ParamArgs): string[] {
   if (a.average !== undefined) out.push(`${s}:AVERage:STATe ${onOff(a.average)}`);
   if (a.average_type !== undefined) out.push(`${s}:AVERage:TYPE ${AVERAGE_TYPES[a.average_type]}`);
   if (a.average_control !== undefined) out.push(`${s}:AVERage:TCONtrol ${AVERAGE_CONTROLS[a.average_control]}`);
-  if (a.integration_bandwidth_hz !== undefined) out.push(`${s}:BANDwidth:INTegration ${formatNumber(a.integration_bandwidth_hz)}`);
-  if (a.left_limit_s !== undefined) out.push(`${s}:LLIMit ${formatNumber(a.left_limit_s)}`);
-  if (a.right_limit_s !== undefined) out.push(`${s}:RLIMit ${formatNumber(a.right_limit_s)}`);
-  if (a.percent !== undefined) out.push(`${s}:PERCent ${formatNumber(a.percent)}`);
-  if (a.xdb !== undefined) out.push(`${s}:XDB ${formatNumber(a.xdb)}`);
+  for (const key of SPECIFIC[m]) {
+    const v = a[key];
+    if (v === undefined) continue;
+    const path = PATHS[key]![m];
+    out.push(`${s}:${path} ${key === "harmonics_count" ? v : key === "offset_side" ? SIDES[v as keyof typeof SIDES] : formatNumber(v as number)}`);
+  }
   if (a.average_count !== undefined) out.push(`${s}:AVERage:COUNt ${a.average_count}`);
   return out;
 }
@@ -113,14 +153,16 @@ async function readParams(m: Measurement): Promise<ParamState> {
     average_control: await queryParsed(`${s}:AVERage:TCONtrol?`, (r) => pick(r, AVERAGE_CONTROLS, "average control")),
     average_type: await queryParsed(`${s}:AVERage:TYPE?`, (r) => pick(r, AVERAGE_TYPES, "average type")),
   };
-  if (m === "channel_power") state.integration_bandwidth_hz = await queryNumber(`${s}:BANDwidth:INTegration?`);
-  if (m === "time_power") {
-    state.left_limit_s = await queryNumber(`${s}:LLIMit?`);
-    state.right_limit_s = await queryNumber(`${s}:RLIMit?`);
-  }
-  if (m === "obw") {
-    state.percent = await queryNumber(`${s}:PERCent?`);
-    state.xdb = await queryNumber(`${s}:XDB?`);
+  for (const key of SPECIFIC[m]) {
+    const command = `${s}:${PATHS[key]![m]}?`;
+    if (key === "offset_side") state.offset_side = await queryParsed(command, (r) => pick(r, SIDES, "offset side"));
+    else if (key === "harmonics_count") {
+      state.harmonics_count = await queryParsed(command, (r) => {
+        const n = Number(r.trim());
+        if (!Number.isInteger(n)) throw new Error(`Expected an integer, got ${JSON.stringify(r)}`);
+        return n;
+      });
+    } else (state as Record<string, unknown>)[key] = await queryNumber(command);
   }
   return state;
 }
@@ -302,15 +344,17 @@ async function readResult(m: Measurement, fetchRequested: boolean, timeoutS: num
   const verb = fetch ? "FETCh" : "READ";
   const timeoutMs = Math.round(timeoutS * 1000);
   const name = MEASUREMENTS[m];
-  const list = async (command: string, count: number) => {
+  const listAny = async (command: string) => {
     const reply = await connection.query(command, timeoutMs);
-    let values: number[];
     try {
-      values = parseNumberList(reply);
+      return parseNumberList(reply);
     } catch (err) {
       throw new ReplyError(command, reply, err instanceof Error ? err.message : String(err));
     }
-    if (values.length !== count) throw new ReplyError(command, reply, `expected ${count} value(s), got ${values.length}`);
+  };
+  const list = async (command: string, count: number) => {
+    const values = await listAny(command);
+    if (values.length !== count) throw new ReplyError(command, values.join(","), `expected ${count} value(s), got ${values.length}`);
     return values;
   };
   const withWarnings = <T extends object>(result: T) => (warnings.length > 0 ? { ...result, warnings } : result);
@@ -321,6 +365,49 @@ async function readResult(m: Measurement, fetchRequested: boolean, timeoutS: num
   if (m === "time_power") {
     const [power] = await list(`:${verb}:${name}?`, 1);
     return withWarnings({ measurement: m, command: verb, power_dbm: power });
+  }
+  if (m === "acpr") {
+    const [main, lower, lowerRel, upper, upperRel] = await list(`:${verb}:${name}?`, 5);
+    return withWarnings({
+      measurement: m, command: verb, main_power_dbm: main, lower_power_dbm: lower, lower_dbc: lowerRel, upper_power_dbm: upper, upper_dbc: upperRel,
+    });
+  }
+  if (m === "cn") {
+    const [carrier, noise, ratio] = await list(`:${verb}:${name}?`, 3);
+    return withWarnings({ measurement: m, command: verb, carrier_dbm: carrier, noise_dbm: noise, cn_db: ratio });
+  }
+  // Results made of several queries: with READ only the first one runs the measurement (and waits), the others FETCh its results.
+  const verbFor = (i: number) => (i === 0 ? verb : "FETCh");
+  if (m === "toi") {
+    const [lowT, upT, lowTone, upTone, ipt] = [
+      await list(`:${verbFor(0)}:${name}:LOW:TRD?`, 4),
+      await list(`:${verbFor(1)}:${name}:UP:TRD?`, 4),
+      await list(`:${verbFor(2)}:${name}:LOW:TONE?`, 2),
+      await list(`:${verbFor(3)}:${name}:UP:TONE?`, 2),
+      await list(`:${verbFor(4)}:${name}:IPT?`, 2),
+    ];
+    const product = ([frequency_hz, amplitude_dbm, dbc, toi_dbm]: number[]) => ({ frequency_hz, amplitude_dbm, dbc, toi_dbm });
+    const tone = ([frequency_hz, amplitude_dbm]: number[]) => ({ frequency_hz, amplitude_dbm });
+    return withWarnings({
+      measurement: m, command: verb, lower_third_order: product(lowT), upper_third_order: product(upT), lower_tone: tone(lowTone), upper_tone: tone(upTone),
+      intercept: { dbc: ipt[0], dbm: ipt[1] },
+    });
+  }
+  if (m === "harmonics") {
+    // The lists hold the fundamental and then the 2nd, 3rd, ... harmonic (as many as configured, 2-10 harmonics).
+    const ampCommand = `:${verbFor(0)}:${name}:AMPLitude:ALL?`;
+    const freqCommand = `:FETCh:${name}:FREQuency:ALL?`;
+    const amplitudes = await listAny(ampCommand);
+    const frequencies = await listAny(freqCommand);
+    if (amplitudes.length < 3 || amplitudes.length > 11) throw new ReplyError(ampCommand, amplitudes.join(","), `expected 3 to 11 values (fundamental and 2 to 10 harmonics), got ${amplitudes.length}`);
+    if (frequencies.length !== amplitudes.length) throw new ReplyError(freqCommand, frequencies.join(","), `expected ${amplitudes.length} values like ${ampCommand}, got ${frequencies.length}`);
+    const [thdPercent, thdDbc] = await list(`:FETCh:${name}:DISTortion?`, 2);
+    return withWarnings({
+      measurement: m, command: verb,
+      fundamental: { frequency_hz: frequencies[0], amplitude_dbm: amplitudes[0] },
+      harmonics: amplitudes.slice(1).map((amplitude_dbc, i) => ({ order: i + 2, frequency_hz: frequencies[i + 1], amplitude_dbc })),
+      thd_percent: thdPercent, thd_dbc: thdDbc,
+    });
   }
   // OBW: the combined reply has seven values of which the manual documents only four (and :READ:OBWidth:<sub>? gets
   // no reply), so READ runs the measurement with the combined query and the documented sub-results are fetched.
