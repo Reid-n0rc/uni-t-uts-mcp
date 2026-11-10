@@ -68,8 +68,9 @@ describe("checkBundleFiles (allowlist for the files inside the .mcpb)", () => {
 });
 
 // The real bundle is built with the official packer, fetched from npm (pinned), so these run only when asked for:
-//   MCPB_BUNDLE_TEST=1 npm test -- tests/unit/mcpb-bundle.test.ts      (CI runs this in the "mcpb bundle" job)
-describe.skipIf(!process.env.MCPB_BUNDLE_TEST)("the built .mcpb bundle", () => {
+//   npm run test:mcpb          (or MCPB_BUNDLE_TEST=1 on a POSIX shell; CI runs it in the "mcpb bundle" job)
+const wanted = Boolean(process.env.MCPB_BUNDLE_TEST) || process.env.npm_lifecycle_event === "test:mcpb";
+describe.skipIf(!wanted)("the built .mcpb bundle", () => {
   let work: string;
   let file: string;
   let unpacked: string;

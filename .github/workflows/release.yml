@@ -1,7 +1,8 @@
 name: GitHub release
 
-# Creates the GitHub release for a v* tag with the packed npm tarball attached
-# (uni-t-uts-mcp-<version>.tgz) and the matching CHANGELOG.md section as notes
+# Creates the GitHub release for a v* tag with the packed npm tarball
+# (uni-t-uts-mcp-<version>.tgz) and the Claude Desktop MCP bundle
+# (uni-t-uts-mcp-<version>.mcpb) attached, and the matching CHANGELOG.md section as notes
 # (GitHub's generated notes if there is none). This is the primary release channel
 # while the package is not published to npm; see docs/releasing.md.
 
@@ -54,6 +55,12 @@ jobs:
           npm install --no-audit --no-fund "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.tgz
           node "$GITHUB_WORKSPACE/scripts/smoke-mcp.mjs" -- node_modules/.bin/uni-t-uts-mcp
 
+      - name: Build and check the Claude Desktop MCP bundle (.mcpb)
+        run: |
+          node scripts/build-mcpb.mjs --out "$RUNNER_TEMP/dist"
+          npm run test:mcpb
+          ls -l "$RUNNER_TEMP/dist"
+
       - name: Extract release notes from CHANGELOG.md
         id: notes
         run: |
@@ -70,8 +77,8 @@ jobs:
           NOTES_FOUND: ${{ steps.notes.outputs.found }}
         run: |
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            echo "Release $GITHUB_REF_NAME already exists; uploading the tarball to it"
-            gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.tgz --repo "$GITHUB_REPOSITORY" --clobber
+            echo "Release $GITHUB_REF_NAME already exists; uploading the tarball and the bundle to it"
+            gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.tgz "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.mcpb --repo "$GITHUB_REPOSITORY" --clobber
             exit 0
           fi
           args=(--repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --verify-tag)
@@ -82,4 +89,4 @@ jobs:
           else
             args+=(--generate-notes)
           fi
-          gh release create "$GITHUB_REF_NAME" "${args[@]}" "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.tgz
+          gh release create "$GITHUB_REF_NAME" "${args[@]}" "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.tgz "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.mcpb
