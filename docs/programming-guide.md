@@ -219,6 +219,8 @@ No pass/fail query for limit lines is documented.
 
 Enter a measurement with `:CONFigure:<meas>` (presets that measurement's parameters; p.32-34) or `:CONFigure:<meas>:NDEFault` (enter without preset; p.35-36). `:CONFigure:SANalyzer` returns to plain sweep. Meas names: `CHPower`, `TPOWer`, `OBWidth`, `TOI`, `ACPower`, `SPECtrogram`, `CNRatio`, `HARMonics`. (The `:CONFigure:TOI:NDEFault` entry prints its syntax as `:CONFigure:TOI:DEFault`; typo.)
 
+**Corrections verified on the UTS3036B (issue #19, see verified-hardware.md):** `:FETCh:ACPower?` returns three values (main dBm, lower dBc, upper dBc), not five; `:FETCh:ACPower:MAIN?` gives one value and `:LOWer?`/`:UPPer?` give (dBm, dBc). `:FETCh:TOI:IPT?` gets no reply. `:FETCh:HARMonics:AMPLitude:ALL?` and `:FREQuency:ALL?` always return 10 values; only the first `:SENSe:HARMonics:NUMBer` (2-10, counting the fundamental) are results.
+
 **FETCh vs READ** (p.51): `:FETCh:...?` returns the latest result immediately; `:READ:...?` starts a measurement, waits for completion, then returns. Each `FETCh` query has an identical-named `READ` query. All returns are scientific-notation, comma-separated when multiple values.
 
 | Measurement | Result queries (FETCh/READ) | Units | Ref (FETCh p. / READ p.) |
