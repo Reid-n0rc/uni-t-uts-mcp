@@ -11,8 +11,6 @@ permissions:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -34,8 +32,13 @@ jobs:
       - name: Test with coverage
         if: matrix.os == 'ubuntu-latest' && matrix.node-version == 24
         run: npm run test:coverage
+      # The secret is only handed to the upload step; this gate just records whether it exists (empty for forks).
+      - name: Check for the Codecov token
+        id: codecov_gate
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == 24
+        run: echo "has_token=${{ secrets.CODECOV_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest' && matrix.node-version == 24 && env.CODECOV_TOKEN != ''
+        if: steps.codecov_gate.outputs.has_token == 'true'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
