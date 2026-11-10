@@ -18,11 +18,12 @@ Commands: `npm run build`, `npm test`, `npm run inspector`.
 
 - Commit as reid@malmoset.com (repo-local git config; check before committing).
 - Sign commits (already configured globally); signing is encouraged but not required of contributors.
-- Commit locally. Do not push, tag, or release without explicit go-ahead.
+- Push issue branches and open PRs as described under Process. The maintainer has authorized merging green PRs into `main`. Do not tag, create releases, or bump versions without explicit go-ahead.
 - Do not bump version numbers unless asked.
 - Never commit secrets, device IPs/serials, or `.mcp.json`.
 - Keep each task/issue small enough to finish in one context window; split larger work.
-- Every new tool needs an integration test with a mocked connection and an entry in `docs/tools-reference.md`.
+- Every new tool needs an integration test with a mocked connection and a `### \`tool_name\`` section in `docs/tools-reference.md` (a test fails if a registered tool is undocumented).
+- **Docs are part of done, updated in the same PR as the change.** A PR that adds or changes a tool, a hardware finding or instrument quirk, a workflow rule, or the project layout also updates the matching docs: `docs/tools-reference.md`, `docs/verified-hardware.md`, `docs/programming-guide.md`, `README.md` and `AGENTS.md`. Do not leave documentation for a later task.
 - Mark read-only tools with `readOnlyHint: true`.
 - Source of truth for commands is the UNI-T programming manual; links are in `docs/references.md`; cite the manual section in code comments when a command is non-obvious. Do not guess SCPI syntax.
 - Do not copy source from other projects without keeping their license notices.
