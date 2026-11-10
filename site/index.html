@@ -242,7 +242,8 @@ pre.code .s { color: var(--butter); }
   background: var(--butter); color: #1a0f33; font-family: var(--font-display); font-size: 1.2rem;
 }
 .note-card h3 { margin: 0 0 6px; font-family: var(--font-display); font-size: 1.2rem; }
-.note-card p { margin: 0; color: var(--muted); }
+.note-card p { margin: 0; }
+.note-card p.why { margin-top: 10px; color: var(--muted); font-size: .92rem; }
 
 .checks { list-style: none; margin: 0; padding: 18px 22px; display: grid; gap: 10px; font-family: var(--font-mono); font-size: .92rem; }
 .checks li::before { content: "[x] "; color: var(--accent-text); font-weight: 700; }
@@ -314,7 +315,7 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
       </a>
       <span class="spacer"></span>
       <a href="#tools">Tools</a>
-      <a href="#field-notes">Field notes</a>
+      <a href="#real-hardware">Built for hardware</a>
       <a href="#quickstart">Quick start</a>
       <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp">GitHub</a>
     </nav>
@@ -405,16 +406,16 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
     </div>
   </section>
 
-  <section class="block alt" id="field-notes">
+  <section class="block alt" id="real-hardware">
     <div class="wrap">
-      <h2 class="reveal">Field notes from <span class="hl">real hardware</span></h2>
-      <p class="sub reveal">The manual describes what the analyzer should do. These are things we measured on a UTS3036B, and how the server copes. The full list is in <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/docs/verified-hardware.md">verified-hardware.md</a>.</p>
+      <h2 class="reveal">Built for <span class="hl">real hardware</span></h2>
+      <p class="sub reveal">Every one of the {{TOOL_COUNT}} tools was tested against a real UNI-T UTS3036B running firmware V1.04.0040, the latest published. The server handles the analyzer's timing quirks so you do not have to. The details are in <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/docs/verified-hardware.md">verified-hardware.md</a>.</p>
       <div class="notes">
-        <article class="win note-card reveal"><div class="win-body"><h3>It ignores commands during a sweep</h3><p>During a single sweep the analyzer silently drops every line it receives on the raw port (no reply, no error). So the server starts the sweep, stays quiet for the sweep time, then polls <code>*OPC?</code> until it answers.</p></div></article>
-        <article class="win note-card reveal"><div class="win-body"><h3>Settings clamp silently</h3><p>Ask for an out-of-range value and the analyzer quietly picks the nearest valid one. Every setter reads the value back and reports what it really got.</p></div></article>
-        <article class="win note-card reveal"><div class="win-body"><h3>Bad queries leave a mess</h3><p>An unsupported query stalls the instrument for about two seconds and posts an error four seconds later. The connection waits it out so stale errors are not blamed on your next command.</p></div></article>
-        <article class="win note-card reveal"><div class="win-body"><h3>Bursts get mis-parsed</h3><p>Lines sent back to back can produce phantom errors, so each command is followed by an <code>*OPC?</code> round trip before the next one goes out.</p></div></article>
-        <article class="win note-card reveal"><div class="win-body"><h3>No service requests here</h3><p>We tried the status-byte route (<code>*ESE</code>, <code>*SRE</code>, <code>*STB?</code>). The operation-complete bit never sets on this firmware, so completion is detected by polling.</p></div></article>
+        <article class="win note-card reveal"><div class="win-body"><h3>Sweeps that just finish</h3><p>Start a single sweep and the tool returns when the trace is ready.</p><p class="why">Behind the scenes: the analyzer ignores commands while it sweeps, so the server waits out the sweep time, then checks for completion with <code>*OPC?</code>.</p></div></article>
+        <article class="win note-card reveal"><div class="win-body"><h3>Settings you can trust</h3><p>Every setter reads the value back and tells you what the analyzer actually applied.</p><p class="why">Behind the scenes: the analyzer quietly limits out-of-range values to the nearest valid one.</p></div></article>
+        <article class="win note-card reveal"><div class="win-body"><h3>Errors that name the right command</h3><p>Failures say which command caused them, even when the analyzer reports a problem late.</p><p class="why">Behind the scenes: an unsupported query posts its error a few seconds later, so the connection filters those stale errors out.</p></div></article>
+        <article class="win note-card reveal"><div class="win-body"><h3>Quick sequences stay safe</h3><p>Commands are confirmed one at a time, so rapid-fire changes never confuse the analyzer.</p><p class="why">Behind the scenes: lines sent back to back can produce phantom errors, so each command waits for an <code>*OPC?</code> reply.</p></div></article>
+        <article class="win note-card reveal"><div class="win-body"><h3>Safe by default</h3><p>Commands that reset the instrument, change its network settings or write files need your explicit confirmation.</p><p class="why">Behind the scenes: they sit on a denylist and are refused unless the call sets <code>confirm</code>.</p></div></article>
       </div>
     </div>
   </section>
