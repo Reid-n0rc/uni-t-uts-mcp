@@ -207,6 +207,32 @@ No parameters. Sends `:CALCulate:MARKer:AOFF` and reads every marker's mode to c
 
 Peak search criteria: `threshold_dbm` (a peak must be above it; -200 to 30) and `excursion_db` (a peak must rise this far above its valleys; 0 to 100), each with a `threshold_auto` / `excursion_auto` flag. In automatic mode the instrument computes the value from the trace and reports it. `get_peak_criteria` is read-only and takes no parameters. `set_peak_criteria` needs at least one of the four parameters; giving a value turns that criterion's automatic mode **off** (verified), `*_auto: true` switches it back on and cannot be combined with a value for the same criterion. Values outside the documented ranges are refused before anything is sent; the readback is compared and clamped values are `warnings`.
 
+## Measurements
+
+Channel power, time-domain power and occupied bandwidth (OBW). The instrument has **no query for the active measurement**, and `:CONFigure:<meas>` presets the span, RBW and sweep time (for example span 3 MHz) which `:CONFigure:SANalyzer` does not put back, so these tools save and restore that state and never scan for the active mode (queries the instrument does not answer stall it, and over VXI-11 can drop the link). Spectrum analyzer mode is told by `:SENSe:DETector:TRACe1?`, which only it answers; one measurement is told by `:SENSe:<meas>:AVERage:STATe?`. While a measurement is active most spectrum analyzer queries (detector, trace type) get no reply. A probe that gets no reply costs about 4.5 s (the 1.5 s timeout plus a 3 s pause while the instrument recovers). Measurement names: `channel_power`, `time_power`, `obw`; other measurements (ACPR, C/N, harmonics, TOI) are not covered.
+
+Parameters (`configure_measurement` and `measure`; `*` = common to all three): `average`* (on/off), `average_count`* (integer 1-999), `average_control`* (`exponential`, `repeat`), `average_type`* (`voltage`, `power`, `log`); `integration_bandwidth_hz` (channel_power only, greater than 0; the instrument clamps to 100 Hz-3.61 GHz); `left_limit_s`, `right_limit_s` (time_power only, 0-0.01 s; the instrument clamps the right limit to 10 ms); `percent` (obw only, above 0 up to 1; clamped to 0.9999) and `xdb` (obw only, -100 to -0.1 dB). A parameter for another measurement, or an out-of-range value, is refused before anything is sent. The parameters are read back after setting and anything the instrument changed is a `warnings` entry.
+
+### `get_measurement`
+
+Read-only. Without arguments it asks the one query only spectrum analyzer mode answers and returns `{"measurement": "spectrum_analyzer"}`; if that gets no reply it is an error saying a measurement is active (it does not guess which). With `measurement` set it checks that measurement and returns its parameters; an error means it is not active.
+
+### `configure_measurement`
+
+`measurement` plus optional parameters (above) and `preset` (default true: `:CONFigure:<meas>`; false: `:CONFigure:<meas>:NDEFault`; both change the span, RBW and sweep time). Enters the measurement, sets the parameters, reads them back and leaves the instrument in the measurement. When entered from spectrum analyzer mode the center, span, RBW, VBW, sweep time (each with its auto flag) and continuous-sweep state are saved for `exit_measurement` (`saved_settings: true`). Returns `measurement`, `parameters`, `warnings`, `saved_settings`.
+
+### `read_measurement`
+
+Read-only. `measurement` (must be active, else an error naming the silent query), `fetch` (default false) and `timeout_s` (default 30, 1-600). `READ` starts the measurement and waits for it (over VXI-11); `fetch: true` returns the latest result at once. **Over raw TCP the instrument ends a `READ` reply without a line terminator, so FETCh is used instead and a warning says so.** Results: channel_power gives `channel_power_dbm` and `power_density_dbm_per_hz`; time_power gives `power_dbm`; obw gives `obw_hz`, `frequency_error_hz`, `xdb_bandwidth_hz` and `total_power_dbm` (queried as separate documented sub-results; the combined OBW reply has seven values of which the manual documents only four; the four are not one atomic snapshot). A reply that is not a number list of the expected length (`nan` right after entering a measurement, before its first result) is an error naming the command.
+
+### `exit_measurement`
+
+`restore_settings` (default true). Sends `:CONFigure:SANalyzer`, checks that spectrum analyzer mode answers again and, when `configure_measurement` saved settings, puts the center, span, RBW, VBW, sweep time and continuous state back and verifies them (differences are `warnings`). A measurement entered another way has nothing saved: it only exits and a warning says the span, RBW and sweep time keep the measurement's values. In spectrum analyzer mode with nothing saved it does nothing.
+
+### `measure`
+
+One shot that leaves the instrument as it found it: from spectrum analyzer mode it saves the state, enters `measurement` (with `preset` and the parameters), reads the result with READ (FETCh after a 1.5 s settle over raw TCP), and **always**, even after an error, exits to spectrum analyzer mode, restores the saved state and verifies it (`try/finally`). With the requested measurement already active it only reads and puts any parameters you passed back to their previous values. It refuses when the instrument is in neither spectrum analyzer mode nor the requested measurement (use `exit_measurement`). Returns `measurement`, `result`, `restored`, `warnings`; if the read fails the error says the instrument was restored, and if the restore fails the error says to check with `get_measurement`/`exit_measurement`.
+
 ## Screenshot
 
 ### `screenshot`
