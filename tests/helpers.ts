@@ -3,7 +3,10 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 export type Registrar = (server: McpServer) => void;
-export type ToolResult = Awaited<ReturnType<Client["callTool"]>>;
+export interface ToolResult {
+  content?: unknown;
+  isError?: boolean;
+}
 
 /**
  * Create an MCP server with the given tool registrars, linked in-memory to a
@@ -32,11 +35,11 @@ export async function callTool(
   name: string,
   args: Record<string, unknown> = {}
 ): Promise<ToolResult> {
-  return client.callTool({ name, arguments: args });
+  return (await client.callTool({ name, arguments: args })) as ToolResult;
 }
 
 /** Text of the first text content block; throws if there is none. */
-export function getText(result: { content?: unknown }): string {
+export function getText(result: ToolResult): string {
   const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
   const block = content.find((c) => c.type === "text" && typeof c.text === "string");
   if (!block) throw new Error("Tool result has no text content");
