@@ -4,10 +4,14 @@ import { applyCommands, InstrumentError } from "../../src/instrument.js";
 const mockConnection = vi.hoisted(() => ({
   sendCommand: vi.fn(async (_cmd: string) => {}),
   query: vi.fn(async (_cmd: string, _timeout?: number): Promise<string> => '0,"No error"'),
+  msSinceQueryTimeout: vi.fn((): number => Infinity),
 }));
 vi.mock("../../src/connection.js", () => ({ connection: mockConnection }));
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockConnection.msSinceQueryTimeout.mockReturnValue(Infinity);
+});
 
 describe("applyCommands", () => {
   it("clears the status/error queue first, sends the commands in order, then checks errors", async () => {
@@ -30,5 +34,34 @@ describe("applyCommands", () => {
     mockConnection.sendCommand.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("Connection closed"));
     await expect(applyCommands([":A 1"])).rejects.toThrow("Connection closed");
     expect(mockConnection.query).not.toHaveBeenCalled();
+  });
+
+  describe("stale -113 errors after an unsupported query (the instrument posts them ~4 s later)", () => {
+    const UH = '-113,"Undefined header"';
+
+    it("ignores -113 shortly after a query timeout", async () => {
+      mockConnection.msSinceQueryTimeout.mockReturnValue(1500);
+      mockConnection.query.mockResolvedValueOnce(UH).mockResolvedValueOnce('0,"No error"');
+      await expect(applyCommands([":A 1"])).resolves.toBeUndefined();
+    });
+
+    it("still reports -113 when no query timed out recently", async () => {
+      for (const since of [Infinity, 60000]) {
+        mockConnection.msSinceQueryTimeout.mockReturnValue(since);
+        mockConnection.query.mockResolvedValueOnce(UH).mockResolvedValueOnce('0,"No error"');
+        await expect(applyCommands([":A 1"])).rejects.toBeInstanceOf(InstrumentError);
+      }
+    });
+
+    it("still reports other errors right after a timeout, listing only those", async () => {
+      mockConnection.msSinceQueryTimeout.mockReturnValue(1000);
+      mockConnection.query
+        .mockResolvedValueOnce(UH)
+        .mockResolvedValueOnce('-131,"Invalid suffix"')
+        .mockResolvedValueOnce('0,"No error"');
+      const err = await applyCommands([":A 1"]).catch((e) => e);
+      expect(err).toBeInstanceOf(InstrumentError);
+      expect(err.errors).toEqual(['-131,"Invalid suffix"']);
+    });
   });
 });

@@ -80,6 +80,7 @@ export class UtsConnection {
   private opcTimeoutMs = DEFAULT_OPC_TIMEOUT;
   private recoveryMs = DEFAULT_RECOVERY_MS;
   private holdUntil = 0;
+  private lastQueryTimeoutAt = 0;
   private holdTimer: ReturnType<typeof setTimeout> | null = null;
 
   async connect(
@@ -92,6 +93,7 @@ export class UtsConnection {
     this.port = port;
     this.opcTimeoutMs = options.opcTimeoutMs ?? DEFAULT_OPC_TIMEOUT;
     this.recoveryMs = options.recoveryMs ?? DEFAULT_RECOVERY_MS;
+    this.lastQueryTimeoutAt = 0;
 
     const socket = await new Promise<net.Socket>((resolve, reject) => {
       const s = new net.Socket();
@@ -137,6 +139,15 @@ export class UtsConnection {
 
   isConnected(): boolean {
     return this.socket !== null && !this.socket.destroyed;
+  }
+
+  /**
+   * Milliseconds since a query last timed out (Infinity if none). An unsupported query makes
+   * the instrument post a `-113` error to its error queue about 4 s later, so callers use this
+   * to tell such stale errors from ones their own commands caused.
+   */
+  msSinceQueryTimeout(): number {
+    return this.lastQueryTimeoutAt === 0 ? Infinity : Date.now() - this.lastQueryTimeoutAt;
   }
 
   getConnectionInfo(): string {
@@ -197,6 +208,7 @@ export class UtsConnection {
       this.timer = setTimeout(() => {
         // The instrument is probably stalled by an unsupported query; keep clear of it.
         this.holdUntil = Date.now() + Math.max(0, this.recoveryMs - job.timeoutMs);
+        this.lastQueryTimeoutAt = Date.now();
         this.failActive(
           new Error(
             `${job.kind === "binary" ? "Binary query" : "Query"} timeout after ${job.timeoutMs}ms for command: ${job.cmd}`

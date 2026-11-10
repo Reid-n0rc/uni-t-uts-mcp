@@ -168,6 +168,32 @@ describe("command pacing (the UTS3036B mis-parses bursts of lines)", () => {
   });
 });
 
+describe("msSinceQueryTimeout", () => {
+  it("is Infinity until a query times out, then small, and not reset by later successes", async () => {
+    await setup((line, s) => {
+      if (line === "Q?") s.write("ok\r\n");
+    });
+    expect(conn.msSinceQueryTimeout()).toBe(Infinity);
+    await conn.query("Q?");
+    expect(conn.msSinceQueryTimeout()).toBe(Infinity);
+
+    await expect(conn.query("NOPE?", 50)).rejects.toThrow(/timeout/i);
+    const since = conn.msSinceQueryTimeout();
+    expect(since).toBeGreaterThanOrEqual(0);
+    expect(since).toBeLessThan(500);
+
+    await conn.query("Q?", 1000);
+    expect(conn.msSinceQueryTimeout()).toBeLessThan(5000);
+    expect(Number.isFinite(conn.msSinceQueryTimeout())).toBe(true);
+  });
+
+  it("is not triggered by a command whose *OPC? sync times out", async () => {
+    await setup(undefined, { opc: false }, { opcTimeoutMs: 60, recoveryMs: 0 });
+    await expect(conn.sendCommand("CMD")).rejects.toThrow();
+    expect(conn.msSinceQueryTimeout()).toBe(Infinity);
+  });
+});
+
 describe("hold-off after a query timeout (the instrument stalls after an unsupported query)", () => {
   /** Fake instrument: after the unsupported query "BAD?" it ignores all lines for 200 ms. */
   function stallingHandler() {

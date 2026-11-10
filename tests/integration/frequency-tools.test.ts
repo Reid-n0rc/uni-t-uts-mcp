@@ -69,7 +69,7 @@ const fake = vi.hoisted(() => {
 });
 
 vi.mock("../../src/connection.js", () => ({
-  connection: { query: fake.query, sendCommand: fake.sendCommand },
+  connection: { query: fake.query, sendCommand: fake.sendCommand, msSinceQueryTimeout: () => Infinity },
 }));
 
 let client: Client;
