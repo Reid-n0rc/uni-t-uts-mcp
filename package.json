@@ -1,0 +1,31 @@
+{
+  "name": "uni-t-uts-mcp",
+  "version": "0.0.0",
+  "description": "MCP server for UNI-T UTS series spectrum analyzers via SCPI over LAN",
+  "type": "module",
+  "main": "build/index.js",
+  "bin": { "uni-t-uts-mcp": "./build/index.js" },
+  "files": ["build/**/*.js", "build/**/*.d.ts"],
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "start": "node build/index.js",
+    "dev": "tsc && node build/index.js",
+    "inspector": "npx @modelcontextprotocol/inspector node build/index.js",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": ["mcp", "model-context-protocol", "uni-t", "spectrum-analyzer", "scpi"],
+  "repository": { "type": "git", "url": "https://github.com/Reid-n0rc/uni-t-uts-mcp.git" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": { "node": ">=20" }
+}
