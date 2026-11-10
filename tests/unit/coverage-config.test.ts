@@ -33,6 +33,15 @@ describe("coverage reporting (Codecov)", () => {
     expect(ci).toContain("npm run test:coverage");
   });
 
+  it("exposes the token only to the upload step, gated by a step output", () => {
+    const ci = read(".github/workflows/ci.yml");
+    const lines = ci.split("\n");
+    // the secret appears exactly once: as the upload step's `token:` input
+    expect(lines.filter((l) => l.includes("secrets.CODECOV_TOKEN") && !l.includes("has_token"))).toHaveLength(1);
+    expect(ci).not.toContain("env.CODECOV_TOKEN");
+    expect(ci).toContain("steps.codecov_gate.outputs.has_token == 'true'");
+  });
+
   it("shows the badge in the README", () => {
     expect(read("README.md")).toContain("codecov.io/gh/Reid-n0rc/uni-t-uts-mcp");
   });
