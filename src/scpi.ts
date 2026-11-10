@@ -134,7 +134,7 @@ function splitStatements(line: string): SplitResult {
       continue;
     }
 
-    if (ch === "#" && seenHeaderEnd && /[\s,]/.test(line[i - 1] ?? "")) {
+    if (ch === "#" && seenHeaderEnd && /[ \t,]/.test(line[i - 1] ?? "")) {
       const digitCount = Number(line[i + 1]);
       if (!(digitCount >= 1 && digitCount <= 9)) {
         return { error: "command contains a malformed # block header" };
@@ -153,10 +153,14 @@ function splitStatements(line: string): SplitResult {
     if (ch === ";") {
       flush();
     } else if (ch === "\r" || ch === "\n") {
+      // Only CRLF and LF are treated as terminators; a lone CR is ambiguous, so fail closed.
+      if (ch === "\r" && line[i + 1] !== "\n") {
+        return { error: "command contains a lone CR (use LF or CRLF)" };
+      }
       flush();
       newMessage = true;
     } else {
-      if (/\s/.test(ch) && current.trim().length > 0) seenHeaderEnd = true;
+      if (/[ \t]/.test(ch) && current.trim().length > 0) seenHeaderEnd = true;
       current += ch;
     }
     i++;
