@@ -18,7 +18,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for co
 | Acquisition | `get_acquisition`, `set_acquisition`, `start_sweep`, `single_sweep`, `wait_for_sweep_complete` |
 | Trace configuration | `get_trace`, `set_trace`, `restart_trace`, `set_trace_math` |
 | Trace data | `get_trace_data` |
-| Markers | `get_marker`, `set_marker`, `marker_search`, `marker_to_instrument`, `markers_all_off`, `get_peak_criteria`, `set_peak_criteria` |
+| Markers | `get_marker`, `set_marker`, `marker_search`, `marker_to_instrument`, `markers_all_off`, `get_peak_criteria`, `set_peak_criteria`, `get_marker_function`, `set_marker_function`, `get_marker_ndb`, `set_marker_ndb`, `get_frequency_counter`, `set_frequency_counter` |
 | Measurements | `get_measurement`, `configure_measurement`, `read_measurement`, `exit_measurement`, `measure` (channel power, time-domain power, OBW, ACPR, TOI, C/N, harmonics) |
 | Screenshot | `screenshot` (PNG image of the screen; needs VXI-11, see [tools reference](docs/tools-reference.md#screenshot)) |
 
