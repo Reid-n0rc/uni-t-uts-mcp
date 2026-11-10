@@ -12,7 +12,13 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- VXI-11 over a slow or routed path (issue #127): the portmapper probe behind `UTS_TRANSPORT=auto` and the `vxi11` open now retry (three attempts within `UTS_VXI11_PROBE_TIMEOUT_S`, default 15 s) instead of failing at one 5 s timeout and falling back to raw. A new link must answer a status poll before use, and a stale link is replaced. The fallback reason and the `vxi11` error name port 111. A timed-out write is reported (not resent). The link is released (`destroy_link`) on disconnect, SIGINT, SIGTERM and stdin close.
+
 ### Added
+
+- `UTS_VXI11_PROBE_TIMEOUT_S` environment variable (1 to 120 seconds).
 - Test coverage: `npm run test:coverage` (vitest v8, `coverage/lcov.info`), uploaded to Codecov from one CI job (Ubuntu, Node 24) when the `CODECOV_TOKEN` secret is set; informational only (`codecov.yml`); README badge.
 
 ### Security
