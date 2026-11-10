@@ -212,8 +212,9 @@ export function registerBandwidthSweepTools(server: McpServer): void {
         if (args.sweep_type_auto !== undefined) commands.push(`${S}:TYPE:AUTO ${onOff(args.sweep_type_auto)}`);
         if (args.sweep_time_rule !== undefined) commands.push(`${S}:TIME:AUTO:RULes ${RULES[args.sweep_time_rule]}`);
         if (args.sweep_time_auto !== undefined) commands.push(`${S}:TIME:AUTO ${onOff(args.sweep_time_auto)}`);
-        if (args.trigger_source !== undefined) commands.push(`${T}:SOURce ${TRIGGERS[args.trigger_source]}`);
+        // Setting the video level switches the source to VIDeo (verified), so the level goes first.
         if (args.trigger_video_level_dbm !== undefined) commands.push(`${T}:VIDeo:LEVel ${formatNumber(args.trigger_video_level_dbm)}`);
+        if (args.trigger_source !== undefined) commands.push(`${T}:SOURce ${TRIGGERS[args.trigger_source]}`);
         if (args.sweep_time_s !== undefined) commands.push(`${S}:TIME ${formatNumber(args.sweep_time_s)}`);
         await applyCommands(commands);
 

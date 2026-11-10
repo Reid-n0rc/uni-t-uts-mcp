@@ -82,7 +82,7 @@ const fake = vi.hoisted(() => {
       case `${T}:SOURce`:
         if (arg === "IMMediate" || arg === "VIDeo") state.trigSource = arg; else state.errors.push('-224,"Illegal parameter value"');
         return;
-      case `${T}:VIDeo:LEVel`: state.trigLevel = clamp(Number(arg), -170, 30); return;
+      case `${T}:VIDeo:LEVel`: state.trigLevel = clamp(Number(arg), -170, 30); state.trigSource = "VIDeo"; return; // verified: setting the level selects the video trigger
     }
     if ((d = /^:SENSe:DETector:TRACe([1-6])$/.exec(head))) {
       if (["SAMPle", "POSitive", "NEGative", "NORMal", "AVERage"].includes(arg)) {
@@ -259,7 +259,7 @@ describe("set_sweep", () => {
       sweep_time_rule: "accuracy", sweep_type: "fft", trigger_source: "video", trigger_video_level_dbm: -40,
     });
     expect(fake.calls).toEqual([
-      `${S}:TYPE FFT`, `${S}:TIME:AUTO:RULes ACCuracy`, `:TRIGger:SEQuence:SOURce VIDeo`, `:TRIGger:SEQuence:VIDeo:LEVel -40`,
+      `${S}:TYPE FFT`, `${S}:TIME:AUTO:RULes ACCuracy`, `:TRIGger:SEQuence:VIDeo:LEVel -40`, `:TRIGger:SEQuence:SOURce VIDeo`,
     ]);
     fake.calls.length = 0;
     await callTool(client, "set_sweep", { sweep_type_auto: true, trigger_source: "immediate" });
@@ -269,6 +269,11 @@ describe("set_sweep", () => {
     await callTool(client, "set_sweep", { sweep_time_s: 1, sweep_points: 2001, sweep_type: "sweep" });
     expect(fake.calls[fake.calls.length - 1]).toBe(`${S}:TIME 1`);
     expect(fake.calls[0]).toBe(`${S}:POINts 2001`);
+  });
+  it("sets the video level before the source, because the level setter switches the source to video", async () => {
+    const res = await callTool(client, "set_sweep", { trigger_source: "immediate", trigger_video_level_dbm: -30 });
+    expect(json(res).state.trigger_source).toBe("immediate");
+    expect(json(res).warnings).toEqual([]);
   });
   it("warns on clamping", async () => {
     const res = await callTool(client, "set_sweep", { sweep_time_s: 1e6, trigger_video_level_dbm: 500 });
