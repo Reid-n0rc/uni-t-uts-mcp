@@ -147,6 +147,62 @@ describe("site/index.html template", () => {
   });
 });
 
+describe("site/index.html hardware section (issue #82)", () => {
+  const html = readFileSync(new URL("../../site/index.html", import.meta.url), "utf8");
+  const section = /<section[^>]*id="real-hardware"[\s\S]*?<\/section>/.exec(html)?.[0] ?? "";
+  const cards = section.match(/<article[\s\S]*?<\/article>/g) ?? [];
+
+  it("has a benefit-first heading and a nav link that points at the section", () => {
+    expect(section).not.toBe("");
+    expect(section).toMatch(/<h2[^>]*>\s*Built for[\s\S]*real hardware/i);
+    expect(html).toContain('<a href="#real-hardware">Built for hardware</a>');
+    expect(html).not.toContain("field-notes");
+    expect(html).not.toMatch(/Field notes/i);
+  });
+
+  it("every in-page link has a matching id", () => {
+    const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+    const missing = [...html.matchAll(/href="#([^"]+)"/g)].map((m) => m[1]).filter((a) => !ids.has(a));
+    expect(missing).toEqual([]);
+  });
+
+  it("the lead names the tested hardware and firmware and the generated tool count", () => {
+    const lead = /<p class="sub[^"]*"[^>]*>([\s\S]*?)<\/p>/.exec(section)?.[1] ?? "";
+    expect(lead).toContain("{{TOOL_COUNT}}");
+    expect(lead).toContain("UTS3036B");
+    expect(lead).toContain("V1.04.0040");
+  });
+
+  it("has five cards, each with a benefit heading and a muted why line", () => {
+    expect(cards).toHaveLength(5);
+    for (const c of cards) {
+      expect(c).toMatch(/<h3>[^<]{8,}<\/h3>/);
+      expect(c).toMatch(/<p class="why">[^<]/);
+    }
+    // the benefit comes first, the instrument behavior second
+    for (const c of cards.slice(0, 4)) expect(c.indexOf("<h3>")).toBeLessThan(c.indexOf('class="why"'));
+  });
+
+  it("no longer leads with the instrument's problems", () => {
+    for (const old of [
+      "It ignores commands during a sweep",
+      "Settings clamp silently",
+      "Bad queries leave a mess",
+      "Bursts get mis-parsed",
+      "No service requests here",
+      "Field notes",
+    ]) {
+      expect(html).not.toContain(old);
+    }
+  });
+
+  it("keeps the honest facts and the link to the hardware notes", () => {
+    expect(section).toMatch(/ignores commands/i);
+    expect(section).toMatch(/limits|clamp/i);
+    expect(section).toContain("verified-hardware.md");
+  });
+});
+
 describe("buildSite", () => {
   it("writes a complete page and .nojekyll into the output directory", () => {
     const out = mkdtempSync(join(tmpdir(), "uts-site-"));

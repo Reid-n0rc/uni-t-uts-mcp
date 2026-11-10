@@ -1,0 +1,85 @@
+name: GitHub release
+
+# Creates the GitHub release for a v* tag with the packed npm tarball attached
+# (uni-t-uts-mcp-<version>.tgz) and the matching CHANGELOG.md section as notes
+# (GitHub's generated notes if there is none). This is the primary release channel
+# while the package is not published to npm; see docs/releasing.md.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # create the release and upload the tarball; nothing else
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check the tag matches package.json
+        run: node scripts/release-tools.mjs check-tag "$GITHUB_REF_NAME"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Check the tarball contents
+        run: node scripts/check-pack.mjs
+
+      - name: Pack the tarball
+        run: |
+          mkdir -p "$RUNNER_TEMP/dist"
+          npm pack --silent --pack-destination "$RUNNER_TEMP/dist"
+          ls -l "$RUNNER_TEMP/dist"
+
+      - name: Smoke-test the tarball (install into an empty project, initialize + tools/list)
+        run: |
+          mkdir "$RUNNER_TEMP/project" && cd "$RUNNER_TEMP/project"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.tgz
+          node "$GITHUB_WORKSPACE/scripts/smoke-mcp.mjs" -- node_modules/.bin/uni-t-uts-mcp
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        run: |
+          if node scripts/release-tools.mjs notes "$GITHUB_REF_NAME" "$RUNNER_TEMP/notes.md"; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No CHANGELOG.md section for $GITHUB_REF_NAME; using generated release notes"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTES_FOUND: ${{ steps.notes.outputs.found }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; uploading the tarball to it"
+            gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.tgz --repo "$GITHUB_REPOSITORY" --clobber
+            exit 0
+          fi
+          args=(--repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --verify-tag)
+          # Tags such as v0.2.0-rc.1 are marked as pre-releases.
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then args+=(--prerelease); fi
+          if [ "$NOTES_FOUND" = "true" ]; then
+            args+=(--notes-file "$RUNNER_TEMP/notes.md")
+          else
+            args+=(--generate-notes)
+          fi
+          gh release create "$GITHUB_REF_NAME" "${args[@]}" "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.tgz
