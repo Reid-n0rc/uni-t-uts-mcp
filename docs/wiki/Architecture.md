@@ -101,4 +101,4 @@ Required of every tool and enforced by a contract test:
 - **One instrument at a time** (a single connection). Multiple instruments are a proposal: [issue #67](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/67).
 - **VXI-11 has been verified on one analyzer only** (UTS3036B, firmware V1.04.0040); other models fall back to raw SCPI when they do not offer it.
 - **A long sweep blocks other tool calls**, by design, up to `UTS_BUSY_TIMEOUT_S`.
-- **Not implemented yet:** markers and measurements. The `screenshot` tool needs VXI-11 because the analyzer stops a large reply after 144,800 bytes over raw TCP ([issue #42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)); it refuses with instructions over raw. See the [Roadmap](Roadmap).
+- **Not implemented yet:** limit lines and the tracking generator. The `screenshot` tool needs VXI-11 because the analyzer stops a large reply after 144,800 bytes over raw TCP ([issue #42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)); it refuses with instructions over raw. See the [Roadmap](Roadmap).

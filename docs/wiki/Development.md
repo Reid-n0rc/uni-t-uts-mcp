@@ -77,4 +77,4 @@ See [Architecture](Architecture) for the source layout, and the repository's `te
 
 ## Releases
 
-Releases are made by tag-triggered GitHub Actions: a GitHub release with the npm tarball, a Docker image on GitHub Container Registry the package is also published to the npm registry (with provenance). v0.2.0 is released and on npm. Tags and releases are a maintainer decision; see [docs/releasing.md](https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/docs/releasing.md).
+Releases are made by tag-triggered GitHub Actions: a GitHub release with the npm tarball, a Docker image on GitHub Container Registry the package is also published to the npm registry (with provenance). v0.3.0 is released and on npm. Tags and releases are a maintainer decision; see [docs/releasing.md](https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/docs/releasing.md).
