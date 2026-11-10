@@ -88,3 +88,14 @@ Samples (trace data only; screenshots are truncated so only their 48-byte header
 - Restored afterwards: continuous sweep ON, sweep time auto (2.6475 ms), `:SYSTem:ERRor?` clean.
 - **SRQ / status-byte polling does not work (evaluated for T4).** Real SRQ interrupts are unavailable over raw TCP (they need VXI-11, HiSLIP or USB488), so the polled equivalent was tested: `*CLS`, `*ESE 1`, `*SRE 32` (both read back), single sweep (4 s), `:INITiate:IMMediate`, then `*OPC` (command form) and polling `*ESR?`/`*STB?`. Results: (1) `*OPC` and `*ESR?` sent while the sweep runs are dropped like every other line (the instrument is deaf); (2) after the sweep, with `*OPC` sent while idle, `*ESR?` and `*STB?` were still `0`: this firmware never sets the operation-complete bit (ESR bit 0, STB bit 5), so there is nothing to wait for; (3) in continuous mode `*CLS`, `*OPC`, `*ESR?` also gave `0`. `*ESR?`/`*STB?` therefore carry no sweep information, and the only usable completion signal is the instrument answering again after the sweep. `*ESE`/`*SRE` were restored to 0.
 
+## Error handling standard (issue #58)
+
+Behavior by tool group, as implemented (mocked-connection tests only; see AGENTS.md "Error handling standard"):
+
+- Setters never throw: invalid input is rejected before anything is sent; the instrument's clamping/snapping is not an error but is reported in `warnings` after a readback (numbers, and also units, scale type, preamp, filter shape, sweep type/rule, trigger source and the requested auto flags). Instrument-reported errors (`:SYSTem:ERRor?`) are errors that name the commands sent and say the settings may be partially applied. A failure part-way through (write failure, closed socket, error queue unreadable) lists the commands that were already sent.
+- A timeout of `:SYSTem:ERRor?` itself is treated as "no information" (src/errors.ts), not as a failure; the readback comparison still catches wrong values.
+- Getters parse strictly; an empty or malformed reply is an error naming the command and quoting the reply. `identify` requires four comma-separated `*IDN?` fields.
+- `scpi_command` checks the error queue like other setters. `scpi_query` returns replies verbatim (text) and does not interpret them.
+- `single_sweep` deliberately leaves the instrument in single sweep mode; its failure messages say so.
+
+The live check for this issue (provoking real instrument errors: invalid suffix, unsupported query, not connected, through the built server) has NOT been run yet.

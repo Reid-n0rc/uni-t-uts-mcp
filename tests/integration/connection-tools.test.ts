@@ -120,6 +120,26 @@ describe("identify", () => {
   });
 });
 
+describe("identify and disconnect failure modes (#58)", () => {
+  it("rejects an empty or non-IDN reply, naming the command", async () => {
+    for (const reply of ["", "garbage"]) {
+      mockConnection.query.mockResolvedValueOnce(reply);
+      const res = await callTool(client, "identify", {});
+      expect(res.isError).toBe(true);
+      expect(getText(res)).toContain("*IDN?");
+    }
+  });
+
+  it("returns an error result if disconnecting throws", async () => {
+    mockConnection.disconnect.mockImplementationOnce(() => {
+      throw new Error("socket exploded");
+    });
+    const res = await callTool(client, "disconnect", {});
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toContain("socket exploded");
+  });
+});
+
 describe("disconnect", () => {
   it("disconnects when connected", async () => {
     const res = await callTool(client, "disconnect", {});

@@ -1,9 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { connection } from "../connection.js";
-import { InstrumentError, applyCommands } from "../instrument.js";
-import { formatWithUnit, parseBool, parseNumber } from "../scpi.js";
-import { errorResult, textResult } from "./util.js";
+import { applyCommands, queryBool, queryNumber, readBack } from "../instrument.js";
+import { formatWithUnit } from "../scpi.js";
+import { errorResult, setterFailure, textResult } from "./util.js";
 
 // Commands: docs/programming-guide.md section 2 (frequency). Query forms and the
 // "Hz" suffix were verified on the UTS3036B (docs/verified-hardware.md).
@@ -20,13 +19,13 @@ export interface FrequencyState {
 
 async function readFrequencyState(): Promise<FrequencyState> {
   // Queries are serialized by the connection; read one at a time.
-  const center_hz = parseNumber(await connection.query(":FREQuency:CENTer?"));
-  const span_hz = parseNumber(await connection.query(":FREQuency:SPAN?"));
-  const start_hz = parseNumber(await connection.query(":FREQuency:STARt?"));
-  const stop_hz = parseNumber(await connection.query(":FREQuency:STOP?"));
-  const center_step_hz = parseNumber(await connection.query(":FREQuency:CENTer:STEP?"));
-  const center_step_auto = parseBool(await connection.query(":FREQuency:CENTer:STEP:AUTO?"));
-  const offset_hz = parseNumber(await connection.query(":FREQuency:OFFSet?"));
+  const center_hz = await queryNumber(":FREQuency:CENTer?");
+  const span_hz = await queryNumber(":FREQuency:SPAN?");
+  const start_hz = await queryNumber(":FREQuency:STARt?");
+  const stop_hz = await queryNumber(":FREQuency:STOP?");
+  const center_step_hz = await queryNumber(":FREQuency:CENTer:STEP?");
+  const center_step_auto = await queryBool(":FREQuency:CENTer:STEP:AUTO?");
+  const offset_hz = await queryNumber(":FREQuency:OFFSet?");
   return { center_hz, span_hz, start_hz, stop_hz, center_step_hz, center_step_auto, offset_hz };
 }
 
@@ -119,7 +118,7 @@ export function registerFrequencyTools(server: McpServer): void {
 
         if (args.start_hz !== undefined && args.stop_hz !== undefined) {
           // Move the edge that will not cross the other one first.
-          const currentStop = parseNumber(await connection.query(":FREQuency:STOP?"));
+          const currentStop = await queryNumber(":FREQuency:STOP?");
           const start = `:FREQuency:STARt ${formatWithUnit(args.start_hz, "Hz")}`;
           const stop = `:FREQuency:STOP ${formatWithUnit(args.stop_hz, "Hz")}`;
           commands.push(...(args.start_hz >= currentStop ? [stop, start] : [start, stop]));
@@ -139,7 +138,7 @@ export function registerFrequencyTools(server: McpServer): void {
 
         await applyCommands(commands);
 
-        const state = await readFrequencyState();
+        const state = await readBack(readFrequencyState);
         const checks: Array<[string, number | undefined, number]> = [
           ["center_hz", args.center_hz, state.center_hz],
           ["span_hz", args.span_hz, state.span_hz],
@@ -148,18 +147,21 @@ export function registerFrequencyTools(server: McpServer): void {
           ["center_step_hz", args.center_step_hz, state.center_step_hz],
           ["offset_hz", args.offset_hz, state.offset_hz],
         ];
+        if (args.zero_span) checks.push(["span_hz", 0, state.span_hz]);
         const warnings = checks
           .filter(([, requested, actual]) => requested !== undefined && !close(requested, actual))
           .map(
             ([name, requested, actual]) =>
               `${name} adjusted by the instrument: requested ${requested} Hz, now ${actual} Hz`
           );
+        if (args.center_step_auto !== undefined && args.center_step_auto !== state.center_step_auto) {
+          warnings.push(
+            `center_step_auto adjusted by the instrument: requested ${args.center_step_auto}, now ${state.center_step_auto}`
+          );
+        }
         return textResult(JSON.stringify({ state, warnings }, null, 2));
       } catch (err) {
-        if (err instanceof InstrumentError) {
-          return errorResult(`${err.message}. Settings may be partially applied; use get_frequency to check.`);
-        }
-        return errorResult(err);
+        return setterFailure(err, "get_frequency");
       }
     }
   );

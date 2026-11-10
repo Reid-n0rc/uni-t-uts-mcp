@@ -1,9 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { connection } from "../connection.js";
-import { InstrumentError, applyCommands } from "../instrument.js";
-import { formatNumber, onOff, parseBool, parseNumber } from "../scpi.js";
-import { errorResult, textResult } from "./util.js";
+import { applyCommands, queryBool, queryNumber, queryParsed, readBack } from "../instrument.js";
+import { formatNumber, onOff } from "../scpi.js";
+import { errorResult, setterFailure, textResult } from "./util.js";
 
 // Commands: docs/programming-guide.md section 2 (amplitude). Behavior verified on the
 // UTS3036B (docs/verified-hardware.md): setters take bare numbers (a unit suffix is also
@@ -51,15 +50,15 @@ function parseScaleType(reply: string): ScaleType {
 
 async function readAmplitudeState(): Promise<AmplitudeState> {
   // Queries are serialized by the connection; read one at a time.
-  const reference_level = parseNumber(await connection.query(`${Y}:RLEVel?`));
-  const scale_per_div_db = parseNumber(await connection.query(`${Y}:PDIVision?`));
-  const scale_type = parseScaleType(await connection.query(`${Y}:SPACing?`));
-  const reference_level_offset_db = parseNumber(await connection.query(`${Y}:RLEVel:OFFSet?`));
-  const power_unit = parseUnit(await connection.query(":UNIT:POWer?"));
-  const attenuation_db = parseNumber(await connection.query(":POWer:ATTenuation?"));
-  const attenuation_auto = parseBool(await connection.query(":POWer:ATTenuation:AUTO?"));
-  const preamp = parseBool(await connection.query(":POWer:GAIN:STATe?"));
-  const input_impedance_ohm = parseNumber(await connection.query(`${IMPEDANCE}?`));
+  const reference_level = await queryNumber(`${Y}:RLEVel?`);
+  const scale_per_div_db = await queryNumber(`${Y}:PDIVision?`);
+  const scale_type = await queryParsed(`${Y}:SPACing?`, parseScaleType);
+  const reference_level_offset_db = await queryNumber(`${Y}:RLEVel:OFFSet?`);
+  const power_unit = await queryParsed(":UNIT:POWer?", parseUnit);
+  const attenuation_db = await queryNumber(":POWer:ATTenuation?");
+  const attenuation_auto = await queryBool(":POWer:ATTenuation:AUTO?");
+  const preamp = await queryBool(":POWer:GAIN:STATe?");
+  const input_impedance_ohm = await queryNumber(`${IMPEDANCE}?`);
   return {
     reference_level, power_unit, scale_per_div_db, scale_type, reference_level_offset_db,
     attenuation_db, attenuation_auto, preamp, input_impedance_ohm,
@@ -151,7 +150,7 @@ export function registerAmplitudeTools(server: McpServer): void {
 
         await applyCommands(commands);
 
-        const state = await readAmplitudeState();
+        const state = await readBack(readAmplitudeState);
         const warnings: string[] = [];
         const numeric: Array<[string, number | undefined, number, string]> = [
           ["reference_level", args.reference_level, state.reference_level, state.power_unit],
@@ -168,12 +167,20 @@ export function registerAmplitudeTools(server: McpServer): void {
             warnings.push(`${name} adjusted by the instrument: requested ${requested} ${unit}, now ${actual} ${unit}`);
           }
         }
+        const flags: Array<[string, unknown, unknown]> = [
+          ["power_unit", args.power_unit, state.power_unit],
+          ["scale_type", args.scale_type, state.scale_type],
+          ["preamp", args.preamp, state.preamp],
+          ["attenuation_auto", args.attenuation_auto, state.attenuation_auto],
+        ];
+        for (const [name, requested, actual] of flags) {
+          if (requested !== undefined && requested !== actual) {
+            warnings.push(`${name} adjusted by the instrument: requested ${requested}, now ${actual}`);
+          }
+        }
         return textResult(JSON.stringify({ state, warnings }, null, 2));
       } catch (err) {
-        if (err instanceof InstrumentError) {
-          return errorResult(`${err.message}. Settings may be partially applied; use get_amplitude to check.`);
-        }
-        return errorResult(err);
+        return setterFailure(err, "get_amplitude");
       }
     }
   );

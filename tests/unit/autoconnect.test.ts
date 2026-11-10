@@ -45,4 +45,15 @@ describe("autoConnectFromEnv", () => {
     expect(conn.connect).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalled();
   });
+
+  it("never rejects even when the logger itself throws (the caller fires and forgets it)", async () => {
+    const throwingLog = vi.fn(() => {
+      throw new Error("EPIPE");
+    });
+    const failing = fakeConnection(async () => {
+      throw new Error("Connection failed: ECONNREFUSED");
+    });
+    await expect(autoConnectFromEnv({ UTS_IP: "192.168.1.100" }, failing, throwingLog)).resolves.toBe(false);
+    await expect(autoConnectFromEnv({ UTS_IP: "192.168.1.100" }, fakeConnection(), throwingLog)).resolves.toBe(true);
+  });
 });

@@ -49,9 +49,13 @@ export function registerConnectionTools(server: McpServer): void {
     {},
     { readOnlyHint: false },
     async () => {
-      if (!connection.isConnected()) return textResult("Not connected.");
-      connection.disconnect();
-      return textResult("Disconnected.");
+      try {
+        if (!connection.isConnected()) return textResult("Not connected.");
+        connection.disconnect();
+        return textResult("Disconnected.");
+      } catch (err) {
+        return errorResult(err);
+      }
     }
   );
 
@@ -62,7 +66,15 @@ export function registerConnectionTools(server: McpServer): void {
     { readOnlyHint: true },
     async () => {
       try {
-        return textResult(await connection.query("*IDN?"));
+        const reply = await connection.query("*IDN?");
+        // manufacturer,model,serial,firmware
+        if (reply.trim().split(",").length < 4) {
+          return errorResult(
+            `Invalid reply to *IDN?: ${JSON.stringify(reply)} (expected manufacturer,model,serial,firmware). ` +
+              "Check that the host and port are a UNI-T analyzer's SCPI port."
+          );
+        }
+        return textResult(reply);
       } catch (err) {
         return errorResult(err);
       }

@@ -1,8 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { connection } from "../connection.js";
+import { applyCommands } from "../instrument.js";
 import { DangerousCommandError, analyzeLine, assertAllowed } from "../scpi.js";
-import { errorResult, textResult } from "./util.js";
+import { errorResult, setterFailure, textResult } from "./util.js";
 
 /** Largest block payload (bytes) returned inline, as base64. */
 const MAX_BLOCK_BYTES = 65536;
@@ -46,7 +47,9 @@ export function registerScpiTools(server: McpServer): void {
         }
 
         if (reply === "block") {
-          const data = await connection.queryBinary(command, timeout_ms);
+          const data = await connection.queryBinary(command, timeout_ms).catch((err) => {
+            throw new Error(`${err instanceof Error ? err.message : String(err)} (command: ${command})`);
+          });
           const shown = data.subarray(0, MAX_BLOCK_BYTES);
           const note =
             data.length > shown.length ? ` (truncated: showing the first ${shown.length} bytes)` : "";
@@ -79,11 +82,12 @@ export function registerScpiTools(server: McpServer): void {
         if (analysis.ok && analysis.queries > 0) {
           return errorResult("scpi_command does not read replies; use scpi_query for queries.");
         }
-        await connection.sendCommand(command);
-        return textResult(`Command sent: ${command}`);
+        // Like every setter: *CLS, synced send, then check the error queue (a rejected command only shows up there).
+        await applyCommands([command]);
+        return textResult(`Command sent: ${command} (the instrument reported no error)`);
       } catch (err) {
         if (err instanceof DangerousCommandError) return errorResult(err.reason);
-        return errorResult(err);
+        return setterFailure(err, "scpi_query");
       }
     }
   );
