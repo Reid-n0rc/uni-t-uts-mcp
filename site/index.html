@@ -185,7 +185,12 @@ h1 .hl { color: #fff; background: linear-gradient(transparent 60%, var(--teal) 6
 .btn.alt { background: var(--butter); }
 .badges { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
 .badges li { font-family: var(--font-mono); font-size: .8rem; padding: 4px 10px; border: 2px solid rgba(255, 255, 255, .85); background: rgba(26, 15, 51, .55); color: #fff; }
-.marker-win { position: absolute; right: max(16px, calc((100vw - 1120px) / 2)); bottom: calc(30% + 16px); width: min(300px, calc(100% - 32px)); z-index: 2; color: #1a0f33; }
+/* The readout is placed next to the marker flag by the hero script; this is where it sits without scripts. */
+.marker-win { position: absolute; left: 52%; top: 36%; width: 264px; z-index: 2; color: #1a0f33; }
+#mk-overlay { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; overflow: hidden; }
+#mk-overlay .mk-line { stroke: #fffb96; stroke-width: 1.5; fill: none; }
+#mk-overlay .mk-guide { stroke: rgba(255, 251, 150, .55); stroke-width: 1; stroke-dasharray: 3 4; fill: none; }
+#mk-overlay .mk-flag { fill: #fffb96; stroke: #1a0f33; stroke-width: 2; stroke-linejoin: miter; }
 .marker-win .win-body { padding: 10px 14px; font-family: var(--font-mono); font-size: .85rem; line-height: 1.5; background: #fff; color: #1a0f33; }
 .marker-win b { color: var(--purple); }
 .fine { font-size: .7rem; opacity: .7; }
@@ -299,9 +304,15 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
   .btn { transition: none; }
 }
 @media (max-width: 720px) {
-  .marker-win { position: relative; right: auto; bottom: auto; margin: 30px 16px 0 auto; z-index: 3; }
-  .hero { min-height: 0; padding-bottom: 38vh; }
-  .marker-win { margin: 26px 0 0; align-self: flex-start; }
+  /* a fixed-height display under the text: room for the marker readout above the trace, never over the copy */
+  .hero { min-height: 0; padding-bottom: 430px; }
+  .floor { height: 100px; }
+  .sun { bottom: 100px; width: min(54vw, 300px); }
+  #trace { bottom: 100px; height: 230px; }
+  .marker-win { width: 190px; }
+  .marker-win .win-bar { padding: 2px 4px; }
+  .marker-win .win-body { padding: 6px 9px; font-size: .78rem; line-height: 1.35; }
+  .marker-win .fine { font-size: .62rem; }
   .bubble.you, .bubble.bot { margin-inline: 0; }
   .brand span { display: none; }
 }
@@ -334,6 +345,7 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
   <div class="stars" aria-hidden="true"></div>
   <div class="sun" aria-hidden="true"></div>
   <canvas id="trace" aria-hidden="true"></canvas>
+  <svg id="mk-overlay" aria-hidden="true" focusable="false"><line class="mk-guide" id="mk-guide" x1="0" y1="0" x2="0" y2="0"/><line class="mk-line" id="mk-leader" x1="0" y1="0" x2="0" y2="0"/><path class="mk-flag" id="mk-flag" d="M0 0"/></svg>
   <div class="floor" aria-hidden="true"><div class="grid"></div></div>
 
   <div class="wrap">
@@ -471,7 +483,7 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
   <section class="block alt" id="quickstart">
     <div class="wrap">
       <h2 class="reveal">Quick <span class="hl">start</span></h2>
-      <p class="sub reveal">Works today with Node.js 22+ (or Docker) and an analyzer reachable on your network. Use your analyzer's address in place of <code>192.168.1.100</code>.</p>
+      <p class="sub reveal">Works today with Node.js 22+ (or Docker), straight from npm and an analyzer reachable on your network. Use your analyzer's address in place of <code>192.168.1.100</code>.</p>
       <div class="steps">
         <div class="step reveal">
           <h3>Claude Desktop: download the .mcpb and double-click</h3>
@@ -480,6 +492,13 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
         </div>
         <div class="step reveal">
           <h3>Claude Code</h3>
+          <div class="win"><div class="win-bar"><h3 class="win-title">from npm (macOS / Linux)</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp">Copy</button>
+<pre class="code"><code>claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h3 class="win-title">from npm (Windows)</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y uni-t-uts-mcp">Copy</button>
+<pre class="code"><code>claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y uni-t-uts-mcp</code></pre></div></div>
+          <p>Or from the release tarball (the same files as the npm package):</p>
           <div class="win"><div class="win-bar"><h3 class="win-title">terminal (macOS / Linux)</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
             <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz">Copy</button>
 <pre class="code"><code>claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz</code></pre></div></div>
@@ -527,7 +546,6 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
 cd uni-t-uts-mcp
 npm ci &amp;&amp; npm run build
 npm run client-config -- --host 192.168.1.100</code></pre></div></div>
-          <p class="callout">Coming soon, after the first npm publish: the shortest form, <code>npx -y uni-t-uts-mcp</code>. It does not work yet, so use one of the commands above.</p>
         </div>
         <div class="step reveal">
           <h3>Point it at your analyzer</h3>
@@ -564,6 +582,9 @@ npm run client-config -- --host 192.168.1.100</code></pre></div></div>
 
 <script>
 <!--SOUNDTRACK_JS-->
+</script>
+<script>
+<!--HERO_MARKER_JS-->
 </script>
 <script>
 (function () {
@@ -684,18 +705,78 @@ npm run client-config -- --host 192.168.1.100</code></pre></div></div>
       ctx.lineJoin = "miter"; ctx.miterLimit = 4;
       ctx.save(); ctx.translate(2, 1.5); path(ctx, live, 1); ctx.strokeStyle = "rgba(255,113,206,.55)"; ctx.lineWidth = 1.4; ctx.stroke(); ctx.restore();
       path(ctx, live, 1); ctx.strokeStyle = "#a47cff"; ctx.lineWidth = 2; ctx.stroke();
-      // marker on the highest averaged point
-      var m = 0, i; for (i = 1; i < N; i++) if (avg[i] > avg[m]) m = i;
-      var mx = m / (N - 1) * W, my = Y(avg[m]) - Math.max(18, H * 0.1);
-      ctx.fillStyle = "#fffb96"; ctx.strokeStyle = "#1a0f33"; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(mx - 9, my - 14); ctx.lineTo(mx + 9, my - 14); ctx.lineTo(mx, my + 2); ctx.closePath(); ctx.fill(); ctx.stroke();
-      if (mkF) { mkF.textContent = (0.01 + (3.6 - 0.01) * (m / (N - 1))).toFixed(3) + " GHz"; mkA.textContent = avg[m].toFixed(1) + " dBm"; }
+      updateMarker();
     }
 
+    // ---- marker flag on the live peak, with the readout window anchored to it by a leader line ----
+    var HM = window.HeroMarker;
+    var hero = document.getElementById("top"), win = document.querySelector(".marker-win");
+    var mkFlag = document.getElementById("mk-flag"), mkGuide = document.getElementById("mk-guide"), mkLead = document.getElementById("mk-leader");
+    var mkState = null, mkPos = 0, mkLast = 0, mkSide = "above", mkWin = {}, avoid = [], winSize = { w: 264, h: 120 }, shown = { f: "", a: "" };
+    function measureLayout() {
+      if (!hero || !win) return;
+      var hr = hero.getBoundingClientRect(), list = [], pad = 10, i, j, r, els, kids;
+      winSize = { w: win.offsetWidth, h: win.offsetHeight }; mkWin = {};
+      function add(rect) { list.push({ left: rect.left - hr.left - pad, top: rect.top - hr.top - pad, right: rect.right - hr.left + pad, bottom: rect.bottom - hr.top + pad }); }
+      // the text is avoided by its drawn extent, not by the full-width box it sits in
+      els = hero.querySelectorAll(".kicker, h1, .lead");
+      for (i = 0; i < els.length; i++) { r = document.createRange(); r.selectNodeContents(els[i]); kids = r.getClientRects(); for (j = 0; j < kids.length; j++) if (kids[j].width > 1) add(kids[j]); }
+      els = hero.querySelectorAll(".cta, .badges, .nav");
+      for (i = 0; i < els.length; i++) { kids = els[i].children; for (j = 0; j < kids.length; j++) if (kids[j].offsetWidth) add(kids[j].getBoundingClientRect()); }
+      avoid = list;
+    }
+    // the drawn trace is kept clear too: one box per slice of the display, from the highest trace point in the slice down
+    function traceKeepout(ox, oy) {
+      var out = [], cols = 40, c, i, y, per = Math.ceil(N / cols);
+      for (c = 0; c < cols; c++) {
+        y = H;
+        for (i = c * per; i < Math.min(N, (c + 1) * per + 1); i++) y = Math.min(y, Y(live[i]), Y(avg[i]) - Math.max(6, H * 0.0425));
+        out.push({ left: ox + c * per / (N - 1) * W, right: ox + Math.min(N - 1, (c + 1) * per) / (N - 1) * W, top: oy + y - 6, bottom: oy + H });
+      }
+      return out;
+    }
+    function updateMarker() {
+      if (!HM || !hero || !win || !W) return;
+      var now = window.performance.now(), first = !mkLast, dt = Math.min(200, now - mkLast);
+      mkLast = now;
+      mkState = HM.trackPeak(mkState, avg, { window: 15, holdDb: 1.5 });
+      // the first draw and the reduced-motion page put the marker straight on the peak; otherwise it glides
+      mkPos = first || reduce ? mkState.target : HM.stepToward(mkPos, mkState.target, dt, 140);
+      var hr = hero.getBoundingClientRect(), cr = canvas.getBoundingClientRect();
+      var ox = cr.left - hr.left, oy = cr.top - hr.top;
+      var db = HM.sampleAt(avg, mkPos), cy = Y(db), px = ox + mkPos / (N - 1) * W;
+      // sit above the thick trace and its live zig-zag around this point
+      var tip = cy - Math.max(6, H * 0.0425), k, lo = Math.max(0, Math.round(mkPos) - 8), hi = Math.min(N - 1, Math.round(mkPos) + 8);
+      for (k = lo; k <= hi; k++) tip = Math.min(tip, Y(live[k]));
+      tip = oy + tip - 4;
+      var fy = tip - 16;
+      mkFlag.setAttribute("d", "M" + (px - 8).toFixed(1) + " " + fy.toFixed(1) + "H" + (px + 8).toFixed(1) + "L" + px.toFixed(1) + " " + tip.toFixed(1) + "Z");
+      mkGuide.setAttribute("x1", px.toFixed(1)); mkGuide.setAttribute("x2", px.toFixed(1));
+      mkGuide.setAttribute("y1", (cy + oy).toFixed(1)); mkGuide.setAttribute("y2", (oy + H).toFixed(1));
+      var mobile = window.matchMedia("(max-width: 720px)").matches;
+      var spot = HM.placeCallout({
+        anchor: { x: px, y: fy }, size: winSize, bounds: { w: hr.width, h: hr.height }, avoid: avoid.concat(traceKeepout(ox, oy)), prefer: mkSide,
+        margin: mobile ? 10 : 16, gap: mobile ? 16 : 26, order: mobile ? ["above", "below"] : ["above", "right", "left", "below"]
+      });
+      mkSide = spot.side;
+      // the window glides to its spot instead of jumping when the best side changes
+      if (first || reduce || mkWin.left == null) mkWin = { left: spot.left, top: spot.top };
+      else mkWin = { left: HM.stepToward(mkWin.left, spot.left, dt, 120), top: HM.stepToward(mkWin.top, spot.top, dt, 120) };
+      spot = { left: mkWin.left, top: mkWin.top };
+      win.style.left = spot.left.toFixed(1) + "px"; win.style.top = spot.top.toFixed(1) + "px";
+      var lx = Math.min(spot.left + winSize.w, Math.max(spot.left, px)), ly = Math.min(spot.top + winSize.h, Math.max(spot.top, fy));
+      mkLead.setAttribute("x1", px.toFixed(1)); mkLead.setAttribute("y1", fy.toFixed(1));
+      mkLead.setAttribute("x2", lx.toFixed(1)); mkLead.setAttribute("y2", ly.toFixed(1));
+      var f = HM.formatFrequency(HM.indexToFrequencyHz(mkPos, N)), a = HM.formatLevel(HM.yToLevelDbm(cy, H));
+      if (mkF && f !== shown.f) { mkF.textContent = f; shown.f = f; }
+      if (mkA && a !== shown.a) { mkA.textContent = a; shown.a = a; }
+    }
     size(); sample(true);
+    measureLayout();
     var warm; for (warm = 0; warm < 40; warm++) { t += 40; sample(false); }
     draw();
-    window.addEventListener("resize", function () { size(); draw(); });
+    window.addEventListener("resize", function () { size(); measureLayout(); draw(); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { measureLayout(); draw(); });
 
     if (!reduce && "IntersectionObserver" in window) {
       var visible = true, last = 0, running = false;

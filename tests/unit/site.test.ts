@@ -333,3 +333,59 @@ describe("site soundtrack (issue #91)", () => {
     expect(footer).toMatch(/first click, tap or key press/i);
   });
 });
+
+describe("site hero marker readout (issue #106)", () => {
+  const html = readFileSync(new URL("../../site/index.html", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../../site/hero-marker.cjs", import.meta.url), "utf8");
+  const built = (() => {
+    const out = mkdtempSync(join(tmpdir(), "uts-site-"));
+    try {
+      buildSite({ outDir: out });
+      return { page: readFileSync(join(out, "index.html"), "utf8"), copied: existsSync(join(out, "hero-marker.cjs")) };
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
+  })();
+  const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? "";
+  const rule = (selector: string) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => m[1].split(",").some((s) => s.trim().endsWith(selector))).map((m) => m[2]);
+
+  it("no longer pins the readout to a corner of the hero", () => {
+    for (const body of rule(".marker-win")) {
+      expect(body).not.toMatch(/bottom\s*:\s*calc\(\s*30%/);
+      expect(body).not.toMatch(/\bright\s*:/);
+    }
+    expect(css).not.toMatch(/\.marker-win\s*\{[^}]*bottom:\s*calc\(30%/);
+  });
+
+  it("keeps the readout, its ids and its label, and it is not a live region", () => {
+    expect(html).toMatch(/class="win marker-win"[^>]*aria-label="[^"]+"/);
+    expect(html).toContain('id="mk-f"');
+    expect(html).toContain('id="mk-a"');
+    expect(html).toContain("Illustrative signal");
+    expect(html).not.toMatch(/aria-live/i);
+    const group = /<div class="win marker-win"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(group).not.toMatch(/role="(status|alert|log)"/);
+  });
+
+  it("draws the flag, guide and leader in a hidden overlay", () => {
+    const overlay = /<svg[^>]*id="mk-overlay"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(overlay).toContain('aria-hidden="true"');
+    expect(html).toContain("<!--HERO_MARKER_JS-->");
+  });
+
+  it("the pure unit is inlined into the single built page and not shipped separately", () => {
+    expect(source).not.toMatch(/<\/script|<!--/i);
+    expect(built.page).not.toContain("<!--HERO_MARKER_JS-->");
+    expect(built.page).toContain("placeCallout");
+    expect(built.copied).toBe(false);
+  });
+
+  it("has a phone layout and a reduced-motion path, and makes no external requests", () => {
+    expect(css).toMatch(/@media \(max-width: 720px\)[\s\S]*marker-win/);
+    expect(html).toMatch(/HeroMarker\.[\s\S]*placeCallout|placeCallout/);
+    for (const page of [html, built.page, source]) {
+      expect(page).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/);
+    }
+    expect(source).not.toMatch(/new RegExp|RegExp\(/);
+  });
+});
