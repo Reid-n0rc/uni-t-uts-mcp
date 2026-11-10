@@ -33,5 +33,5 @@ Commands: `npm run build`, `npm test`, `npm run inspector`.
 - **Task sizing.** Each task must fit in one context window: one tool group or one module, with its tests and docs. Split anything larger.
 - **Test-driven.** For every task: write failing tests first (commit them or keep them in the same PR as the first commit), then implement until green, then refactor. Tests use a mocked connection; hardware checks are separate, manual, and recorded in `docs/verified-hardware.md`.
 - **Incremental commits.** One logical change per commit (tests, implementation, docs may be separate commits), each building and passing on its own, so a person can audit the history.
-- **Branches/PRs.** Branch `issue-<n>-<slug>` from `main`, one PR per issue, `Closes #<n>`.
+- **Issue → work → PR.** Every PR must be tied to an issue: open the issue first, do the work on branch `issue-<n>-<slug>` from `main`, then open one PR with `Closes #<n>`. No PR without an issue.
 - **Privacy.** Never put device serial numbers or real IP addresses in the repo, issues, or PRs.

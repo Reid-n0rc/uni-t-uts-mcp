@@ -21,7 +21,7 @@ Use `npm run inspector` to try the server interactively with the MCP Inspector.
 ## Making changes
 
 1. Open an issue first for anything non-trivial so we can agree on scope.
-2. Branch from `main`, keep PRs small and focused.
+2. Every PR must be tied to an issue (`Closes #<n>`). Branch `issue-<n>-<slug>` from `main`, keep PRs small and focused.
 3. Add or update tests (vitest). Integration tests mock the connection; no hardware is needed to run them.
 4. Document new or changed tools in `docs/tools-reference.md`.
 5. Make sure `npm run build` and `npm test` pass.
