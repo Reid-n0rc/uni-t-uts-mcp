@@ -14,6 +14,7 @@ cd uni-t-uts-mcp
 npm ci
 npm run build
 npm test
+# optional: npm run test:coverage  (coverage report in coverage/)
 ```
 
 Use `npm run inspector` to try the server interactively with the MCP Inspector.

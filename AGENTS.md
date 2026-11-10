@@ -18,7 +18,7 @@ MCP server (TypeScript, stdio) for UNI-T UTS series spectrum analyzers (UTS1000B
 - `tests/unit/`, `tests/integration/` – vitest; integration tests mock `src/connection.js`
 - `docs/` – `references.md` (manuals and links), `verified-hardware.md` (what was tested on), tools reference, programming-guide notes, manual testing guide
 
-Commands: `npm run build`, `npm test`, `npm run inspector`.
+Commands: `npm run build`, `npm test`, `npm run test:coverage` (writes `coverage/lcov.info`; CI uploads it to Codecov from one job, informational only, see `codecov.yml`), `npm run inspector`.
 
 ## Rules
 
