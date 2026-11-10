@@ -173,7 +173,7 @@ Probed by hand over raw SCPI with the tracking generator on (the trace is nearly
 
 Everything below was measured on the real analyzer, through the built server over stdio where a tool is named, and with a small client on the VXI-11 core channel where the wire behavior is the point. Raw and VXI-11 were compared side by side.
 
-**Basics.** The portmapper (TCP and UDP 111) registers the VXI-11 core, async and interrupt programs (395183, 395184, 395185) over TCP on a dynamic port. `create_link("inst0")` works, `maxRecvSize` is 1 MiB. HiSLIP (4880) is closed. True SRQ does not work: `create_intr_chan` and `device_enable_srq` succeed but the instrument never connects back, and `device_readstb` answers in about 1 ms with a status byte that stays 0x00 even with `*ESE 1` / `*SRE 48`, so the interrupt channel is not used.
+**Basics.** The portmapper (TCP and UDP 111) registers the VXI-11 core, async and interrupt programs (395183, 395184, 395185) over TCP on a dynamic port. `create_link("inst0")` works, `maxRecvSize` is 1 MiB. HiSLIP (4880) is closed. True SRQ does not work: `create_intr_chan` and `device_enable_srq` succeed but the instrument never connects back, and `device_readstb` answers in about 1 ms with a status byte that stays 0x00 even with `*ESE 1` / `*SRE 48`, so the interrupt channel is not used. Details and the exhaustive retest (issue #128) are in "VXI-11 SRQ" below.
 
 **Every tool returns the same values over VXI-11 as over raw.** All getters (`identify`, `get_frequency`, `get_amplitude`, `get_bandwidth`, `get_sweep`, `get_detector`, `get_acquisition`, `get_trace`) returned identical results, and one scripted sequence through every setter (`set_frequency`, `set_amplitude`, `set_bandwidth`, `set_sweep`, `set_detector`, `set_trace`, `set_trace_math`, `restart_trace`, `set_acquisition`, `scpi_command`, `scpi_query`, including a clamped value and an invalid argument) gave identical results, warnings and errors on both transports. `connect` with `transport` `raw`, `vxi11` and `auto` works, `auto` picked VXI-11, and an explicit `port` with `vxi11` is refused before anything is sent.
 
@@ -241,6 +241,20 @@ Verified over raw TCP with the built tools (one measurement per run) and by hand
 
 - The analyzer answers a **UDP portmapper `GETPORT` (program 395183 v1, TCP)** sent to its address on port 111 with the dynamic VXI-11 core port, within a few milliseconds; `*IDN?` over that VXI-11 port and a plain TCP connect to 5025 both work, and discovery sent nothing else (the error queue stayed clean, no setting touched).
 - The broadcast form (directed broadcast to the subnet) was **not** verifiable on the bench: the analyzer sits on a different (routed) subnet than the computer, and directed broadcasts do not cross routers. This is the intended limit: discovery never goes beyond the local subnets. A unicast request to the analyzer's address (the same code path with an explicit target) found it and identified it (UTS3036B, V1.04.0040).
+
+## VXI-11 SRQ (issue #128, firmware V1.04.0040)
+
+**Verdict: the analyzer cannot raise a real SRQ.** The interrupt channel is accepted but the instrument has no working status-byte model, so there is nothing to interrupt on. The client side is implemented and tested (`src/vxi11/interrupt.ts`, `Vxi11Client.enableSrq`) and is kept, but no tool uses it; blocking `*OPC?` stays the way to await a sweep.
+
+Setup: a real `Vxi11Client` with the new interrupt listener bound to this host's LAN address (the analyzer is on a routed subnet reached through a subnet router, so the listener address was passed explicitly; the host firewall had node allowed for incoming connections, stealth mode off). Sequence on one link:
+- `create_intr_chan` (hostAddr, port, program 395185, version 1, TCP) returned error 0 and `device_enable_srq(true, handle)` returned error 0 (the portmapper also lists the interrupt program 395185).
+- **The analyzer never opened a TCP connection to the listener** (listener counters: 0 accepted, 0 rejected from any peer address, 0 `device_intr_srq` calls) in any step below.
+- `*CLS`, `*ESE 255`, `*SRE 48`, then `*IDN?` written and left unread: `device_readstb` = 0x00 after 600 ms. A pending reply (MAV, bit 4) is not reflected, so even the most basic IEEE 488.2 status-byte bit is not implemented. After reading the reply the byte was still 0.
+- `*CLS`, `*OPC` (command form): `device_readstb` = 0 and `*ESR?` = 0 (OPC / ESB never set), as already found on raw TCP.
+- Single sweep (`:INITiate:IMMediate`, then `*OPC` queued behind it): `device_readstb` polled every 250 ms for 3.8 s stayed 0x00 throughout and after the sweep, `*ESR?` = 0, and no interrupt arrived.
+- Because the status byte never changes, the callback cannot be explained by routing alone: even from the same LAN there would be no event to report. A firewall or NAT problem cannot be excluded as an additional obstacle, but no connection attempt was ever observed and nothing in the instrument's status reporting would trigger one.
+- Not tried: `:STATus:*` registers (not in either manual, and `:STATus:OPERation:CONDition?` / `:STATus:QUEStionable:CONDition?` already gave no reply), `device_docmd` and `device_trigger` (no documented command set for them), the async/abort channel (395184; only abort), HiSLIP (port 4880 closed).
+- The instrument was restored (`*SRE`/`*ESE` 0, continuous sweep on, `:SYSTem:ERRor?` clean).
 
 ## VXI-11 probe retry and teardown (issue #127)
 

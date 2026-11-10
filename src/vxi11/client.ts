@@ -1,12 +1,15 @@
 /**
  * Minimal VXI-11 (TCP/IP-IEEE 488.1) core-channel client over {@link RpcClient}: create_link,
- * device_write, device_read, device_readstb, device_clear and destroy_link. The interrupt channel
- * (SRQ) is out of scope: the UTS firmware never uses it.
+ * device_write, device_read, device_readstb, device_clear and destroy_link, plus the interrupt
+ * channel (create_intr_chan, device_enable_srq, destroy_intr_chan; see {@link IntrServer}). On the UTS3036B
+ * the interrupt channel is accepted but never used (docs/verified-hardware.md, "VXI-11 SRQ").
  *
  * Replies come from the network and are untrusted: every field is validated, sizes are capped, the
  * server dropping the connection mid-call rejects the call, and every call has a deadline (the
  * instrument's I/O timeout plus a margin), so no promise is ever left pending.
  */
+import * as net from "node:net";
+import { IntrServer, localAddressFor, MAX_SRQ_HANDLE, VXI11_INTR_PROGRAM, VXI11_INTR_VERSION } from "./interrupt.js";
 import { getPort, PMAP_PORT } from "./portmapper.js";
 import { RpcClient, RpcError, RpcClosedError, RpcProtocolError, RpcTimeoutError } from "./rpc.js";
 import { XdrError, XdrReader, XdrWriter } from "./xdr.js";
@@ -18,7 +21,10 @@ export const PROC_DEVICE_WRITE = 11;
 export const PROC_DEVICE_READ = 12;
 export const PROC_DEVICE_READSTB = 13;
 export const PROC_DEVICE_CLEAR = 15;
+export const PROC_DEVICE_ENABLE_SRQ = 20;
 export const PROC_DESTROY_LINK = 23;
+export const PROC_CREATE_INTR_CHAN = 25;
+export const PROC_DESTROY_INTR_CHAN = 26;
 
 export const FLAG_WAITLOCK = 1;
 export const FLAG_END = 8;
@@ -88,6 +94,8 @@ export class Vxi11TransportError extends Vxi11Error {}
 export class Vxi11RpcTimeoutError extends Vxi11TransportError {}
 /** The reply violated the protocol (malformed, out of range, never terminating). */
 export class Vxi11ProtocolError extends Vxi11Error {}
+/** waitForSrq gave up: no device_intr_srq arrived in time. */
+export class Vxi11SrqTimeoutError extends Vxi11Error {}
 /** The client was closed (or its connection is gone) before or during the call. */
 export class Vxi11ClosedError extends Vxi11Error {}
 
@@ -136,6 +144,23 @@ export interface Vxi11ReadOptions {
   ioTimeoutFraction?: number;
 }
 
+export interface Vxi11SrqOptions {
+  /** Local IPv4 address to listen on and to tell the instrument (default: the address the OS uses to reach it). */
+  bindAddress?: string;
+  /** Local TCP port for the listener (default: an ephemeral one). */
+  port?: number;
+  /** Handle (up to 40 bytes) the instrument echoes in each device_intr_srq (default: 4 random bytes). */
+  handle?: Uint8Array;
+  /** Timeout for create_intr_chan and device_enable_srq in ms (default 5000). */
+  timeoutMs?: number;
+}
+
+export interface Vxi11SrqInfo {
+  /** Address advertised to the instrument. */
+  address: string;
+  port: number;
+}
+
 export interface Vxi11ReadResult {
   data: Buffer;
   /** True when the instrument signalled the end of the message (END or termchar), false when maxBytes was reached first. */
@@ -151,6 +176,12 @@ function checkTimeout(value: number | undefined, fallback: number, what: string)
 export class Vxi11Client {
   private closedReason: string | undefined;
   private closing: Promise<void> | undefined;
+  private intr: { server: IntrServer; handle: Buffer; info: Vxi11SrqInfo; unsubscribe: () => void } | undefined;
+  private enabling = false;
+  private srqTotal = 0;
+  private srqPending = 0;
+  private readonly srqWaiters = new Set<{ resolve: () => void; reject: (e: Error) => void; timer: NodeJS.Timeout }>();
+  private readonly srqListeners = new Set<() => void>();
 
   private constructor(
     private readonly rpc: RpcClient,
@@ -160,7 +191,8 @@ export class Vxi11Client {
     /** Abort channel port reported by create_link (unused). */
     readonly abortPort: number,
     private readonly rpcMarginMs: number,
-    private readonly closeTimeoutMs: number
+    private readonly closeTimeoutMs: number,
+    private readonly host: string
   ) {}
 
   /**
@@ -214,7 +246,7 @@ export class Vxi11Client {
       if (error !== 0) throw deviceError(error, "create_link");
       if (abortPort > 65535) throw new Vxi11ProtocolError(`create_link returned an invalid abort port ${abortPort}`);
       if (maxRecvSize === 0) throw new Vxi11ProtocolError("create_link returned maxRecvSize 0");
-      return new Vxi11Client(rpc, linkId, maxRecvSize, abortPort, rpcMarginMs, closeTimeoutMs);
+      return new Vxi11Client(rpc, linkId, maxRecvSize, abortPort, rpcMarginMs, closeTimeoutMs, host);
     } catch (err) {
       rpc.close();
       throw err;
@@ -324,6 +356,186 @@ export class Vxi11Client {
     return stb;
   }
 
+  /** True while the interrupt channel is established and SRQ is enabled. */
+  get srqEnabled(): boolean {
+    return this.intr !== undefined;
+  }
+
+  /** Total device_intr_srq interrupts received for this client's handle since enableSrq. */
+  get srqCount(): number {
+    return this.srqTotal;
+  }
+
+  /** Address and port of the interrupt listener (undefined unless SRQ is enabled). */
+  get srqInfo(): Vxi11SrqInfo | undefined {
+    return this.intr?.info;
+  }
+
+  /** Diagnostic counters of the interrupt listener (connections from the instrument, rejected peers). */
+  get srqStats(): IntrServer["stats"] | undefined {
+    return this.intr?.server.stats;
+  }
+
+  /**
+   * Establish the interrupt channel and enable SRQ: start a local listener (one interface, only the
+   * instrument allowed), create_intr_chan pointing at it, then device_enable_srq. On any failure
+   * everything already done is undone. The instrument connects back to the listener when it
+   * raises a service request, so the listener's address must be routable from the instrument and
+   * the OS firewall must let the connection in.
+   */
+  async enableSrq(options: Vxi11SrqOptions = {}): Promise<Vxi11SrqInfo> {
+    this.assertOpen("enableSrq");
+    if (this.intr || this.enabling) throw new Vxi11Error("SRQ is already enabled on this link");
+    const timeoutMs = checkTimeout(options.timeoutMs, 5000, "enableSrq");
+    if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 0 || options.port > 65535)) throw new RangeError(`invalid port ${options.port}`);
+    if (options.handle !== undefined && options.handle.length > MAX_SRQ_HANDLE) throw new RangeError(`handle must be at most ${MAX_SRQ_HANDLE} bytes`);
+    if (options.bindAddress !== undefined && !net.isIPv4(options.bindAddress)) throw new RangeError(`bindAddress must be an IPv4 address, got "${options.bindAddress}"`);
+    this.enabling = true;
+    let server: IntrServer | undefined;
+    let channel = false;
+    try {
+      let address = options.bindAddress;
+      if (address === undefined) {
+        try {
+          address = await localAddressFor(this.host);
+        } catch (err) {
+          throw new Vxi11ConnectError(`no local address routes to ${this.host}: ${errMessage(err)}`, { cause: err });
+        }
+        if (!net.isIPv4(address)) throw new Vxi11ConnectError(`the local address for ${this.host} is not IPv4 (${address}); pass bindAddress`);
+      }
+      const peer = net.isIPv4(this.host) ? this.host : await resolvePeer(this.host);
+      server = await IntrServer.listen({ bindAddress: address, allowedPeers: [peer], port: options.port });
+      const handle = options.handle ? Buffer.from(options.handle) : Buffer.from(Array.from({ length: 4 }, () => Math.floor(Math.random() * 256)));
+      const hostAddr = address.split(".").reduce((acc, part) => acc * 256 + Number(part), 0);
+      // (hostAddr, hostPort, progNum, progVers, progFamily TCP) -> error
+      const createArgs = new XdrWriter().u32(hostAddr).u32(server.port).u32(VXI11_INTR_PROGRAM).u32(VXI11_INTR_VERSION).u32(0).toBuffer();
+      const created = parse(await this.call(PROC_CREATE_INTR_CHAN, createArgs, timeoutMs + this.rpcMarginMs, "create_intr_chan"), "create_intr_chan", (r) => r.u32());
+      if (created !== 0) throw deviceError(created, "create_intr_chan");
+      channel = true;
+      const enableArgs = new XdrWriter().u32(this.linkId).bool(true).opaque(handle, MAX_SRQ_HANDLE).toBuffer();
+      const enabled = parse(await this.call(PROC_DEVICE_ENABLE_SRQ, enableArgs, timeoutMs + this.rpcMarginMs, "device_enable_srq"), "device_enable_srq", (r) => r.u32());
+      if (enabled !== 0) throw deviceError(enabled, "device_enable_srq");
+      if (this.closing || this.closed) throw new Vxi11ClosedError("enableSrq aborted: the VXI-11 client was closed");
+      const unsubscribe = server.onSrq((h) => {
+        if (h.equals(handle)) this.onInterrupt();
+      });
+      this.srqTotal = 0;
+      this.srqPending = 0;
+      this.intr = { server, handle, info: { address: server.address, port: server.port }, unsubscribe };
+      return this.intr.info;
+    } catch (err) {
+      if (channel) await this.destroyIntrChannel(timeoutMs);
+      await server?.close();
+      throw err;
+    } finally {
+      this.enabling = false;
+    }
+  }
+
+  private onInterrupt(): void {
+    this.srqTotal++;
+    const waiter = this.srqWaiters.values().next().value;
+    if (waiter) {
+      this.srqWaiters.delete(waiter);
+      clearTimeout(waiter.timer);
+      waiter.resolve();
+    } else {
+      this.srqPending++;
+    }
+    for (const l of [...this.srqListeners]) {
+      try {
+        l();
+      } catch {
+        // listener failures are not the transport's problem
+      }
+    }
+  }
+
+  /** Call `listener` for every interrupt received. Returns an unsubscribe function. */
+  onSrq(listener: () => void): () => void {
+    this.srqListeners.add(listener);
+    return () => this.srqListeners.delete(listener);
+  }
+
+  /** Forget interrupts that arrived but were not waited for. */
+  clearSrq(): void {
+    this.srqPending = 0;
+  }
+
+  /**
+   * Wait for one interrupt (consuming a buffered one if it already arrived). Rejects with
+   * {@link Vxi11SrqTimeoutError} after `timeoutMs`, or {@link Vxi11ClosedError} when the client closes.
+   */
+  waitForSrq(options: { timeoutMs?: number } = {}): Promise<void> {
+    let timeoutMs: number;
+    try {
+      timeoutMs = checkTimeout(options.timeoutMs, 5000, "waitForSrq");
+    } catch (err) {
+      return Promise.reject(err);
+    }
+    if (this.closed || this.closing) return Promise.reject(new Vxi11ClosedError("waitForSrq on a closed VXI-11 client"));
+    if (!this.intr) return Promise.reject(new Vxi11Error("SRQ is not enabled on this link (call enableSrq first)"));
+    if (this.srqPending > 0) {
+      this.srqPending--;
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve, reject) => {
+      const waiter = {
+        resolve,
+        reject,
+        timer: setTimeout(() => {
+          this.srqWaiters.delete(waiter);
+          reject(new Vxi11SrqTimeoutError(`no VXI-11 service request (device_intr_srq) arrived within ${timeoutMs} ms`));
+        }, timeoutMs),
+      };
+      this.srqWaiters.add(waiter);
+    });
+  }
+
+  /** device_enable_srq(false), destroy_intr_chan and stop the listener. Idempotent; the first failure is thrown after cleanup. */
+  async disableSrq(options: { timeoutMs?: number } = {}): Promise<void> {
+    const intr = this.intr;
+    if (!intr) return;
+    const timeoutMs = checkTimeout(options.timeoutMs, 5000, "disableSrq");
+    this.intr = undefined;
+    intr.unsubscribe();
+    this.rejectSrqWaiters(new Vxi11Error("SRQ was disabled while waiting"));
+    let failure: unknown;
+    if (!this.closed && !this.closing) {
+      try {
+        const args = new XdrWriter().u32(this.linkId).bool(false).opaque(intr.handle, MAX_SRQ_HANDLE).toBuffer();
+        const code = parse(await this.call(PROC_DEVICE_ENABLE_SRQ, args, timeoutMs + this.rpcMarginMs, "device_enable_srq"), "device_enable_srq", (r) => r.u32());
+        if (code !== 0) failure = deviceError(code, "device_enable_srq(false)");
+      } catch (err) {
+        failure = err;
+      }
+      await this.destroyIntrChannel(timeoutMs);
+    }
+    await intr.server.close();
+    if (failure) throw failure;
+  }
+
+  /** Best effort destroy_intr_chan. */
+  private async destroyIntrChannel(timeoutMs: number): Promise<void> {
+    try {
+      await this.call(PROC_DESTROY_INTR_CHAN, Buffer.alloc(0), timeoutMs + this.rpcMarginMs, "destroy_intr_chan");
+    } catch {
+      // the channel dies with the link anyway
+    }
+  }
+
+  private rejectSrqWaiters(err: Error): void {
+    for (const w of [...this.srqWaiters]) {
+      clearTimeout(w.timer);
+      w.reject(err);
+    }
+    this.srqWaiters.clear();
+  }
+
+  private assertOpen(name: string): void {
+    if (this.closed || this.closing) throw new Vxi11ClosedError(`${name} on a closed VXI-11 client`);
+  }
+
   /** device_clear: clear the instrument's I/O buffers. */
   async clear(options: { timeoutMs?: number } = {}): Promise<void> {
     const timeoutMs = checkTimeout(options.timeoutMs, 5000, "clear");
@@ -343,6 +555,22 @@ export class Vxi11Client {
   }
 
   private async doClose(): Promise<void> {
+    this.rejectSrqWaiters(new Vxi11ClosedError("waitForSrq aborted: the VXI-11 client was closed"));
+    const intr = this.intr;
+    this.intr = undefined;
+    if (intr) {
+      intr.unsubscribe();
+      if (!this.rpc.closed) {
+        try {
+          const args = new XdrWriter().u32(this.linkId).bool(false).opaque(intr.handle, MAX_SRQ_HANDLE).toBuffer();
+          await this.rpc.call(VXI11_CORE_PROGRAM, VXI11_CORE_VERSION, PROC_DEVICE_ENABLE_SRQ, args, { timeoutMs: this.closeTimeoutMs });
+          await this.rpc.call(VXI11_CORE_PROGRAM, VXI11_CORE_VERSION, PROC_DESTROY_INTR_CHAN, Buffer.alloc(0), { timeoutMs: this.closeTimeoutMs });
+        } catch {
+          // best effort
+        }
+      }
+      await intr.server.close();
+    }
     if (!this.rpc.closed) {
       try {
         await this.rpc.call(VXI11_CORE_PROGRAM, VXI11_CORE_VERSION, PROC_DESTROY_LINK, new XdrWriter().u32(this.linkId).toBuffer(), {
@@ -379,6 +607,16 @@ function checkCalls(value: number | undefined, fallback: number): number {
 
 function randomClientId(): number {
   return Math.floor(Math.random() * 0x7fffffff) + 1;
+}
+
+/** Resolve a host name to the IPv4 address the instrument will call back from (the one we connected to). */
+async function resolvePeer(host: string): Promise<string> {
+  const { lookup } = await import("node:dns/promises");
+  try {
+    return (await lookup(host, { family: 4 })).address;
+  } catch (err) {
+    throw new Vxi11ConnectError(`cannot resolve ${host} to an IPv4 address: ${errMessage(err)}`, { cause: err });
+  }
 }
 
 const errMessage = (err: unknown): string => (err instanceof Error ? err.message : String(err));
