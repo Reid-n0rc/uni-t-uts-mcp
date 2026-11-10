@@ -12,6 +12,7 @@ The text of a release's section is also used as its GitHub release notes.
 ## [Unreleased]
 
 ### Added
+- Project site: the `marker.exe` readout now belongs to the animated trace. A marker flag rides the highest point of the spectrum, the readout window is anchored to it with a leader line (flipping and sliding to stay clear of the headline and the edges, and docked above the trace on phones), and its frequency and level follow the marker. With reduced motion the marker stays on a fixed peak.
 - Claude Desktop one-click install: releases made after this change also attach `uni-t-uts-mcp-<version>.mcpb` (an MCP bundle: double-click it, then enter the analyzer address, port and transport in the settings dialog; the address is optional). It is built with `npm run build:mcpb`, checked in CI on Ubuntu, macOS and Windows, and not code-signed. Installing it in Claude Desktop itself has not been verified yet.
 - The GitHub wiki is now generated from the repository (`scripts/sync-wiki.mjs`, `docs/wiki/`) and published automatically by `.github/workflows/wiki-sync.yml` after every change to `main`; CI checks that the pages build and every link resolves. The stale wiki content (install paths, concurrency, VXI-11, trace tools, limitations) was brought up to date.
 - `npm run client-config -- --host <address>` prints (never writes) the Claude Code command and the MCP JSON for your OS and paths.
