@@ -24,5 +24,5 @@ Commands: `npm run build`, `npm test`, `npm run inspector`.
 - Keep each task/issue small enough to finish in one context window; split larger work.
 - Every new tool needs an integration test with a mocked connection and an entry in `docs/tools-reference.md`.
 - Mark read-only tools with `readOnlyHint: true`.
-- Source of truth for commands is the UNI-T programming manual; links are in `docs/references.md`. cite the manual section in code comments when a command is non-obvious. Do not guess SCPI syntax.
+- Source of truth for commands is the UNI-T programming manual; links are in `docs/references.md`; cite the manual section in code comments when a command is non-obvious. Do not guess SCPI syntax.
 - Do not copy source from other projects without keeping their license notices.
