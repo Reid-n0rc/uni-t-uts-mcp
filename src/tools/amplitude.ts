@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { applyCommands, queryBool, queryNumber, queryParsed, readBack } from "../instrument.js";
 import { formatNumber, onOff } from "../scpi.js";
-import { errorResult, setterFailure, textResult } from "./util.js";
+import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 
 // Commands: docs/programming-guide.md section 2 (amplitude). Behavior verified on the
 // UTS3036B (docs/verified-hardware.md): setters take bare numbers (a unit suffix is also
@@ -105,7 +105,8 @@ function close(requested: number, actual: number): boolean {
 }
 
 export function registerAmplitudeTools(server: McpServer): void {
-  server.tool(
+  defineTool(
+    server,
     "get_amplitude",
     "Get the analyzer's amplitude settings: reference level (in the current power unit), power unit, scale per division (dB), " +
       "Y scale type, reference level offset (dB), input attenuation (dB) and whether it is automatic, preamp state and input impedance (ohms).",
@@ -120,7 +121,8 @@ export function registerAmplitudeTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "set_amplitude",
     "Set amplitude parameters. The power unit is applied first, so reference_level is interpreted in the new unit. Manual attenuation_db turns " +
       "automatic attenuation off. Out-of-range values are clamped by the instrument; the settings are re-read afterwards and anything it " +
@@ -129,9 +131,6 @@ export function registerAmplitudeTools(server: McpServer): void {
     { readOnlyHint: false, idempotentHint: true },
     async (args) => {
       try {
-        const problem = validate(args);
-        if (problem) return errorResult(problem);
-
         // Order matters (verified on hardware): the reference level is coupled to the attenuation and
         // preamp (it is clamped to a maximum that depends on them) and its readback includes the level
         // offset, so unit, preamp, attenuation and offset are applied before the reference level.
@@ -182,6 +181,7 @@ export function registerAmplitudeTools(server: McpServer): void {
       } catch (err) {
         return setterFailure(err, "get_amplitude");
       }
-    }
+    },
+    { validate }
   );
 }

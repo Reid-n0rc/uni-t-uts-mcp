@@ -162,9 +162,20 @@ Sends `:CALCulate:MATH TRACE<n>,<op>,TRACE<a>,TRACE<b>,<offset>`. `trace` (1-6),
 
 Tools never throw; failures are `isError` results. A malformed or empty reply names the command and quotes the reply; a timeout names the command; setters report instrument errors with their code and the commands sent, and say when settings may be partially applied (also when the readback after a successful send fails). `single_sweep` failures say when the instrument may have been left in single sweep mode. A dropped connection is reported as `Connection to the spectrum analyzer was lost (<reason>) while sending|querying <command>` and the next call says to use `connect` to reconnect; the command in flight when a setter fails is named as possibly applied. See AGENTS.md "Error handling standard".
 
+## Concurrency (all tools)
+
+An MCP client may send several tool calls at once. The analyzer has one command stream, one global error queue, and ignores every command while a single sweep runs, so interleaved calls would corrupt each other (one call's `*CLS` clearing another's errors, a getter reading half-applied settings, queries lost during a sweep). The server therefore **runs tool calls one at a time per instrument, in the order they arrive (first in, first out)**: every tool is registered through `defineTool` (`src/tools/util.ts`), which runs the whole handler, from the first command to the last readback, as one exclusive session on the connection (`runExclusive` in `src/connection.ts`, `src/sessionLock.ts`). Parallel calls are safe and each one gets its own result and its own errors. This works the same on every transport.
+
+- **A long operation blocks the others.** While `single_sweep` (or `start_sweep` / `wait_for_sweep_complete`) holds the instrument for the sweep time, other calls wait their turn.
+- **Instrument busy.** A call that waits longer than the limit fails with `Instrument busy: waited <n> s for another tool call (<tool>) to finish and gave up...`; nothing was sent. Retry later or raise the limit. The limit is the `UTS_BUSY_TIMEOUT_S` environment variable, in seconds (default 120; an invalid value uses the default).
+- **Released on every path.** A session ends when its tool returns, fails, times out, or the connection is closed or lost; closing or losing the connection also fails every waiting call (`Connection closed` or `Connection to the spectrum analyzer was lost (...)`). `disconnect` does not wait for a running call.
+- **Invalid input is refused first.** Argument errors that need no instrument (schema errors and the tools' pure validation) are returned before waiting for the lock.
+- **Limit.** A sweep started with `start_sweep` `wait=false` releases the lock when that call returns, so another call can run while the instrument is still sweeping (and be lost); use `single_sweep` or `start_sweep` with `wait=true` unless you call `wait_for_sweep_complete` next.
+
 ## Environment variables
 
 | Variable | Description |
 |----------|-------------|
 | `UTS_IP` | Analyzer hostname or IP; enables auto-connect and is the default for `connect` |
 | `UTS_PORT` | TCP port, default `5025` |
+| `UTS_BUSY_TIMEOUT_S` | How long a tool call waits for another one to finish before failing with `Instrument busy`, in seconds (default `120`); see Concurrency |

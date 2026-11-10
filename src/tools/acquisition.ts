@@ -3,7 +3,7 @@ import { z } from "zod";
 import { InstrumentError, applyCommands, checkInstrumentErrors, queryBool, queryNumber, readBack } from "../instrument.js";
 import { onOff } from "../scpi.js";
 import { SweepTimeoutError, hasPendingSweep, startSweep, waitForSweepComplete, type StartMethod } from "../acquisition.js";
-import { errorResult, setterFailure, textResult } from "./util.js";
+import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 
 // Commands: docs/programming-guide.md sections 2 and 9 (ambiguities 6-8). Verified on the UTS3036B:
 // :INITiate:CONTinuous accepts ON/OFF/1/0; :INITiate:IMMediate and :RESTart work in spectrum-analyzer mode;
@@ -51,7 +51,8 @@ async function finish(timeoutMs: number | undefined, sent: string[]) {
 }
 
 export function registerAcquisitionTools(server: McpServer): void {
-  server.tool(
+  defineTool(
+    server,
     "get_acquisition",
     "Get the acquisition mode: continuous (true) or single sweep (false), plus the sweep time (s) and its auto flag. Note: while a single sweep is running the instrument ignores all commands.",
     {},
@@ -65,7 +66,8 @@ export function registerAcquisitionTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "set_acquisition",
     "Switch between continuous sweep (continuous=true, the instrument's normal state) and single sweep mode (continuous=false, :INITiate:CONTINUOUS OFF). In single mode the instrument sweeps only when start_sweep or single_sweep is used.",
     { continuous: z.boolean().describe("true = continuous sweep, false = single sweep") },
@@ -85,7 +87,8 @@ export function registerAcquisitionTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "start_sweep",
     "Start (:INITiate:IMMediate) or restart (:INITiate:RESTart) a sweep. In single mode, wait=true (default) blocks until the sweep is complete; with wait=false " +
       "call wait_for_sweep_complete next, because the instrument ignores every command while it sweeps. In continuous mode the sweep is restarted and not awaited. " +
@@ -125,7 +128,8 @@ export function registerAcquisitionTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "single_sweep",
     "Switch to single sweep mode, run exactly one sweep and wait until it is complete, so the trace is final and can be read. Leaves the instrument in single mode; use set_acquisition continuous=true to resume normal sweeping.",
     { timeout_s: TIMEOUT },
@@ -150,7 +154,8 @@ export function registerAcquisitionTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "wait_for_sweep_complete",
     "Wait for a sweep started with start_sweep(wait=false) to finish: stays silent for the remaining sweep time (the instrument ignores input while sweeping), then polls *OPC? until it answers.",
     { timeout_s: TIMEOUT },
