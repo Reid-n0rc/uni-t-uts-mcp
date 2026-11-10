@@ -161,6 +161,31 @@ export const CONTRACT: Record<string, ContractEntry> = {
     args: { trace: 1, operation: "power_sum", operand_a: 2, operand_b: 3 },
     invalid: [{ trace: 1, operation: "power_sum" }, { trace: 8, operation: "off" }, { trace: 1, operation: "power_sum", operand_a: 2, operand_b: 3, offset_db: 5 }],
   },
+  get_marker: { kind: "getter", args: { marker: 2 }, invalid: [{ marker: 0 }, { marker: 11 }] },
+  set_marker: {
+    kind: "setter",
+    args: { marker: 1, mode: "normal", x_hz: 1000 },
+    invalid: [{}, { marker: 1 }, { marker: 11, mode: "off" }, { marker: 1, trace: 7 }, { marker: 1, reference_marker: 1 }, { marker: 1, x_hz: -5 }],
+    warn: [{ marker: 1, mode: "delta" }, { marker: 1, trace: 3 }, { marker: 1, x_hz: 5e6 }, { marker: 1, mode: "delta", reference_marker: 4 }],
+  },
+  marker_search: {
+    kind: "setter",
+    args: { marker: 1, action: "peak" },
+    invalid: [{ marker: 1, action: "nope" }, { marker: 0, action: "peak" }, { marker: 1 }],
+  },
+  marker_to_instrument: {
+    kind: "setter",
+    args: { marker: 1, target: "center" },
+    invalid: [{ marker: 1, target: "x" }, { marker: 12, target: "center" }],
+  },
+  markers_all_off: { kind: "setter", args: {} },
+  get_peak_criteria: { kind: "getter", args: {} },
+  set_peak_criteria: {
+    kind: "setter",
+    args: { threshold_dbm: -50 },
+    invalid: [{}, { threshold_dbm: 31 }, { excursion_db: 101 }, { threshold_dbm: -50, threshold_auto: true }],
+    warn: [{ threshold_dbm: -50 }, { excursion_db: 3 }, { threshold_auto: false }, { excursion_auto: false }],
+  },
 };
 
 // ---------- canned replies ----------
@@ -170,6 +195,9 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/^\*OPC\?$/, "1"],
   [/^:SENSe:SWEep:TIME\?$/, "1.000000E-02"],
   [/:UNIT:POWer\?$/, "DBM"],
+  [/MARKer\d+:MODE\?$/, "POSition"],
+  [/MARKer\d+:TRACe\?$/, "1"],
+  [/MARKer\d+:REFerence\?$/, "2"],
   [/:SPACing\?$/, "LOGarithmic"],
   [/BANDwidth:SHAPe\?$/, "GAUSsian"],
   [/SWEep:TIME:AUTO:RULes\?$/, "NORMal"],

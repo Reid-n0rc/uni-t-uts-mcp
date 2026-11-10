@@ -125,6 +125,11 @@ beforeEach(() => {
 });
 
 const json = (res: Awaited<ReturnType<typeof callTool>>) => JSON.parse(getText(res));
+/** Replace the first real command after *CLS (which still runs) with a custom behavior. */
+function interceptCommand(fn: (cmd: string) => Promise<void>) {
+  fake.sendCommand.mockImplementationOnce(async () => { fake.state.errors.length = 0; });
+  fake.sendCommand.mockImplementationOnce(fn);
+}
 const M = (n: number) => `:CALCulate:MARKer${n}`;
 
 describe("tool listing", () => {
@@ -146,7 +151,7 @@ describe("get_marker", () => {
   it("defaults to marker 1 and reports an off marker without stale readings", async () => {
     const res = await callTool(client, "get_marker", {});
     expect(res.isError).toBeFalsy();
-    expect(json(res)).toEqual({ marker: 1, mode: "off", trace: 1, reference_marker: 2, x: null, y: null });
+    expect(json(res)).toEqual({ marker: 1, mode: "off", trace: 1, x: null, y: null });
     expect(fake.query.mock.calls.map((c) => c[0])).not.toContain(`${M(1)}:X?`);
   });
 
@@ -221,8 +226,7 @@ describe("set_marker", () => {
 
   it("warns when the instrument adjusted a value", async () => {
     fake.state.markers[1].mode = "POSition";
-    vi.spyOn(fake.state.markers, "at");
-    fake.sendCommand.mockImplementationOnce(async (cmd: string) => { fake.calls.push(cmd); });
+    interceptCommand(async (cmd: string) => { fake.calls.push(cmd); });
     const out = json(await callTool(client, "set_marker", { marker: 1, x_hz: 1e9 }));
     expect(out.warnings.join(" ")).toMatch(/x_hz/);
   });
@@ -241,8 +245,7 @@ describe("set_marker", () => {
   });
 
   it("reports an instrument error and says settings may be partially applied", async () => {
-    // Reference marker equal to the marker is refused by us; make the instrument refuse trace via the fake
-    fake.sendCommand.mockImplementationOnce(async (cmd: string) => { fake.calls.push(cmd); fake.state.errors.push('-224,"Illegal parameter value"'); });
+    interceptCommand(async (cmd: string) => { fake.calls.push(cmd); fake.state.errors.push('-224,"Illegal parameter value"'); });
     const res = await callTool(client, "set_marker", { marker: 1, mode: "normal" });
     expect(res.isError).toBe(true);
     expect(getText(res)).toMatch(/-224/);
@@ -326,7 +329,7 @@ describe("markers_all_off", () => {
   });
 
   it("warns about a marker that is still on", async () => {
-    fake.sendCommand.mockImplementationOnce(async (cmd: string) => { fake.calls.push(cmd); fake.state.markers[3].mode = "POSition"; });
+    interceptCommand(async (cmd: string) => { fake.calls.push(cmd); fake.state.markers[3].mode = "POSition"; });
     const out = json(await callTool(client, "markers_all_off", {}));
     expect(out.all_off).toBe(false);
     expect(out.warnings.join(" ")).toMatch(/marker 3/);
@@ -365,7 +368,7 @@ describe("get_peak_criteria / set_peak_criteria", () => {
   it("warns when the instrument clamped a value", async () => {
     const out = json(await callTool(client, "set_peak_criteria", { threshold_dbm: 30, excursion_db: 100 }));
     expect(out.warnings).toEqual([]);
-    fake.sendCommand.mockImplementationOnce(async (cmd: string) => { fake.calls.push(cmd); fake.state.thr = 0; });
+    interceptCommand(async (cmd: string) => { fake.calls.push(cmd); fake.state.thr = 0; });
     const out2 = json(await callTool(client, "set_peak_criteria", { threshold_dbm: -20 }));
     expect(out2.warnings.join(" ")).toMatch(/threshold_dbm/);
   });
