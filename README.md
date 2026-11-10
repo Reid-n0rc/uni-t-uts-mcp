@@ -28,6 +28,10 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 - `tests/` – unit and mocked integration tests, a fake SCPI server, and captured instrument fixtures
 - `docs/` – [tools-reference.md](docs/tools-reference.md), [verified-hardware.md](docs/verified-hardware.md), [programming-guide.md](docs/programming-guide.md), [references.md](docs/references.md)
 
+## Project site
+
+The project site is at https://reid-n0rc.github.io/uni-t-uts-mcp/ (source in `site/`). Its tool list is generated from the server's own tool definitions and `docs/tools-reference.md`, so it stays current. Preview it locally with `npm run site` and open `_site/index.html`; it is deployed by `.github/workflows/pages.yml` on every change to `main` that touches the site or the tools.
+
 ## Documentation
 
 Manual and reference links: [docs/references.md](docs/references.md).
