@@ -177,7 +177,7 @@ describe("N-dB bandwidth", () => {
 
   it("errors on a malformed result reply", async () => {
     fake.state.ndbOn[1] = true;
-    fake.query.mockImplementation(async (cmd: string) => (cmd.endsWith("RESult?") ? "junk" : "1"));
+    fake.query.mockResolvedValueOnce("1").mockResolvedValueOnce("-3.000000e+00").mockResolvedValueOnce("junk");
     const res = await callTool(client, "get_marker_ndb", { marker: 1 });
     expect(res.isError).toBe(true);
     expect(getText(res)).toContain("RESult?");
