@@ -7,6 +7,7 @@ import { registerAmplitudeTools } from "./tools/amplitude.js";
 import { registerBandwidthSweepTools } from "./tools/bandwidthSweep.js";
 import { registerAcquisitionTools } from "./tools/acquisition.js";
 import { registerTraceTools } from "./tools/trace.js";
+import { registerScreenshotTools } from "./tools/screenshot.js";
 import { registerTraceDataTools } from "./tools/traceData.js";
 import { guardToolRegistration } from "./tools/util.js";
 
@@ -23,6 +24,7 @@ export function createServer(): McpServer {
   registerBandwidthSweepTools(server);
   registerAcquisitionTools(server);
   registerTraceTools(server);
+  registerScreenshotTools(server);
   registerTraceDataTools(server);
   return server;
 }

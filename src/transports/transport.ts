@@ -34,6 +34,11 @@ export interface TransportCapabilities {
    * keeps quiet for a while before the next job.
    */
   holdOffAfterTimeout: boolean;
+  /**
+   * Replies of several hundred kilobytes (a screenshot) arrive complete. False on raw TCP, where the
+   * instrument stops sending after exactly 144,800 bytes (issue #42); true on VXI-11.
+   */
+  completeLargeBlocks: boolean;
 }
 
 export interface OpenOptions {

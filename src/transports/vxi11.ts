@@ -32,6 +32,8 @@ export const VXI11_CAPABILITIES: TransportCapabilities = {
   dropsInputDuringSweep: false,
   /** After an unsupported query nothing sent later is lost: the instrument itself delays the next write while it is busy. */
   holdOffAfterTimeout: false,
+  /** Screenshots of 200 KB and 4 MB arrive complete (issues #42, #20). */
+  completeLargeBlocks: true,
 };
 
 /** I/O timeout of a device_write, in ms (the instrument accepts writes in 1 to 2 ms). */

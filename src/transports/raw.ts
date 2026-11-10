@@ -19,6 +19,8 @@ export const RAW_CAPABILITIES: TransportCapabilities = {
   syncsCommands: true,
   dropsInputDuringSweep: true,
   holdOffAfterTimeout: true,
+  /** The instrument stops after 144,800 bytes of a large reply (issue #42). */
+  completeLargeBlocks: false,
 };
 
 export class RawTransport implements Transport {
