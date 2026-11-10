@@ -75,7 +75,7 @@ All are SA-module commands. Query form is the same string with `?`. Max frequenc
 | Auto tune | `[:SENSe]:FREQuency:TUNE:IMMediate` | | |
 | Freq offset | `[:SENSe]:FREQuency:OFFSet <freq>` | range unspecified | Hz |
 | Center step | `[:SENSe]:FREQuency:CENTer:STEP[:INCRement] <freq>`, `...:STEP:AUTO {1\|0}` | | Hz |
-| Input impedance | `:INPut:IMPedance {50\|75}` (alias `[:SENSe]:CORRection:IMPedance[:INPut][:MAGNitude]`) | ohms | p.64 |
+| Input impedance | `:INPut:IMPedance {50\|75}` (**on the UTS3036B only the alias works**, query and setter; alias `[:SENSe]:CORRection:IMPedance[:INPut][:MAGNitude]`) | ohms | p.64 |
 
 ### Amplitude (p.37-39, p.63-64, p.94)
 
@@ -283,7 +283,7 @@ Safety notes: `*RST`, `:SYSTem:DEFault`, `:SYSTem:LOCK`, `:KEY:*:LOCK`, LAN sett
 10. **`:CALCulate:MARKer<n>:Y?` semantics**: returns the marker-function result when a function (NOISe/BPOWer/BDENsity) is on. For DELTa mode, whether `X?`/`Y?` return absolute or relative values is unstated. Marker auto-on when `MAXimum` is sent while MODE=OFF is unstated. Query of `:CALCulate:MARKer:FCOunt` result is not documented.
 11. **`:SENSe:DETector[:FUNCtion]`** is described as "for advanced measurement" and not applicable to plain sweep; use `:DETector:TRACe<n>` for spectrum traces. Detector `AUTO` per trace is 1K only.
 12. **Zoom commands**: `:FREQuency:ZOOM:IN` text says it "expands the sweep bandwidth", `ZOOM:OUT` says it "reduces" it; direction ambiguous. Avoid; set span explicitly.
-13. **Limits and ranges not given**: reference level range, `SOURce:POWer` range, frequency offset range, attenuation step (only "integer 0-51"), whether out-of-range values clamp or error, whether bare numbers are accepted vs. needing unit suffix (examples use both).
+13. **Limits and ranges not given** (resolved on the UTS3036B for amplitude: values clamp silently, and bare numbers and unit suffixes both work; see [verified-hardware.md](verified-hardware.md)): reference level range, `SOURce:POWer` range, frequency offset range, attenuation step (only "integer 0-51"), whether out-of-range values clamp or error, whether bare numbers are accepted vs. needing unit suffix (examples use both).
 14. **Screenshot**: **Partly verified (P2) - transfer is truncated over LAN.** `:DISPlay:ZBmp?` replies `#9` + 9-digit length (198908, 202898 on different captures, so it is compressed), then a `0x03` byte, then a BMP-like stream; `:DISPlay:DATA?` replies `#7` + `4096054` followed directly by an uncompressed `BM` bitmap, and returned nothing after `:SYSTem:PICture:FORMat PNG` was set (which the instrument accepts but ZBmp still returned bitmap data). In every case the instrument stops after exactly 144,800 bytes (100 TCP segments of 1448 bytes), far short of the declared length, with the sweep running or paused, with nc or a slow reader. Needs investigation (see the screenshot issue). (Original note:) `:DISPlay:ZBmp?` payload is "compressed" with unspecified algorithm and framing; test it against `:DISPlay:DATA?` and `:SYSTem:PICture:FORMat`.
 15. **`*IDN?`**: **Verified (P1):** comma-separated `UNI-TREND,UTS3036B,<serial>,V1.04.0040`; manufacturer string is `UNI-TREND`, not the manual's `UNI-T Technologies`.
 16. **Typos in boolean descriptions** (several `1|ON` listed twice in place of `0|OFF`; `*OPC?` "1 = unfinished"; `:SYSTem:LOCK?` "0 = unlocked / 1 = unlocked"). Assume 1 = on/true/finished.
