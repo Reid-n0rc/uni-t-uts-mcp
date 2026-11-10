@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { connection } from "../connection.js";
 import { applyCommands, queryBool, queryNumber, queryParsed, readBack, ReplyError } from "../instrument.js";
-import { formatNumber, onOff, parseBool, parseNumberList } from "../scpi.js";
+import { formatNumber, onOff, parseBool, parseNumber, parseNumberList } from "../scpi.js";
 import { defineTool, errorResult, setterFailure, textResult } from "./util.js";
 
 // Commands: docs/programming-guide.md section 7. Behavior verified on the UTS3036B (docs/verified-hardware.md,
@@ -59,7 +59,7 @@ const PARAMS = {
   offset_side: z.enum(["both", "negative", "positive"]).optional().describe("acpr only: which adjacent channels to measure"),
   noise_bandwidth_hz: z.number().finite().optional().describe("cn only: noise bandwidth in Hz"),
   fundamental_hz: z.number().finite().optional().describe("harmonics only: fundamental frequency in Hz"),
-  harmonics_count: z.number().finite().optional().describe("harmonics only: number of harmonics, integer 2-10"),
+  harmonics_count: z.number().finite().optional().describe("harmonics only: number of results including the fundamental, integer 2-10 (the preset is 2)"),
   sweep_time_s: z.number().finite().optional().describe("harmonics only: sweep time in s, 0.001-100"),
 };
 type ParamArgs = { [K in keyof typeof PARAMS]?: z.infer<(typeof PARAMS)[K]> };
@@ -352,11 +352,19 @@ async function readResult(m: Measurement, fetchRequested: boolean, timeoutS: num
       throw new ReplyError(command, reply, err instanceof Error ? err.message : String(err));
     }
   };
-  const list = async (command: string, count: number) => {
-    const values = await listAny(command);
-    if (values.length !== count) throw new ReplyError(command, values.join(","), `expected ${count} value(s), got ${values.length}`);
+  function list(command: string, count: number): Promise<number[]>;
+  function list(command: string, count: number, allowNan: true): Promise<Array<number | null>>;
+  async function list(command: string, count: number, allowNan = false): Promise<Array<number | null>> {
+    const reply = await connection.query(command, timeoutMs);
+    let values: Array<number | null>;
+    try {
+      values = reply.split(",").map((part) => (allowNan && part.trim().toLowerCase() === "nan" ? null : parseNumber(part)));
+    } catch (err) {
+      throw new ReplyError(command, reply, err instanceof Error ? err.message : String(err));
+    }
+    if (values.length !== count) throw new ReplyError(command, reply.trim(), `expected ${count} value(s), got ${values.length}`);
     return values;
-  };
+  }
   const withWarnings = <T extends object>(result: T) => (warnings.length > 0 ? { ...result, warnings } : result);
   if (m === "channel_power") {
     const [power, density] = await list(`:${verb}:${name}?`, 2);
@@ -367,45 +375,62 @@ async function readResult(m: Measurement, fetchRequested: boolean, timeoutS: num
     return withWarnings({ measurement: m, command: verb, power_dbm: power });
   }
   if (m === "acpr") {
-    const [main, lower, lowerRel, upper, upperRel] = await list(`:${verb}:${name}?`, 5);
+    // The combined reply has three values on this firmware (main dBm, lower dBc, upper dBc; the manual lists five), so the
+    // absolute powers come from the :MAIN?/:LOWer?/:UPPer? sub-results. READ runs the measurement with the combined query
+    // (the READ sub-forms get no reply, as for OBW) and the sub-results are fetched. A side that is not measured reads nan.
+    if (!fetch) await list(`:READ:${name}?`, 3, true);
+    const [main] = await list(`:FETCh:${name}:MAIN?`, 1, true);
+    const lower = await list(`:FETCh:${name}:LOWer?`, 2, true);
+    const upper = await list(`:FETCh:${name}:UPPer?`, 2, true);
+    if (main === null || (lower[0] === null && upper[0] === null)) {
+      throw new ReplyError(`:FETCh:${name}:MAIN?`, "nan", "no result yet (nan); wait for a sweep to finish");
+    }
+    for (const [label, side] of [["lower", lower], ["upper", upper]] as const) {
+      if (side[0] === null) warnings.push(`${label} adjacent channel not measured (nan); check offset_side`);
+    }
     return withWarnings({
-      measurement: m, command: verb, main_power_dbm: main, lower_power_dbm: lower, lower_dbc: lowerRel, upper_power_dbm: upper, upper_dbc: upperRel,
+      measurement: m, command: verb, main_power_dbm: main, lower_power_dbm: lower[0], lower_dbc: lower[1], upper_power_dbm: upper[0], upper_dbc: upper[1],
     });
   }
   if (m === "cn") {
     const [carrier, noise, ratio] = await list(`:${verb}:${name}?`, 3);
     return withWarnings({ measurement: m, command: verb, carrier_dbm: carrier, noise_dbm: noise, cn_db: ratio });
   }
+  // TOI: :FETCh:TOI:IPT? (documented) gets no reply on the UTS3036B and stalls it, so it is not used: each third-order product carries its TOI.
   // Results made of several queries: with READ only the first one runs the measurement (and waits), the others FETCh its results.
   const verbFor = (i: number) => (i === 0 ? verb : "FETCh");
   if (m === "toi") {
-    const [lowT, upT, lowTone, upTone, ipt] = [
+    const [lowT, upT, lowTone, upTone] = [
       await list(`:${verbFor(0)}:${name}:LOW:TRD?`, 4),
       await list(`:${verbFor(1)}:${name}:UP:TRD?`, 4),
       await list(`:${verbFor(2)}:${name}:LOW:TONE?`, 2),
       await list(`:${verbFor(3)}:${name}:UP:TONE?`, 2),
-      await list(`:${verbFor(4)}:${name}:IPT?`, 2),
     ];
     const product = ([frequency_hz, amplitude_dbm, dbc, toi_dbm]: number[]) => ({ frequency_hz, amplitude_dbm, dbc, toi_dbm });
     const tone = ([frequency_hz, amplitude_dbm]: number[]) => ({ frequency_hz, amplitude_dbm });
     return withWarnings({
       measurement: m, command: verb, lower_third_order: product(lowT), upper_third_order: product(upT), lower_tone: tone(lowTone), upper_tone: tone(upTone),
-      intercept: { dbc: ipt[0], dbm: ipt[1] },
     });
   }
   if (m === "harmonics") {
-    // The lists hold the fundamental and then the 2nd, 3rd, ... harmonic (as many as configured, 2-10 harmonics).
+    // Both lists always hold 10 values (verified); only the first `harmonics_count` are results (the fundamental and then
+    // the 2nd, 3rd, ... harmonic), the rest are placeholders (0 dBm, shown as a large positive dBc).
+    const count = await queryParsed(`${sense(m)}:NUMBer?`, (r) => {
+      const n = Number(r.trim());
+      if (!Number.isInteger(n) || n < 2 || n > 10) throw new Error(`Expected an integer from 2 to 10, got ${JSON.stringify(r)}`);
+      return n;
+    });
     const ampCommand = `:${verbFor(0)}:${name}:AMPLitude:ALL?`;
     const freqCommand = `:FETCh:${name}:FREQuency:ALL?`;
     const amplitudes = await listAny(ampCommand);
     const frequencies = await listAny(freqCommand);
-    if (amplitudes.length < 3 || amplitudes.length > 11) throw new ReplyError(ampCommand, amplitudes.join(","), `expected 3 to 11 values (fundamental and 2 to 10 harmonics), got ${amplitudes.length}`);
+    if (amplitudes.length < count) throw new ReplyError(ampCommand, amplitudes.join(","), `expected at least ${count} values (harmonics_count), got ${amplitudes.length}`);
     if (frequencies.length !== amplitudes.length) throw new ReplyError(freqCommand, frequencies.join(","), `expected ${amplitudes.length} values like ${ampCommand}, got ${frequencies.length}`);
     const [thdPercent, thdDbc] = await list(`:FETCh:${name}:DISTortion?`, 2);
     return withWarnings({
       measurement: m, command: verb,
       fundamental: { frequency_hz: frequencies[0], amplitude_dbm: amplitudes[0] },
-      harmonics: amplitudes.slice(1).map((amplitude_dbc, i) => ({ order: i + 2, frequency_hz: frequencies[i + 1], amplitude_dbc })),
+      harmonics: amplitudes.slice(1, count).map((amplitude_dbc, i) => ({ order: i + 2, frequency_hz: frequencies[i + 1], amplitude_dbc })),
       thd_percent: thdPercent, thd_dbc: thdDbc,
     });
   }

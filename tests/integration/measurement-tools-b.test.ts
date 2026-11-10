@@ -24,7 +24,7 @@ const fake = vi.hoisted(() => {
     params: initialParams(),
     errors: [] as string[],
     failRead: false,
-    harmonicCount: 10,
+    acprSide: "BOTH",
   });
   const state = initial();
   const calls: string[] = [];
@@ -35,15 +35,17 @@ const fake = vi.hoisted(() => {
   const timeout = (cmd: string) => Promise.reject(new Error(`Query timeout after 1500ms for command: ${cmd}`));
   const list = (n: number, f: (i: number) => number) => Array.from({ length: n }, (_, i) => sci(f(i))).join(",");
   const results: Record<string, () => string> = {
-    "ACPower": () => "-2.0e+01,-6.0e+01,-4.0e+01,-6.5e+01,-4.5e+01",
+    "ACPower": () => "-2.0e+01,-4.0e+01,-4.5e+01",
+    "ACPower:MAIN": () => "-2.0e+01",
+    "ACPower:LOWer": () => (state.acprSide === "POSitive" ? "nan ,nan " : "-6.0e+01,-4.0e+01"),
+    "ACPower:UPPer": () => (state.acprSide === "NEGative" ? "nan ,nan " : "-6.5e+01,-4.5e+01"),
     "TOI:LOW:TRD": () => "9.9e+07,-4.0e+01,-5.0e+01,2.0e+01",
     "TOI:UP:TRD": () => "1.02e+08,-4.1e+01,-5.1e+01,2.1e+01",
     "TOI:LOW:TONE": () => "9.95e+07,-3.0e+01",
     "TOI:UP:TONE": () => "1.005e+08,-3.1e+01",
-    "TOI:IPT": () => "-5.0e+01,2.0e+01",
     "CNRatio": () => "-1.0e+01,-7.0e+01,6.0e+01",
-    "HARMonics:AMPLitude:ALL": () => list(state.harmonicCount, (i) => (i === 0 ? -10 : -30 - i)),
-    "HARMonics:FREQuency:ALL": () => list(state.harmonicCount, (i) => 1e8 * (i + 1)),
+    "HARMonics:AMPLitude:ALL": () => list(10, (i) => (i >= Number(state.params.HARMonics.NUMBer) ? 84.5 : i === 0 ? -10 : -30 - i)),
+    "HARMonics:FREQuency:ALL": () => list(10, (i) => 1e8 * (i + 1)),
     "HARMonics:DISTortion": () => "1.5e+00,-3.6e+01",
   };
   const query = vi.fn(async (cmd: string, _t?: number, _o?: unknown): Promise<string> => {
@@ -106,7 +108,8 @@ const fake = vi.hoisted(() => {
       if (state.mode !== meas || state.params[meas][rest] === undefined) { state.errors.push('-113,"Undefined header"'); return; }
       let value = arg;
       if (rest === "AVERage:STATE" || rest === "AVERage:STATe") value = on ? "1" : "0";
-      if (meas === "HARMonics" && rest === "NUMBer") { value = String(Math.min(10, Math.max(2, Math.trunc(Number(arg))))); state.harmonicCount = Number(value); }
+      if (meas === "HARMonics" && rest === "NUMBer") { value = String(Math.min(10, Math.max(2, Math.trunc(Number(arg))))); }
+      if (meas === "ACPower" && rest === "OFFSet:LIST:SIDE") state.acprSide = arg;
       state.params[meas][rest] = value;
       return;
     }
@@ -252,7 +255,22 @@ describe("read_measurement for the new measurements", () => {
     expect(json(await callTool(client, "read_measurement", { measurement: "acpr" }))).toEqual({
       measurement: "acpr", command: "READ", main_power_dbm: -20, lower_power_dbm: -60, lower_dbc: -40, upper_power_dbm: -65, upper_dbc: -45,
     });
-    expect(fake.queries.slice(1)).toEqual([":READ:ACPower?"]);
+    expect(fake.queries.slice(1)).toEqual([":READ:ACPower?", ":FETCh:ACPower:MAIN?", ":FETCh:ACPower:LOWer?", ":FETCh:ACPower:UPPer?"]);
+  });
+  it("acpr: a side that is not measured reads nan: null values and a warning", async () => {
+    fake.state.mode = "ACPower";
+    fake.state.acprSide = "POSitive";
+    const out = json(await callTool(client, "read_measurement", { measurement: "acpr", fetch: true }));
+    expect(out).toMatchObject({ main_power_dbm: -20, lower_power_dbm: null, lower_dbc: null, upper_power_dbm: -65, upper_dbc: -45 });
+    expect(out.warnings.join(" ")).toMatch(/lower adjacent channel not measured/);
+  });
+  it("acpr: nan everywhere (no result yet) is an error", async () => {
+    fake.state.mode = "ACPower";
+    const impl = fake.query.getMockImplementation()!;
+    fake.query.mockImplementation(async (cmd: string, t?: number, o?: unknown) => (cmd === ":FETCh:ACPower:MAIN?" ? "nan " : impl(cmd, t, o)));
+    const res = await callTool(client, "read_measurement", { measurement: "acpr", fetch: true });
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toContain(":FETCh:ACPower:MAIN?");
   });
   it("cn: carrier, noise and ratio", async () => {
     fake.state.mode = "CNRatio";
@@ -270,9 +288,8 @@ describe("read_measurement for the new measurements", () => {
       upper_third_order: { frequency_hz: 1.02e8, amplitude_dbm: -41, dbc: -51, toi_dbm: 21 },
       lower_tone: { frequency_hz: 9.95e7, amplitude_dbm: -30 },
       upper_tone: { frequency_hz: 1.005e8, amplitude_dbm: -31 },
-      intercept: { dbc: -50, dbm: 20 },
     });
-    expect(fake.queries.slice(1)).toEqual([":READ:TOI:LOW:TRD?", ":FETCh:TOI:UP:TRD?", ":FETCh:TOI:LOW:TONE?", ":FETCh:TOI:UP:TONE?", ":FETCh:TOI:IPT?"]);
+    expect(fake.queries.slice(1)).toEqual([":READ:TOI:LOW:TRD?", ":FETCh:TOI:UP:TRD?", ":FETCh:TOI:LOW:TONE?", ":FETCh:TOI:UP:TONE?"]);
   });
   it("harmonics: fundamental in dBm, harmonics in dBc with frequencies, and distortion", async () => {
     fake.state.mode = "HARMonics";
@@ -284,13 +301,14 @@ describe("read_measurement for the new measurements", () => {
     expect(out.harmonics[8]).toEqual({ order: 10, frequency_hz: 1e9, amplitude_dbc: -39 });
     expect(out.thd_percent).toBe(1.5);
     expect(out.thd_dbc).toBe(-36);
-    expect(fake.queries.slice(1)).toEqual([":READ:HARMonics:AMPLitude:ALL?", ":FETCh:HARMonics:FREQuency:ALL?", ":FETCh:HARMonics:DISTortion?"]);
+    expect(fake.queries.slice(1)).toEqual([":SENSe:HARMonics:NUMBer?", ":READ:HARMonics:AMPLitude:ALL?", ":FETCh:HARMonics:FREQuency:ALL?", ":FETCh:HARMonics:DISTortion?"]);
   });
-  it("harmonics follows the configured count", async () => {
+  it("harmonics returns only the configured count (the instrument pads both lists to 10 values)", async () => {
     fake.state.mode = "HARMonics";
-    fake.state.harmonicCount = 4;
+    fake.state.params.HARMonics.NUMBer = "4";
     const out = json(await callTool(client, "read_measurement", { measurement: "harmonics" }));
     expect(out.harmonics.map((h: { order: number }) => h.order)).toEqual([2, 3, 4]);
+    expect(out.harmonics.every((h: { amplitude_dbc: number }) => h.amplitude_dbc < 0)).toBe(true);
   });
   it("over raw TCP FETCh is used and a warning says so", async () => {
     fake.link.transport = "raw";
@@ -320,7 +338,8 @@ describe("read_measurement for the new measurements", () => {
   it("errors when harmonic amplitude and frequency lists differ in length", async () => {
     fake.state.mode = "HARMonics";
     const impl = fake.query.getMockImplementation()!;
-    fake.query.mockImplementation(async (cmd: string, t?: number, o?: unknown) => (cmd === ":FETCh:HARMonics:FREQuency:ALL?" ? "1e8,2e8" : impl(cmd, t, o)));
+    fake.query.mockImplementation(async (cmd: string, t?: number, o?: unknown) => (cmd === ":FETCh:HARMonics:FREQuency:ALL?" ? "1e8,2e8,3e8" : impl(cmd, t, o)));
+    fake.state.params.HARMonics.NUMBer = "3";
     const res = await callTool(client, "read_measurement", { measurement: "harmonics" });
     expect(res.isError).toBe(true);
     expect(getText(res)).toContain(":FETCh:HARMonics:FREQuency:ALL?");
