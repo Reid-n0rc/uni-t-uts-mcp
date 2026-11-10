@@ -50,6 +50,32 @@ Send a SCPI command with no reply expected. Queries are refused (use `scpi_query
 
 Commands containing CR/LF, control characters or non-ASCII text, unterminated quotes, or malformed `#` blocks are refused.
 
+## Frequency
+
+Units are Hz. Command syntax: [programming-guide.md](programming-guide.md) section 2. Query forms and `Hz`/`GHz`/bare-number setters were verified on the UTS3036B.
+
+### `get_frequency`
+
+Read-only. Returns JSON with `center_hz`, `span_hz`, `start_hz`, `stop_hz`, `center_step_hz`, `center_step_auto` and `offset_hz`. No parameters.
+
+### `set_frequency`
+
+Frequency parameters are coupled, so choose one group per call; the settings are re-read afterwards and anything the instrument changed is listed in `warnings`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `center_hz` | number > 0 | Center frequency (may be combined with `span_hz`; span is set first) |
+| `span_hz` | number > 0 | Span (use `zero_span` for zero span) |
+| `start_hz` | number >= 0 | Start frequency (alone, or with `stop_hz`) |
+| `stop_hz` | number > 0 | Stop frequency; with `start_hz` it must be greater than `start_hz`. The edge that will not cross the other is moved first |
+| `full_span` | boolean | Full span; cannot be combined with center/span/start/stop |
+| `zero_span` | boolean | Zero span; cannot be combined with center/span/start/stop |
+| `center_step_hz` | number > 0 | Center step (turns auto step off) |
+| `center_step_auto` | boolean | Automatic center step (not with `center_step_hz`) |
+| `offset_hz` | number | Frequency offset |
+
+`center`/`span` and `start`/`stop` cannot be mixed in one call. Before applying, the instrument's error queue is cleared with `*CLS`; afterwards it is checked and any error is returned as an error result (settings may be partially applied).
+
 ## Environment variables
 
 | Variable | Description |
