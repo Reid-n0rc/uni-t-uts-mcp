@@ -48,7 +48,8 @@ export class StubNode {
   constructor(public kind: string) {}
   connect(to: unknown) { this.connections.push(to); return to; }
   disconnect() { this.connections = []; }
-  start() { this.started = true; }
+  startTime: number | undefined;
+  start(t?: number) { this.started = true; this.startTime = t; }
   stop() { this.stopped = true; }
   getByteFrequencyData(a: Uint8Array) { a.fill(120); }
   getFloatFrequencyData(a: Float32Array) { a.fill(-60); }
@@ -125,7 +126,7 @@ export class FakeDocument {
   listenerCount(type: string) { return (this.listeners[type] ?? []).length; }
 }
 
-export function fakeWindow(opts: { ctor?: unknown; webkit?: unknown; storage?: Record<string, string> | "throws" } = {}) {
+export function fakeWindow(opts: { ctor?: unknown; webkit?: unknown; storage?: Record<string, string> | "throws"; search?: string; hash?: string; location?: "throws" } = {}) {
   const store: Record<string, string> = opts.storage && opts.storage !== "throws" ? opts.storage : {};
   const win: any = { AudioContext: opts.ctor, webkitAudioContext: opts.webkit, store };
   if (opts.storage === "throws") {
@@ -136,6 +137,11 @@ export function fakeWindow(opts: { ctor?: unknown; webkit?: unknown; storage?: R
       setItem: (k: string, v: string) => { store[k] = v; },
       removeItem: (k: string) => { delete store[k]; },
     };
+  }
+  if (opts.location === "throws") {
+    Object.defineProperty(win, "location", { get() { throw new Error("no location"); } });
+  } else if (opts.search !== undefined || opts.hash !== undefined) {
+    win.location = { search: opts.search ?? "", hash: opts.hash ?? "" };
   }
   return win;
 }
