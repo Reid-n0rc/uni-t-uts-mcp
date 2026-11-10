@@ -95,4 +95,22 @@ describe("autoConnectFromEnv transport selection (#74)", () => {
     await autoConnectFromEnv({ UTS_IP: "192.168.1.100", UTS_TRANSPORT: "raw" }, conn, log);
     expect(log.mock.calls.join(" ")).toMatch(/raw/i);
   });
+
+  it("UTS_IP=auto discovers the analyzer and connects to the only one found", async () => {
+    const conn = fakeConnection();
+    const discover = vi.fn(async () => ({
+      instruments: [{ host: "192.168.1.100", vxi11: true, vxi11Port: 1, raw: true, idn: { manufacturer: "UNI-T", model: "UTS3036B", firmware: "V1" }, analyzer: true }],
+      notes: [],
+    }));
+    expect(await autoConnectFromEnv({ UTS_IP: "auto" }, conn, vi.fn(), discover)).toBe(true);
+    expect(conn.connect).toHaveBeenCalledWith("192.168.1.100", 5025, expect.objectContaining({ transport: "auto" }));
+  });
+
+  it("UTS_IP=auto logs the problem and does not connect when none or several are found", async () => {
+    const conn = fakeConnection();
+    const log = vi.fn();
+    expect(await autoConnectFromEnv({ UTS_IP: "auto" }, conn, log, async () => ({ instruments: [], notes: [] }))).toBe(false);
+    expect(conn.connect).not.toHaveBeenCalled();
+    expect(log.mock.calls.join(" ")).toMatch(/no .*analyzer/i);
+  });
 });
