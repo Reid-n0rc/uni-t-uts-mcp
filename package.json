@@ -14,6 +14,7 @@
     "inspector": "npx @modelcontextprotocol/inspector node build/index.js",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc -p tsconfig.test.json",
+    "site": "npm run build && node scripts/build-site.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

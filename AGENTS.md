@@ -7,7 +7,8 @@ Instructions for AI coding agents (Claude Code, Codex, etc.) working in this rep
 MCP server (TypeScript, stdio) for UNI-T UTS series spectrum analyzers (UTS1000B/T, UTS3000B) over SCPI. Layout is modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp):
 
 - `src/index.ts` – server entry, registers tool groups
-- `src/connection.ts` – SCPI connection singleton with a query queue
+- `src/connection.ts` – SCPI connection singleton: serialized queue, query timeouts, hold-off after a timed-out query, `*OPC?` command pacing, `msSinceQueryTimeout`, `expectSilence`
+- `src/transports/` – the wire under `UtsConnection`. `transport.ts` defines the internal `Transport` interface (open/close/isOpen/onLost, `write` a line, `readLine`/`readBlock` with a timeout, `discardInput`) and its capability flags; `raw.ts` is raw SCPI over TCP (framing, CRLF, `#` block assembly, late-terminator swallowing). Wire differences are expressed as capability flags (`syncsCommands`, `dropsInputDuringSweep`, `holdOffAfterTimeout`, read via `connection.capabilities`), never as transport-name checks in tools. A new transport (VXI-11, parent #64) implements `Transport` and passes `tests/transportContract.ts` by calling `runTransportContract` with its own factory and fake instrument
 - `src/vxi11/` – dependency-free ONC RPC stack for the planned VXI-11 transport (#64): `xdr.ts` (bounds-checked XDR codec), `rpc.ts` (RPC v2 over TCP, record marking, xid matching, typed `Rpc*Error`s), `portmapper.ts` (`getPort`). Parses network input: keep every length capped and use `>>> 0` for the 0x80000000 record-marking bit (JS bitwise ops are signed)
 - `tests/fakeRpcServer.ts` – in-process fake ONC RPC server + portmapper, reused by the VXI-11 fake instrument
 - `src/tools/*.ts` – one file per tool group, each exporting `register<Group>Tools(server)`
@@ -25,6 +26,7 @@ Commands: `npm run build`, `npm test`, `npm run inspector`.
 - Never commit secrets, device IPs/serials, or `.mcp.json`.
 - Keep each task/issue small enough to finish in one context window; split larger work.
 - Every new tool needs an integration test with a mocked connection and a `### \`tool_name\`` section in `docs/tools-reference.md` (a test fails if a registered tool is undocumented).
+- **The project site is generated, not hand-maintained.** `site/index.html` is a template; the tool list on https://reid-n0rc.github.io/uni-t-uts-mcp/ comes from the server's tool definitions (descriptions) and the `## Group` / `### \`tool\`` headings of `docs/tools-reference.md`, built by `scripts/build-site.mjs` (`npm run site`). Keep those headings parseable and give every tool a clear first sentence. Hand-written site text (field notes, quick start, roadmap chips) must be updated in the same PR when the facts change. The site is self-contained: no external scripts, fonts, images or CDNs (a test enforces this).
 - **Docs are part of done, updated in the same PR as the change.** A PR that adds or changes a tool, a hardware finding or instrument quirk, a workflow rule, or the project layout also updates the matching docs: `docs/tools-reference.md`, `docs/verified-hardware.md`, `docs/programming-guide.md`, `README.md` and `AGENTS.md`. Do not leave documentation for a later task.
 - Mark read-only tools with `readOnlyHint: true`.
 - Source of truth for commands is the UNI-T programming manual; links are in `docs/references.md`; cite the manual section in code comments when a command is non-obvious. Do not guess SCPI syntax.

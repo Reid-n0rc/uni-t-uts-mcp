@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UNI-T UTS MCP: talk to your spectrum analyzer</title>
+<meta name="description" content="An MCP server that lets Claude and other AI assistants control UNI-T UTS series spectrum analyzers over plain SCPI on your LAN. Verified on a real UTS3036B.">
+<meta name="theme-color" content="#3b1a78">
+<meta property="og:type" content="website">
+<meta property="og:title" content="UNI-T UTS MCP: talk to your spectrum analyzer">
+<meta property="og:description" content="Control UNI-T UTS spectrum analyzers from Claude and other AI assistants. Typed tools, safe by design, verified on real hardware.">
+<meta property="og:url" content="https://reid-n0rc.github.io/uni-t-uts-mcp/">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2300c2b8'/%3E%3Cpath d='M4 40 L14 18 L24 42 L34 14 L44 44 L54 20 L60 36' fill='none' stroke='%236a35d9' stroke-width='7' stroke-linejoin='miter'/%3E%3C/svg%3E">
+<style>
+:root {
+  --ink: #1a0f33;
+  --paper: #fffaff;
+  --paper-2: #f4ecff;
+  --card: #ffffff;
+  --muted: #5a4a7e;
+  --line: #2b1650;
+  --teal: #00c2b8;
+  --teal-deep: #00787d;
+  --purple: #6a35d9;
+  --purple-deep: #3b1a78;
+  --pink: #ff71ce;
+  --cyan: #01cdfe;
+  --mint: #05ffa1;
+  --butter: #fffb96;
+  --lav: #b967ff;
+  --accent-text: #00787d;
+  --link: #5a24c4;
+  --code-bg: #24113f;
+  --code-text: #d9fff8;
+  --shadow: 6px 6px 0 var(--purple);
+  --font-body: "Trebuchet MS", "Segoe UI", "Avenir Next", system-ui, -apple-system, sans-serif;
+  --font-display: "Arial Rounded MT Bold", "Avenir Next", "Segoe UI Black", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #f6ecff;
+    --paper: #130827;
+    --paper-2: #1b0d38;
+    --card: #1f1040;
+    --muted: #bba8de;
+    --line: #b967ff;
+    --accent-text: #2ef0e2;
+    --link: #8fe9ff;
+    --shadow: 6px 6px 0 var(--teal-deep);
+    --code-bg: #0d0620;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--paper);
+  overflow-x: hidden;
+}
+a { color: var(--link); text-underline-offset: 3px; text-decoration-thickness: 2px; }
+a:hover { color: var(--pink); }
+:focus-visible { outline: 3px solid var(--pink); outline-offset: 3px; border-radius: 4px; }
+code, pre { font-family: var(--font-mono); }
+.skip-link {
+  position: absolute; left: 12px; top: -64px; z-index: 100;
+  background: var(--butter); color: #1a0f33; padding: 10px 16px; border: 2px solid #1a0f33; font-weight: 700;
+}
+.skip-link:focus { top: 12px; }
+.wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
+
+/* ---------- hero: vaporwave sunset over a teal-and-purple Jazz trace ---------- */
+.hero {
+  position: relative; isolation: isolate; color: #fff;
+  min-height: clamp(700px, 100vh, 900px);
+  display: flex; flex-direction: column;
+  background: linear-gradient(#0f0630 0%, #2a1170 34%, #6a35d9 54%, #c04fd6 63%, #ff71ce 69%, #ffc2ee 72%);
+  overflow: hidden;
+}
+.stars {
+  position: absolute; inset: 0 0 40% 0; z-index: -3; opacity: .9;
+  background-image:
+    radial-gradient(1.5px 1.5px at 8% 12%, #fff 50%, transparent 52%),
+    radial-gradient(1px 1px at 17% 31%, #fff 50%, transparent 52%),
+    radial-gradient(1.5px 1.5px at 29% 8%, #fffb96 50%, transparent 52%),
+    radial-gradient(1px 1px at 38% 22%, #fff 50%, transparent 52%),
+    radial-gradient(1.5px 1.5px at 52% 14%, #fff 50%, transparent 52%),
+    radial-gradient(1px 1px at 63% 33%, #01cdfe 50%, transparent 52%),
+    radial-gradient(1.5px 1.5px at 74% 9%, #fff 50%, transparent 52%),
+    radial-gradient(1px 1px at 83% 26%, #fff 50%, transparent 52%),
+    radial-gradient(1.5px 1.5px at 92% 15%, #fffb96 50%, transparent 52%),
+    radial-gradient(1px 1px at 46% 36%, #fff 50%, transparent 52%);
+}
+.sun {
+  position: absolute; z-index: -2; left: 50%; bottom: 30%;
+  width: min(54vw, 420px); aspect-ratio: 1; border-radius: 50%;
+  transform: translate(-50%, 42%);
+  background: linear-gradient(#fffb96 8%, #ffb3e6 48%, #ff71ce 70%, #b967ff 100%);
+  -webkit-mask-image: linear-gradient(#000 0 52%, transparent 52% 56%, #000 56% 64%, transparent 64% 69%, #000 69% 77%, transparent 77% 83%, #000 83% 90%, transparent 90% 97%, #000 97%);
+  mask-image: linear-gradient(#000 0 52%, transparent 52% 56%, #000 56% 64%, transparent 64% 69%, #000 69% 77%, transparent 77% 83%, #000 83% 90%, transparent 90% 97%, #000 97%);
+  filter: drop-shadow(0 0 40px rgba(255, 113, 206, .6));
+}
+.floor {
+  position: absolute; z-index: -1; left: 0; right: 0; bottom: 0; height: 30%;
+  overflow: hidden; perspective: 360px;
+  background: linear-gradient(#2a0c5e, #0d0420);
+  border-top: 3px solid var(--cyan);
+  box-shadow: 0 -2px 24px rgba(1, 205, 254, .55);
+}
+.grid {
+  position: absolute; left: -60%; right: -60%; top: 0; bottom: -140%;
+  transform: rotateX(63deg); transform-origin: 50% 0;
+  background-image:
+    linear-gradient(var(--cyan) 2px, transparent 2px),
+    linear-gradient(90deg, var(--pink) 2px, transparent 2px);
+  background-size: 64px 64px;
+  opacity: .8;
+  animation: flow 2.2s linear infinite;
+}
+@keyframes flow { to { background-position: 0 64px, 0 0; } }
+#trace { position: absolute; z-index: -1; left: 0; bottom: 30%; width: 100%; height: 38%; display: block; }
+
+.nav { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; padding: 18px 0; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 1.15rem; color: #fff; text-decoration: none; letter-spacing: .02em; }
+.brand svg { width: 38px; height: 38px; flex: none; }
+.nav .spacer { flex: 1; }
+.nav a:not(.brand) { color: #fff; font-weight: 700; text-decoration: none; padding: 6px 2px; border-bottom: 3px solid transparent; }
+.nav a:not(.brand):hover { border-color: var(--butter); color: #fff; }
+
+.hero-copy { padding: clamp(14px, 4vh, 48px) 0 0; max-width: 780px; }
+.kicker { font-family: var(--font-mono); letter-spacing: .32em; font-size: .85rem; color: var(--butter); margin: 0 0 14px; }
+.kicker .ja { color: var(--cyan); letter-spacing: .1em; margin-left: .8em; }
+h1 {
+  font-family: var(--font-display); font-weight: 900; line-height: 1.02;
+  font-size: clamp(2.4rem, 6.4vw, 4.6rem); margin: 0 0 16px; letter-spacing: -.01em;
+  text-shadow: 3px 3px 0 var(--purple-deep);
+}
+h1 .hl { color: #fff; background: linear-gradient(transparent 60%, var(--teal) 60% 92%, transparent 92%); padding: 0 .1em; }
+.glitch { position: relative; }
+.glitch::before, .glitch::after {
+  content: attr(data-text); position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+  opacity: .75; mix-blend-mode: screen;
+}
+.glitch::before { color: var(--cyan); animation: glitch-a 5.5s steps(1) infinite; text-shadow: none; }
+.glitch::after { color: var(--pink); animation: glitch-b 5.5s steps(1) infinite; text-shadow: none; }
+@keyframes glitch-a { 0%, 90%, 100% { clip-path: inset(0 0 100% 0); transform: none; } 91% { clip-path: inset(18% 0 62% 0); transform: translate(-5px, 0); } 94% { clip-path: inset(58% 0 20% 0); transform: translate(4px, 0); } 97% { clip-path: inset(0 0 100% 0); } }
+@keyframes glitch-b { 0%, 91%, 100% { clip-path: inset(0 0 100% 0); transform: none; } 92% { clip-path: inset(40% 0 38% 0); transform: translate(5px, 0); } 95% { clip-path: inset(8% 0 78% 0); transform: translate(-4px, 0); } 98% { clip-path: inset(0 0 100% 0); } }
+.lead { font-size: clamp(1.1rem, 2.2vw, 1.35rem); max-width: 40ch; margin: 0 0 26px; color: #fff; text-shadow: 0 1px 14px rgba(15, 6, 48, .8); }
+.cta { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 22px; }
+.btn {
+  display: inline-block; font-family: var(--font-display); font-size: 1.05rem; text-decoration: none;
+  padding: 12px 24px; border: 3px solid #1a0f33; color: #1a0f33; background: var(--teal);
+  box-shadow: 5px 5px 0 #1a0f33; transition: transform .12s, box-shadow .12s;
+}
+.btn:hover { color: #1a0f33; transform: translate(-2px, -2px); box-shadow: 8px 8px 0 #1a0f33; }
+.btn:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 #1a0f33; }
+.btn.alt { background: var(--butter); }
+.badges { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.badges li { font-family: var(--font-mono); font-size: .8rem; padding: 4px 10px; border: 2px solid rgba(255, 255, 255, .85); background: rgba(26, 15, 51, .55); color: #fff; }
+.marker-win { position: absolute; right: max(16px, calc((100vw - 1120px) / 2)); bottom: calc(30% + 16px); width: min(300px, calc(100% - 32px)); z-index: 2; color: #1a0f33; }
+.marker-win .win-body { padding: 10px 14px; font-family: var(--font-mono); font-size: .85rem; line-height: 1.5; background: #fff; color: #1a0f33; }
+.marker-win b { color: var(--purple); }
+.fine { font-size: .7rem; opacity: .7; }
+
+/* ---------- Windows-95 style windows ---------- */
+.win { background: var(--card); border: 3px solid var(--line); box-shadow: var(--shadow); color: var(--ink); }
+.win-bar { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; background: linear-gradient(90deg, var(--purple), var(--teal)); color: #fff; min-height: 38px; }
+.win-title { margin: 0; font-family: var(--font-mono); font-size: .95rem; font-weight: 700; letter-spacing: .02em; text-shadow: 1px 1px 0 rgba(26, 15, 51, .55); }
+.win-file { margin-left: auto; font-family: var(--font-mono); font-size: .75rem; opacity: .85; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.win-title { flex: 1 1 auto; min-width: 0; }
+.win-file + .win-btns, .win-title + .win-btns { margin-left: auto; }
+.win-file ~ .win-btns { margin-left: 0; }
+.win-btns { display: inline-flex; gap: 4px; }
+.win-btns i { width: 16px; height: 16px; background: #e9e2f5; border: 2px solid #1a0f33; display: block; }
+.win-body { padding: 18px 20px; }
+
+/* ---------- sections ---------- */
+section.block { position: relative; padding: clamp(56px, 9vw, 104px) 0; }
+section.block.alt { background: var(--paper-2); }
+h2 { font-family: var(--font-display); font-weight: 900; font-size: clamp(1.9rem, 4.6vw, 3rem); line-height: 1.08; margin: 0 0 12px; letter-spacing: -.01em; }
+h2 .hl { background: linear-gradient(transparent 58%, var(--teal) 58% 90%, transparent 90%); padding: 0 .12em; color: inherit; }
+.sub { color: var(--muted); max-width: 62ch; margin: 0 0 34px; }
+.brush { display: block; width: 100%; height: clamp(54px, 9vw, 110px); }
+.brush.flip { transform: scaleY(-1); }
+.confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+.confetti > * { position: absolute; display: block; opacity: .9; }
+.tri { width: 0; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 26px solid var(--pink); }
+.ring { width: 34px; height: 34px; border: 6px solid var(--teal); border-radius: 50%; }
+.sq { width: 22px; height: 22px; background: var(--butter); border: 3px solid var(--line); transform: rotate(18deg); }
+.zig { width: 120px; height: 14px; background: linear-gradient(135deg, var(--purple) 25%, transparent 25%) -7px 0 / 14px 14px, linear-gradient(225deg, var(--purple) 25%, transparent 25%) -7px 0 / 14px 14px; }
+.plus { width: 26px; height: 26px; background: linear-gradient(var(--cyan), var(--cyan)) center / 100% 7px no-repeat, linear-gradient(var(--cyan), var(--cyan)) center / 7px 100% no-repeat; }
+.block > .wrap { position: relative; z-index: 1; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 28px; }
+.tile .win-body h3 { margin: 0 0 6px; font-family: var(--font-display); font-size: 1.25rem; }
+.tile .win-body p { margin: 0; color: var(--muted); }
+.tile:nth-child(3n+2) { --shadow: 6px 6px 0 var(--teal); }
+.tile:nth-child(3n) { --shadow: 6px 6px 0 var(--pink); }
+
+.chat { display: grid; gap: 16px; max-width: 860px; }
+.bubble { padding: 14px 18px; border: 3px solid var(--line); background: var(--card); position: relative; }
+.bubble.you { margin-right: 14%; box-shadow: 5px 5px 0 var(--teal); }
+.bubble.bot { margin-left: 14%; box-shadow: 5px 5px 0 var(--pink); }
+.bubble .who { font-family: var(--font-mono); font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; color: var(--accent-text); margin: 0 0 4px; font-weight: 700; }
+.bubble p { margin: 0; }
+pre.code {
+  margin: 0; padding: 16px 18px; overflow-x: auto; background: var(--code-bg); color: var(--code-text);
+  font-size: .9rem; line-height: 1.55; border-top: 3px solid var(--line);
+}
+pre.code .c { color: #a98fe0; }
+pre.code .k { color: var(--pink); }
+pre.code .s { color: var(--butter); }
+.code-wrap { position: relative; }
+.copy {
+  position: absolute; right: 10px; top: 10px; font-family: var(--font-mono); font-size: .75rem; cursor: pointer;
+  padding: 4px 10px; border: 2px solid #1a0f33; background: var(--butter); color: #1a0f33; font-weight: 700;
+}
+.copy:hover { background: var(--mint); }
+
+.tool-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 28px; align-items: start; }
+.tool-group:nth-child(3n+2) { --shadow: 6px 6px 0 var(--teal); }
+.tool-group:nth-child(3n) { --shadow: 6px 6px 0 var(--pink); }
+.tool-list { list-style: none; margin: 0; padding: 8px 16px 14px; }
+.tool-list li { display: grid; gap: 2px; padding: 10px 0; border-bottom: 2px dotted rgba(122, 90, 200, .45); }
+.tool-list li:last-child { border-bottom: 0; }
+.tool-list code { font-weight: 700; color: var(--accent-text); font-size: .95rem; word-break: break-word; }
+.tool-list span { color: var(--muted); font-size: .95rem; }
+.note { margin-top: 26px; color: var(--muted); }
+
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 28px; counter-reset: note; }
+.note-card { counter-increment: note; }
+.note-card .win-body { position: relative; padding-top: 34px; }
+.note-card .win-body::before {
+  content: counter(note); position: absolute; top: -20px; left: 16px; width: 40px; height: 40px;
+  display: grid; place-items: center; border-radius: 50%; border: 3px solid var(--line);
+  background: var(--butter); color: #1a0f33; font-family: var(--font-display); font-size: 1.2rem;
+}
+.note-card h3 { margin: 0 0 6px; font-family: var(--font-display); font-size: 1.2rem; }
+.note-card p { margin: 0; color: var(--muted); }
+
+.checks { list-style: none; margin: 0; padding: 18px 22px; display: grid; gap: 10px; font-family: var(--font-mono); font-size: .92rem; }
+.checks li::before { content: "[x] "; color: var(--accent-text); font-weight: 700; }
+
+.steps { counter-reset: step; display: grid; gap: 30px; max-width: 860px; }
+.step { counter-increment: step; }
+.step > h3 { font-family: var(--font-display); font-size: 1.25rem; margin: 0 0 10px; display: flex; align-items: center; gap: 12px; }
+.step > h3::before { content: counter(step); display: grid; place-items: center; width: 36px; height: 36px; border: 3px solid var(--line); border-radius: 50%; background: var(--teal); color: #1a0f33; font-size: 1.05rem; flex: none; }
+.callout { margin: 14px 0 0; padding: 12px 16px; border-left: 8px solid var(--pink); background: var(--card); color: var(--muted); }
+table.env { border-collapse: collapse; width: 100%; font-size: .95rem; }
+table.env th, table.env td { text-align: left; padding: 8px 12px; border-bottom: 2px dotted var(--line); vertical-align: top; }
+table.env th { font-family: var(--font-mono); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-text); }
+
+.soon { display: flex; flex-wrap: wrap; gap: 12px; list-style: none; margin: 0 0 22px; padding: 0; }
+.soon li { padding: 8px 16px; border: 3px solid var(--line); background: var(--card); font-family: var(--font-display); box-shadow: 4px 4px 0 var(--lav); }
+
+footer { background: var(--purple-deep); color: #f4eaff; padding: 0 0 46px; position: relative; }
+footer a { color: var(--butter); }
+footer .wrap { padding-top: 34px; display: grid; gap: 14px; }
+footer .ja { color: var(--cyan); letter-spacing: .12em; }
+footer small { color: #cdbcf0; display: block; max-width: 80ch; }
+
+/* ---------- motion: only when the visitor allows it ---------- */
+.js .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
+.js .reveal.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .grid { animation: none; }
+  .glitch::before, .glitch::after { display: none; }
+  .js .reveal { opacity: 1; transform: none; transition: none; }
+  .btn { transition: none; }
+}
+@media (max-width: 720px) {
+  .marker-win { position: relative; right: auto; bottom: auto; margin: 30px 16px 0 auto; z-index: 3; }
+  .hero { min-height: 0; padding-bottom: 38vh; }
+  .marker-win { margin: 26px 0 0; align-self: flex-start; }
+  .bubble.you, .bubble.bot { margin-inline: 0; }
+  .brand span { display: none; }
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<!-- shared crayon texture for the brush strokes -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="crayon" x="-5%" y="-30%" width="110%" height="160%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035 0.7" numOctaves="2" seed="3" result="warp"/>
+      <feDisplacementMap in="SourceGraphic" in2="warp" scale="7" xChannelSelector="R" yChannelSelector="G" result="rough"/>
+      <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="11" result="grain"/>
+      <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  3.2 0 0 0 -1.05" result="speckle"/>
+      <feComposite in="rough" in2="speckle" operator="in"/>
+    </filter>
+  </defs>
+</svg>
+
+<header class="hero" id="top">
+  <div class="stars" aria-hidden="true"></div>
+  <div class="sun" aria-hidden="true"></div>
+  <canvas id="trace" aria-hidden="true"></canvas>
+  <div class="floor" aria-hidden="true"><div class="grid"></div></div>
+
+  <div class="wrap">
+    <nav class="nav" aria-label="Main">
+      <a class="brand" href="#top">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="12" fill="#00c2b8"/><path d="M4 40 L14 18 L24 42 L34 14 L44 44 L54 20 L60 36" fill="none" stroke="#6a35d9" stroke-width="7" stroke-linejoin="miter"/></svg>
+        <span>UNI-T UTS MCP</span>
+      </a>
+      <span class="spacer"></span>
+      <a href="#tools">Tools</a>
+      <a href="#field-notes">Field notes</a>
+      <a href="#quickstart">Quick start</a>
+      <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp">GitHub</a>
+    </nav>
+
+    <div class="hero-copy">
+      <p class="kicker"><span aria-hidden="true">ＭＣＰ　ＳＥＲＶＥＲ</span><span class="ja" lang="ja" aria-hidden="true">スペクトラム・アナライザー</span></p>
+      <h1 class="glitch" data-text="Talk to your spectrum analyzer.">Talk to your <span class="hl">spectrum analyzer</span>.</h1>
+      <p class="lead">Let Claude and other AI assistants set frequency, amplitude, bandwidth and sweeps on UNI-T UTS series analyzers, over plain SCPI on your LAN.</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/Reid-n0rc/uni-t-uts-mcp">View on GitHub</a>
+        <a class="btn alt" href="#quickstart">Quick start</a>
+      </div>
+      <ul class="badges" aria-label="Highlights">
+        <li>MIT licensed</li>
+        <li>{{TOOL_COUNT}} tools</li>
+        <li>Verified on UTS3036B</li>
+        <li>TypeScript · Node 22+</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="win marker-win" role="group" aria-label="Illustrative marker readout from the animated display">
+    <div class="win-bar"><h2 class="win-title" style="font-size:.85rem">marker.exe</h2><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+    <div class="win-body">
+      <div><b>M1</b> <span id="mk-f">1.805 GHz</span></div>
+      <div><b>LVL</b> <span id="mk-a">-32.0 dBm</span></div>
+      <div class="fine">Illustrative signal. Averaged trace = teal, live trace = purple.</div>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <svg class="brush" data-brush="1" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true"></svg>
+
+  <section class="block" id="features">
+    <div class="confetti" aria-hidden="true">
+      <span class="tri" style="left:4%;top:14%;transform:rotate(18deg)"></span>
+      <span class="ring" style="right:6%;top:10%"></span>
+      <span class="zig" style="left:46%;top:6%"></span>
+      <span class="plus" style="right:12%;bottom:12%"></span>
+    </div>
+    <div class="wrap">
+      <h2 class="reveal">Say what you want. <span class="hl">The analyzer does it.</span></h2>
+      <p class="sub reveal">Typed tools turn a plain-English request into the right SCPI commands, check the result, and tell you what really happened.</p>
+      <div class="tiles">
+        <article class="win tile reveal"><div class="win-bar"><h3 class="win-title">natural-language.txt</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div><div class="win-body"><h3>Ask, don't type SCPI</h3><p>"Center 100 MHz, 10 MHz span." The assistant picks the tools, sets the values and reads them back.</p></div></article>
+        <article class="win tile reveal"><div class="win-bar"><h3 class="win-title">no-drivers.sys</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div><div class="win-body"><h3>No drivers needed</h3><p>Raw SCPI over TCP port 5025. No VISA, no vendor software, just a network connection to the analyzer.</p></div></article>
+        <article class="win tile reveal"><div class="win-bar"><h3 class="win-title">safety.dll</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div><div class="win-body"><h3>Safe by design</h3><p>Resets, network changes, panel locks and file writes need an explicit confirm. Every setter reads the value back and warns when the instrument clamped it.</p></div></article>
+        <article class="win tile reveal"><div class="win-bar"><h3 class="win-title">hardware.log</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div><div class="win-body"><h3>Verified on real hardware</h3><p>Developed against a UNI-T UTS3036B (firmware V1.04.0040). Every quirk we found is written down.</p></div></article>
+        <article class="win tile reveal"><div class="win-bar"><h3 class="win-title">errors.txt</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div><div class="win-body"><h3>Errors you can act on</h3><p>Not connected, lost connection, timeout and instrument errors each get a clear message that names the command involved.</p></div></article>
+        <article class="win tile reveal"><div class="win-bar"><h3 class="win-title">portable.js</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div><div class="win-body"><h3>Pure JavaScript</h3><p>TypeScript on Node 22+, with just the MCP SDK and zod as dependencies and no native modules.</p></div></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block alt" id="demo">
+    <div class="wrap">
+      <h2 class="reveal">Try <span class="hl">saying</span> this</h2>
+      <p class="sub reveal">An illustration of one round trip. The tool call and result are what the assistant sends and receives.</p>
+      <div class="chat">
+        <div class="bubble you reveal"><p class="who">You</p><p>Set the center to 100 MHz with a 10 MHz span.</p></div>
+        <div class="win reveal" style="--shadow: 6px 6px 0 var(--lav)">
+          <div class="win-bar"><h3 class="win-title">tool call: set_frequency</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+          <div class="code-wrap"><pre class="code"><code>{ <span class="k">"center_hz"</span>: <span class="s">100000000</span>, <span class="k">"span_hz"</span>: <span class="s">10000000</span> }</code></pre></div>
+          <pre class="code"><code><span class="c">// result</span>
+{ <span class="k">"state"</span>: { <span class="k">"center_hz"</span>: <span class="s">100000000</span>, <span class="k">"span_hz"</span>: <span class="s">10000000</span>,
+    <span class="k">"start_hz"</span>: <span class="s">95000000</span>, <span class="k">"stop_hz"</span>: <span class="s">105000000</span>, ... },
+  <span class="k">"warnings"</span>: [] }</code></pre>
+        </div>
+        <div class="bubble bot reveal"><p class="who">Assistant</p><p>Done. The analyzer is centered on 100 MHz with a 10 MHz span (95 to 105 MHz), and it accepted both values as asked.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <svg class="brush flip" data-brush="2" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true"></svg>
+
+  <section class="block" id="tools">
+    <div class="confetti" aria-hidden="true">
+      <span class="sq" style="right:5%;top:8%"></span>
+      <span class="zig" style="left:.5%;top:2.5%;width:84px"></span>
+      <span class="tri" style="right:20%;bottom:6%;transform:rotate(-14deg);border-bottom-color:var(--teal)"></span>
+    </div>
+    <div class="wrap">
+      <h2 class="reveal"><span class="hl">{{TOOL_COUNT}} tools,</span> one tidy toolbox</h2>
+      <p class="sub reveal">This list is generated from the server's own tool definitions, so it is always current. Read-only tools are marked as such to the assistant; everything that changes the instrument goes through the safety checks.</p>
+      <!--TOOLS-->
+      <p class="note reveal">Missing something? The raw SCPI tools are an escape hatch for any command in the <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/docs/programming-guide.md">programming guide</a>. Full parameter docs live in the <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/docs/tools-reference.md">tools reference</a>.</p>
+    </div>
+  </section>
+
+  <section class="block alt" id="field-notes">
+    <div class="wrap">
+      <h2 class="reveal">Field notes from <span class="hl">real hardware</span></h2>
+      <p class="sub reveal">The manual describes what the analyzer should do. These are things we measured on a UTS3036B, and how the server copes. The full list is in <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/docs/verified-hardware.md">verified-hardware.md</a>.</p>
+      <div class="notes">
+        <article class="win note-card reveal"><div class="win-body"><h3>It goes deaf while sweeping</h3><p>During a single sweep the analyzer drops every line it receives. So the server starts the sweep, stays quiet for the sweep time, then polls <code>*OPC?</code> until it answers.</p></div></article>
+        <article class="win note-card reveal"><div class="win-body"><h3>Settings clamp silently</h3><p>Ask for an out-of-range value and the analyzer quietly picks the nearest valid one. Every setter reads the value back and reports what it really got.</p></div></article>
+        <article class="win note-card reveal"><div class="win-body"><h3>Bad queries leave a mess</h3><p>An unsupported query stalls the instrument for about two seconds and posts an error four seconds later. The connection waits it out so stale errors are not blamed on your next command.</p></div></article>
+        <article class="win note-card reveal"><div class="win-body"><h3>Bursts get mis-parsed</h3><p>Lines sent back to back can produce phantom errors, so each command is followed by an <code>*OPC?</code> round trip before the next one goes out.</p></div></article>
+        <article class="win note-card reveal"><div class="win-body"><h3>No service requests here</h3><p>We tried the status-byte route (<code>*ESE</code>, <code>*SRE</code>, <code>*STB?</code>). The operation-complete bit never sets on this firmware, so completion is detected by polling.</p></div></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="built">
+    <div class="wrap">
+      <h2 class="reveal">Built <span class="hl">carefully</span></h2>
+      <p class="sub reveal">It drives real lab equipment, so the process is strict.</p>
+      <div class="win reveal" style="max-width:860px">
+        <div class="win-bar"><h3 class="win-title">build.log</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+        <ul class="checks">
+          <li>Test-driven: failing tests are committed before the code that fixes them</li>
+          <li>Every change is a pull request tied to an issue</li>
+          <li>A contract test runs every tool through the same failures: not connected, timeout, garbage reply, instrument error</li>
+          <li>A docs test fails if a tool is missing from the reference</li>
+          <li>CodeQL scans every pull request</li>
+          <li>Instrument settings are restored after every hardware test</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block alt" id="quickstart">
+    <div class="wrap">
+      <h2 class="reveal">Quick <span class="hl">start</span></h2>
+      <p class="sub reveal">Not on npm or Docker yet, so build it from source. You need Node.js 22+ and an analyzer reachable on your network.</p>
+      <div class="steps">
+        <div class="step reveal">
+          <h3>Build it</h3>
+          <div class="win"><div class="win-bar"><h3 class="win-title">terminal</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="git clone https://github.com/Reid-n0rc/uni-t-uts-mcp.git&#10;cd uni-t-uts-mcp&#10;npm ci&#10;npm run build">Copy</button>
+<pre class="code"><code>git clone https://github.com/Reid-n0rc/uni-t-uts-mcp.git
+cd uni-t-uts-mcp
+npm ci
+npm run build</code></pre></div></div>
+        </div>
+        <div class="step reveal">
+          <h3>Add it to your MCP client</h3>
+          <div class="win"><div class="win-bar"><h3 class="win-title">mcp config (JSON)</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy='{&#10;  "mcpServers": {&#10;    "uni-t-uts": {&#10;      "command": "node",&#10;      "args": ["/absolute/path/to/uni-t-uts-mcp/build/index.js"],&#10;      "env": { "UTS_IP": "192.168.1.100" }&#10;    }&#10;  }&#10;}'>Copy</button>
+<pre class="code"><code>{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"uni-t-uts"</span>: {
+      <span class="k">"command"</span>: <span class="s">"node"</span>,
+      <span class="k">"args"</span>: [<span class="s">"/absolute/path/to/uni-t-uts-mcp/build/index.js"</span>],
+      <span class="k">"env"</span>: { <span class="k">"UTS_IP"</span>: <span class="s">"192.168.1.100"</span> }
+    }
+  }
+}</code></pre></div></div>
+          <p class="callout">Use your analyzer's address for <code>UTS_IP</code>. On Windows, write the path with forward slashes or doubled backslashes.</p>
+        </div>
+        <div class="step reveal">
+          <h3>Point it at your analyzer</h3>
+          <div class="win"><div class="win-bar"><h3 class="win-title">environment.ini</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="win-body"><table class="env"><thead><tr><th>Variable</th><th>Meaning</th></tr></thead><tbody>
+              <tr><td><code>UTS_IP</code></td><td>Analyzer host or IP. If set, the server connects at startup; otherwise ask the assistant to use the <code>connect</code> tool.</td></tr>
+              <tr><td><code>UTS_PORT</code></td><td>TCP port, default <code>5025</code>.</td></tr>
+            </tbody></table></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="roadmap">
+    <div class="wrap">
+      <h2 class="reveal">Coming <span class="hl">next</span></h2>
+      <ul class="soon reveal">
+        <li>Trace data</li><li>Markers</li><li>Measurements</li><li>Screenshots</li><li>Limit lines</li><li>Tracking generator</li>
+      </ul>
+      <p class="sub reveal">Progress is tracked in the open: see the <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/1">roadmap issue</a>, or jump in via <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/CONTRIBUTING.md">CONTRIBUTING</a>.</p>
+    </div>
+  </section>
+</main>
+
+<svg class="brush" data-brush="3" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true" style="margin-bottom:-1px"></svg>
+<footer>
+  <div class="wrap">
+    <p class="ja" lang="ja" aria-hidden="true">スペクトラム・アナライザー　ＭＣＰ</p>
+    <p>© 2026 Reid Crowe · <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/LICENSE">MIT License</a> · <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp">Source on GitHub</a> · <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/SECURITY.md">Security</a></p>
+    <small>The visual style is a love letter to the 1992 "Jazz" cup design and to vaporwave. "Jazz" is a trademark of its owner; this is an original homage and this project is not affiliated with it, with UNI-T, or with UNI-TREND. All product names belong to their owners.</small>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var root = document.documentElement;
+  root.classList.add("js");
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---- seeded random so the brush strokes are the same on every visit ----
+  function rng(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---- Jazz-style brush stroke: broad jagged teal band topped by a finer purple zig-zag ----
+  function brush(svg, seed) {
+    var r = rng(seed), W = 1200, i, x, top = [], bottom = [], zig = [];
+    for (x = -20, i = 0; x <= W + 20; x += 15, i++) {
+      top.push([x, 58 + (i % 2 ? -7 : 5) + (r() - 0.5) * 12]);
+      bottom.push([x, 100 + (r() - 0.5) * 14 + Math.sin(x / 90 + seed) * 6]);
+    }
+    for (x = -20, i = 0; x <= W + 20; x += 24, i++) {
+      zig.push([x, 30 + (i % 2 ? -13 : 13) + (r() - 0.5) * 8 + Math.sin(x / 140 + seed) * 5]);
+    }
+    var poly = top.concat(bottom.reverse()).map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+    var line = zig.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+    svg.innerHTML =
+      '<g filter="url(#crayon)">' +
+      '<polygon points="' + poly + '" fill="#00c2b8"/>' +
+      '<polyline points="' + line + '" fill="none" stroke="#6a35d9" stroke-width="9" stroke-linejoin="miter" stroke-miterlimit="6"/>' +
+      '</g>';
+  }
+  var strokes = document.querySelectorAll("svg[data-brush]");
+  for (var s = 0; s < strokes.length; s++) brush(strokes[s], 7 + 13 * Number(strokes[s].getAttribute("data-brush")));
+
+  // ---- hero: an animated spectrum trace drawn as the Jazz stroke ----
+  var canvas = document.getElementById("trace");
+  var mkF = document.getElementById("mk-f"), mkA = document.getElementById("mk-a");
+  if (canvas && canvas.getContext) {
+    var ctx = canvas.getContext("2d");
+    var N = 1001, W = 0, H = 0, dpr = 1;
+    var rand = Math.random;
+    var avg = new Float32Array(N), live = new Float32Array(N), base = new Float32Array(N);
+    var layer = document.createElement("canvas"), lctx = layer.getContext("2d");
+    var grain = document.createElement("canvas"); grain.width = grain.height = 96;
+    (function () {
+      var g = grain.getContext("2d"), gr = rng(5), k, a;
+      for (k = 0; k < 1500; k++) { a = 0.35 + gr() * 0.65; g.fillStyle = "rgba(0,0,0," + a.toFixed(2) + ")"; g.fillRect(gr() * 96, gr() * 96, 1 + gr() * 2, 1 + gr() * 2); }
+    })();
+    var grainPattern = null;
+    // big signals sit right of centre (behind the sun) so the left stays calm under the headline text
+    var peaks = [
+      { f: 0.12, a: -70, w: 0.004 }, { f: 0.33, a: -62, w: 0.003 }, { f: 0.55, a: -27, w: 0.0045 },
+      { f: 0.70, a: -48, w: 0.003 }, { f: 0.86, a: -33, w: 0.0035 }, { f: 0.95, a: -58, w: 0.003 }
+    ];
+    var FLOOR = -92, MIN = -100, MAX = -12;
+    var t = 0;
+
+    function size() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var b = canvas.getBoundingClientRect();
+      W = Math.max(1, Math.round(b.width)); H = Math.max(1, Math.round(b.height));
+      canvas.width = W * dpr; canvas.height = H * dpr;
+      layer.width = canvas.width; layer.height = canvas.height;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      grainPattern = lctx.createPattern(grain, "repeat");
+    }
+    function sample(first) {
+      var i, x, p, k, lin, db;
+      for (i = 0; i < N; i++) {
+        x = i / (N - 1); lin = Math.pow(10, FLOOR / 10);
+        for (k = 0; k < peaks.length; k++) {
+          p = peaks[k];
+          var f = p.f + (k === 2 ? Math.sin(t * 0.0006) * 0.04 : 0);
+          var amp = p.a + (k % 2 ? Math.sin(t * 0.0011 + k) * 4 : Math.sin(t * 0.0008 + k) * 2);
+          var d = (x - f) / p.w;
+          lin += Math.pow(10, amp / 10) / (1 + d * d);
+        }
+        db = 10 * Math.log10(lin) + (rand() + rand() + rand() - 1.5) * 3.4;
+        live[i] = db;
+        avg[i] = first ? db : avg[i] + (db - avg[i]) * 0.07;
+      }
+    }
+    function Y(db) { return H * (0.9 - 0.62 * (db - MIN) / (MAX - MIN)); }
+    function path(c, arr, step) {
+      c.beginPath();
+      for (var i = 0; i < N; i += step) { var px = i / (N - 1) * W, py = Y(arr[i]); if (i === 0) c.moveTo(px, py); else c.lineTo(px, py); }
+    }
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      // soft glow under the trace
+      path(ctx, avg, 4); ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+      var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "rgba(255,113,206,.30)"); g.addColorStop(1, "rgba(255,113,206,0)");
+      ctx.fillStyle = g; ctx.fill();
+      // broad teal crayon band (averaged trace), speckled with the grain pattern
+      lctx.setTransform(dpr, 0, 0, dpr, 0, 0); lctx.clearRect(0, 0, W, H);
+      lctx.globalCompositeOperation = "source-over";
+      path(lctx, avg, 3); lctx.lineJoin = "miter"; lctx.lineCap = "butt"; lctx.miterLimit = 3;
+      lctx.strokeStyle = "#00c2b8"; lctx.lineWidth = Math.max(12, H * 0.085); lctx.stroke();
+      lctx.save(); lctx.translate(0, -H * 0.03); path(lctx, avg, 3); lctx.strokeStyle = "rgba(1,205,254,.55)"; lctx.lineWidth = Math.max(4, H * 0.025); lctx.stroke(); lctx.restore();
+      lctx.globalCompositeOperation = "destination-out"; lctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.fillStyle = grainPattern; lctx.fillRect(0, 0, layer.width, layer.height);
+      lctx.globalCompositeOperation = "source-over";
+      ctx.drawImage(layer, 0, 0, layer.width, layer.height, 0, 0, W, H);
+      // fine purple zig-zag (live trace) with a pink ghost
+      ctx.lineJoin = "miter"; ctx.miterLimit = 4;
+      ctx.save(); ctx.translate(2, 1.5); path(ctx, live, 1); ctx.strokeStyle = "rgba(255,113,206,.55)"; ctx.lineWidth = 1.4; ctx.stroke(); ctx.restore();
+      path(ctx, live, 1); ctx.strokeStyle = "#a47cff"; ctx.lineWidth = 2; ctx.stroke();
+      // marker on the highest averaged point
+      var m = 0, i; for (i = 1; i < N; i++) if (avg[i] > avg[m]) m = i;
+      var mx = m / (N - 1) * W, my = Y(avg[m]) - Math.max(18, H * 0.1);
+      ctx.fillStyle = "#fffb96"; ctx.strokeStyle = "#1a0f33"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(mx - 9, my - 14); ctx.lineTo(mx + 9, my - 14); ctx.lineTo(mx, my + 2); ctx.closePath(); ctx.fill(); ctx.stroke();
+      if (mkF) { mkF.textContent = (0.01 + (3.6 - 0.01) * (m / (N - 1))).toFixed(3) + " GHz"; mkA.textContent = avg[m].toFixed(1) + " dBm"; }
+    }
+
+    size(); sample(true);
+    var warm; for (warm = 0; warm < 40; warm++) { t += 40; sample(false); }
+    draw();
+    window.addEventListener("resize", function () { size(); draw(); });
+
+    if (!reduce && "IntersectionObserver" in window) {
+      var visible = true, last = 0, running = false;
+      var frame = function (ts) {
+        if (!visible || document.hidden) { running = false; return; }
+        if (ts - last > 33) { last = ts; t = ts; sample(false); draw(); }
+        requestAnimationFrame(frame);
+      };
+      var start = function () { if (!running) { running = true; requestAnimationFrame(frame); } };
+      new IntersectionObserver(function (e) { visible = e[0].isIntersecting; if (visible) start(); }, { threshold: 0 }).observe(canvas);
+      document.addEventListener("visibilitychange", function () { if (!document.hidden) start(); });
+      start();
+    }
+  }
+
+  // ---- reveal on scroll ----
+  var items = document.querySelectorAll(".reveal");
+  if (reduce || !("IntersectionObserver" in window)) {
+    for (var q = 0; q < items.length; q++) items[q].classList.add("in");
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); } });
+    }, { rootMargin: "0px 0px -8% 0px" });
+    for (var z = 0; z < items.length; z++) io.observe(items[z]);
+  }
+
+  // ---- copy buttons ----
+  var buttons = document.querySelectorAll("button.copy");
+  Array.prototype.forEach.call(buttons, function (btn) {
+    btn.addEventListener("click", function () {
+      var text = btn.getAttribute("data-copy") || "";
+      var done = function (ok) { btn.textContent = ok ? "Copied!" : "Press Ctrl+C"; setTimeout(function () { btn.textContent = "Copy"; }, 1600); };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); }); }
+        else { done(false); }
+      } catch (e) { done(false); }
+    });
+  });
+})();
+</script>
+</body>
+</html>

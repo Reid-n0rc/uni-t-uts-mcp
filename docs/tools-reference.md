@@ -138,6 +138,26 @@ Switches to single mode, runs one sweep and waits until it is complete, so the t
 
 `start_sweep` sends `:INITiate:IMMediate` (`method: "immediate"`, default) or `:INITiate:RESTart`. In single mode `wait` (default true) waits for completion; with `wait: false` call `wait_for_sweep_complete` next (nothing else can be sent meanwhile). In continuous mode the sweep is restarted, not awaited, and a warning says so. `timeout_s` is optional on all three tools.
 
+## Trace
+
+Command syntax: [programming-guide.md](programming-guide.md) section 3 (ambiguities 8 and 9). Trace *data* is not read by these tools. Behavior verified on the UTS3036B: see [verified-hardware.md](verified-hardware.md). Traces are numbered 1-6 on the UTS3036B; the tools use the per-trace forms `:TRACe<n>:...`.
+
+### `get_trace`
+
+Read-only. Optional `trace` (1-6; all six when omitted). Returns `selected_trace`, the global `average_count` and `average_type` (`voltage`, `power`, `log`), and `traces: [{trace, type, update, display}]` where `type` is `write`, `average`, `max_hold` or `min_hold`, `update` is true for a live trace and false for view/hold (frozen), and `display` is whether the trace is shown. Trace math cannot be read: `:CALCulate:MATH?` is not supported and stalls the instrument, so it is never queried.
+
+### `set_trace`
+
+All parameters optional, at least one: `selected_trace` (1-6, `:TRACe:SELect`); `trace` (1-6) with `type`, `update` and/or `display` for that trace (`type`, `update` and `display` require `trace`); `average_count` (integer 1-999, global) and `average_type` (`voltage`, `power`, `log`, global). Sent in this order: select, type, update, display, average type, average count. Everything is re-read; a value the instrument did not take is a `warnings` entry. The average count is validated to 1-999 before sending because the instrument accepts 0 (becomes 1) and 1000 (kept as 1000, not clamped). Changing a trace type, the update state or the average count restarts that trace's hold/average (see `restart_trace`).
+
+### `restart_trace`
+
+Restarts max hold, min hold or averaging. The instrument has no clear-trace command; this tool re-sends `:TRACe<n>:TYPE <current type>`, which was verified to clear and restart the accumulation. `:INITiate:RESTart` and `:INITiate:IMMediate` (`start_sweep`) do **not** restart a hold. Optional `trace` (1-6); without it every trace that is not in `write` type is restarted (and the result says when there was nothing to restart). Returns `restarted: [{trace, type}]` and `warnings`.
+
+### `set_trace_math`
+
+Sends `:CALCulate:MATH TRACE<n>,<op>,TRACE<a>,TRACE<b>,<offset>`. `trace` (1-6), `operation` (`off`, `power_difference`, `power_sum`, `log_difference`, `log_offset`), `operand_a` and `operand_b` (1-6; required unless `off`), `offset_db` (-100..100, only for the two log operations, default 0). The setting cannot be read back (no query), so the result carries `trace_state` (the trace's type/update/display) and a warning; verify through the trace data. Enabling math switches the trace on (update and display true) and `off` does not switch it off again, so restore that with `set_trace`.
+
 ## Error handling (all tools)
 
 Tools never throw; failures are `isError` results. A malformed or empty reply names the command and quotes the reply; a timeout names the command; setters report instrument errors with their code and the commands sent, and say when settings may be partially applied (also when the readback after a successful send fails). `single_sweep` failures say when the instrument may have been left in single sweep mode. A dropped connection is reported as `Connection to the spectrum analyzer was lost (<reason>) while sending|querying <command>` and the next call says to use `connect` to reconnect; the command in flight when a setter fails is named as possibly applied. See AGENTS.md "Error handling standard".

@@ -2,7 +2,7 @@
 
 A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for controlling UNI-T UTS series spectrum analyzers (UTS1000B/T, UTS3000B) over SCPI.
 
-> **Status:** under active development. The tools below work and are verified on a UNI-T UTS3036B (firmware V1.04.0040) over LAN; see [docs/verified-hardware.md](docs/verified-hardware.md). Trace data, markers, measurements and the screenshot tool are not implemented yet; progress is tracked in the [roadmap issue](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/1). A full quick start (npx and Docker) is coming with the docs task.
+> **Status:** under active development. The tools below work and are verified on a UNI-T UTS3036B (firmware V1.04.0040) over LAN; see [docs/verified-hardware.md](docs/verified-hardware.md). Trace data fetch, markers, measurements and the screenshot tool are not implemented yet; progress is tracked in the [roadmap issue](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/1). A full quick start (npx and Docker) is coming with the docs task.
 
 ## Tools available
 
@@ -14,6 +14,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for co
 | Amplitude | `get_amplitude`, `set_amplitude` |
 | Bandwidth, sweep, detector | `get_bandwidth`, `set_bandwidth`, `get_sweep`, `set_sweep`, `get_detector`, `set_detector` |
 | Acquisition | `get_acquisition`, `set_acquisition`, `start_sweep`, `single_sweep`, `wait_for_sweep_complete` |
+| Trace configuration | `get_trace`, `set_trace`, `restart_trace`, `set_trace_math` |
 
 Parameters and behavior: [docs/tools-reference.md](docs/tools-reference.md). Set `UTS_IP` (and optionally `UTS_PORT`, default 5025) to connect automatically at startup.
 
@@ -21,12 +22,13 @@ Parameters and behavior: [docs/tools-reference.md](docs/tools-reference.md). Set
 
 Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp): TypeScript, stdio transport, vitest tests, npm and Docker publishing via tag-triggered GitHub Actions.
 
-- `src/connection.ts` – raw SCPI over TCP with a serialized queue, `*OPC?`-synced commands and hold-off after unsupported queries
+- `src/connection.ts` – serialized SCPI queue with timeouts, `*OPC?`-synced commands and hold-off after unsupported queries, on top of a pluggable transport
+- `src/transports/` – the `Transport` interface with capability flags, and the raw SCPI over TCP transport (`raw.ts`)
 - `src/blocks.ts`, `src/scpi.ts` – binary block parser; SCPI helpers and the safety denylist
 - `src/instrument.ts`, `src/errors.ts`, `src/acquisition.ts` – applying settings with error-queue checks, sweep synchronization
 - `src/vxi11/` – dependency-free ONC RPC/XDR client and portmapper (foundation for the VXI-11 transport, not yet wired in)
 - `src/tools/` – one file per tool group, registered in `src/server.ts`
-- `tests/` – unit and mocked integration tests, a fake SCPI server, and captured instrument fixtures
+- `tests/` – unit and mocked integration tests, a fake SCPI server, a transport contract suite (`transportContract.ts`), and captured instrument fixtures
 - `docs/` – [tools-reference.md](docs/tools-reference.md), [verified-hardware.md](docs/verified-hardware.md), [programming-guide.md](docs/programming-guide.md), [references.md](docs/references.md)
 
 ## Supported platforms
@@ -66,6 +68,10 @@ Docker (any OS with Docker; the image is built from the `Dockerfile` in this rep
 From a clone, `npm ci && npm run build` works the same on every OS; then use `node` with the absolute path to `build/index.js` (for example `C:\\path\\to\\build\\index.js` in JSON on Windows) as the command.
 
 Probe scripts take the host as an argument or from `UTS_IP`: `node scripts/probe-basics.mjs 192.168.1.100`.
+
+## Project site
+
+The project site is at https://reid-n0rc.github.io/uni-t-uts-mcp/ (source in `site/`). Its tool list is generated from the server's own tool definitions and `docs/tools-reference.md`, so it stays current. Preview it locally with `npm run site` and open `_site/index.html`; it is deployed by `.github/workflows/pages.yml` on every change to `main` that touches the site or the tools.
 
 ## Documentation
 
