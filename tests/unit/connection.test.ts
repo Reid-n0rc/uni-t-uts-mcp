@@ -150,6 +150,19 @@ describe("queryBinary", () => {
     expect(await conn.query("Q?")).toBe("next");
   });
 
+  it("drops a trailing LF that arrives after the payload", async () => {
+    await setup(async (line, s) => {
+      if (line === "BIN?") {
+        s.write(Buffer.concat([Buffer.from("#16"), payload]));
+        await sleep(30);
+        s.write("\n");
+      }
+      if (line === "Q?") s.write("next\n");
+    });
+    expect(await conn.queryBinary("BIN?")).toEqual(payload);
+    expect(await conn.query("Q?")).toBe("next");
+  });
+
   it("rejects when the reply is not a block", async () => {
     await setup((line, s) => {
       if (line === "BIN?") s.write("not a block\n");
