@@ -50,10 +50,10 @@ Other files: `src/autoconnect.ts` (connect from `UTS_IP`, `UTS_PORT`, `UTS_TRANS
 
 The wire under the connection is a `Transport` (`src/transports/transport.ts`). Two exist:
 
-- **Raw SCPI over TCP** (default, port 5025): LF-terminated lines, CRLF replies, `#` binary blocks assembled in `raw.ts`. While a single sweep runs the analyzer ignores every line it receives, so the sweep helper stays silent and polls `*OPC?`.
-- **VXI-11** (`UTS_TRANSPORT=vxi11`, or `auto`): ONC RPC over TCP through the portmapper on port 111, implemented without dependencies in `src/vxi11/`. The analyzer queues commands sent during a sweep instead of dropping them, so the sweep helper writes `:INITiate:IMMediate` and does one blocking `*OPC?` read.
+- **Raw SCPI over TCP** (port 5025): LF-terminated lines, CRLF replies, `#` binary blocks assembled in `raw.ts`. While a single sweep runs the analyzer ignores every line it receives, so the sweep helper stays silent and polls `*OPC?`.
+- **VXI-11** (the default through `UTS_TRANSPORT=auto`, or `vxi11`): ONC RPC over TCP through the portmapper on port 111, implemented without dependencies in `src/vxi11/`. The analyzer queues commands sent during a sweep instead of dropping them, so the sweep helper writes `:INITiate:IMMediate` and does one blocking `*OPC?` read. It never answers a read that has nothing to deliver, so a timeout is the client's own deadline (see the verified-hardware notes).
 
-Wire differences are expressed as capability flags (`syncsCommands`, `dropsInputDuringSweep`, `holdOffAfterTimeout`), never as transport-name checks in tools, so a tool behaves the same on both. `UTS_TRANSPORT` is `raw` (default), `vxi11` or `auto` (VXI-11 when the analyzer registers it with the portmapper, else raw); `UTS_VXI11_DEVICE` names the device (default `inst0`). New transports must pass the shared contract suite `tests/transportContract.ts`.
+Wire differences are expressed as capability flags (`syncsCommands`, `dropsInputDuringSweep`, `holdOffAfterTimeout`), never as transport-name checks in tools, so a tool behaves the same on both. `UTS_TRANSPORT` is `auto` (default: VXI-11 when the analyzer registers it with the portmapper, else raw), `raw` or `vxi11`; `UTS_VXI11_DEVICE` names the device (default `inst0`). New transports must pass the shared contract suite `tests/transportContract.ts`.
 
 ## Concurrency: one tool call at a time
 
@@ -99,6 +99,6 @@ Required of every tool and enforced by a contract test:
 ## Known limitations
 
 - **One instrument at a time** (a single connection). Multiple instruments are a proposal: [issue #67](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/67).
-- **VXI-11 is not yet verified on the real analyzer.** It has been checked against a fake instrument and prototype measurements; the default transport stays raw until [issue #75](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/75) is done.
+- **VXI-11 has been verified on one analyzer only** (UTS3036B, firmware V1.04.0040); other models fall back to raw SCPI when they do not offer it.
 - **A long sweep blocks other tool calls**, by design, up to `UTS_BUSY_TIMEOUT_S`.
 - **Not implemented yet:** trace data fetch, markers, measurements and screenshots (the analyzer stops a screenshot transfer after 144,800 bytes over LAN, [issue #42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)). See the [Roadmap](Roadmap).

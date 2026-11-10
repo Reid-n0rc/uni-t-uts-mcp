@@ -8,6 +8,7 @@ import {
   Vxi11IoTimeoutError,
   Vxi11LockedError,
   Vxi11ProtocolError,
+  Vxi11RpcTimeoutError,
   Vxi11TransportError,
   VXI11_ERROR_NAMES,
 } from "../../src/vxi11/client.js";
@@ -329,6 +330,30 @@ describe("close", () => {
   });
 });
 
+describe("ioTimeoutFraction (the UTS3036B waits 5.4 x the io_timeout of a read before it gives up)", () => {
+  it("sends a fraction of the time budget as io_timeout but keeps the whole budget as the RPC deadline", async () => {
+    const { fake, client } = await setup();
+    await client.write("*IDN?");
+    await client.read({ timeoutMs: 1000, ioTimeoutFraction: 0.2 });
+    expect(fake.readIoTimeouts.at(-1)).toBe(200);
+    // no reply ever (firmware-style silence): the call fails at budget + margin, not at the io_timeout
+    fake.rpc.register(CORE, 1, 12, () => undefined);
+    const t0 = Date.now();
+    const err = await client.read({ timeoutMs: 300, ioTimeoutFraction: 0.2 }).catch((e) => e);
+    const elapsed = Date.now() - t0;
+    expect(err).toBeInstanceOf(Vxi11RpcTimeoutError);
+    expect(elapsed).toBeGreaterThanOrEqual(350);
+    expect(elapsed).toBeLessThan(1500);
+  });
+
+  it("rejects a fraction outside (0, 1]", async () => {
+    const { client } = await setup();
+    for (const bad of [0, -1, 1.5, Number.NaN]) {
+      await expect(client.read({ timeoutMs: 100, ioTimeoutFraction: bad })).rejects.toThrow(RangeError);
+    }
+  });
+});
+
 describe("robustness against a misbehaving server", () => {
   it("fails a call in flight with Vxi11TransportError when the server drops the connection", async () => {
     const { fake, client } = await setup();
@@ -347,6 +372,9 @@ describe("robustness against a misbehaving server", () => {
     const t0 = Date.now();
     const err = await client.readStb({ timeoutMs: 50 }).catch((e) => e);
     expect(err).toBeInstanceOf(Vxi11TransportError);
+    // distinguishable from a lost connection: the link itself is still open
+    expect(err).toBeInstanceOf(Vxi11RpcTimeoutError);
+    expect(client.closed).toBe(false);
     expect(Date.now() - t0).toBeLessThan(2000);
   });
 

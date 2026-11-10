@@ -168,9 +168,9 @@
     "transport": {
       "type": "string",
       "title": "Transport",
-      "description": "How to talk to the analyzer: raw (TCP port 5025, the default), vxi11 or auto (VXI-11 when the analyzer offers it, otherwise raw). Enter one of: raw, vxi11, auto.",
+      "description": "How to talk to the analyzer: auto (the default: VXI-11 when the analyzer offers it, otherwise raw), raw (TCP port 5025) or vxi11. Enter one of: auto, raw, vxi11.",
       "required": false,
-      "default": "raw"
+      "default": "auto"
     }
   }
 }

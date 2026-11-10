@@ -86,8 +86,8 @@ describe("mcpb/manifest.json", () => {
 
   it("gives the port and the transport working defaults", () => {
     expect(userConfig.port).toMatchObject({ type: "number", default: 5025, min: 1, max: 65535 });
-    expect(userConfig.transport).toMatchObject({ type: "string", default: "raw" });
-    expect(userConfig.transport.description).toMatch(/raw.*vxi11.*auto/s);
+    expect(userConfig.transport).toMatchObject({ type: "string", default: "auto" });
+    expect(userConfig.transport.description).toMatch(/auto.*raw.*vxi11/s);
   });
 
   it("lists exactly the registered tools, each with a description", async () => {

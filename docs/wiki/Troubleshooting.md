@@ -18,7 +18,7 @@ No connection is open. Either set `UTS_IP` in the MCP client's configuration (th
 Another tool call (named in the message) held the instrument longer than `UTS_BUSY_TIMEOUT_S` seconds (default 120), typically a `single_sweep` with a long sweep time. Nothing was sent by the call that failed. Retry later, shorten the sweep time, or raise `UTS_BUSY_TIMEOUT_S`. Parallel tool calls are otherwise safe: they run one at a time in arrival order.
 
 **VXI-11 does not connect (`UTS_TRANSPORT=vxi11`)**
-VXI-11 needs outbound TCP to port 111 (the portmapper) and to the port the portmapper reports, which changes when the analyzer restarts. Check the firewall, or use `UTS_TRANSPORT=auto`, which falls back to raw SCPI and logs the reason to the server's stderr. `UTS_VXI11_DEVICE` must be 1 to 64 characters from letters, digits and `. _ , -`.
+VXI-11 needs outbound TCP to port 111 (the portmapper) and to the port the portmapper reports, which changes when the analyzer restarts. Check the firewall. The default `UTS_TRANSPORT=auto` falls back to raw SCPI and logs the reason to the server's stderr, and `UTS_TRANSPORT=raw` skips VXI-11 altogether. `UTS_VXI11_DEVICE` must be 1 to 64 characters from letters, digits and `. _ , -`.
 
 **"Connected but failed to initialize"**
 The TCP connection opened but the analyzer did not answer `*IDN?` in time. Check that the port really is the SCPI port and that nothing else is holding the instrument.
@@ -67,7 +67,7 @@ Errors are returned with their code, text and the commands that were sent, and s
 
 - **Screenshots:** the analyzer stops sending screenshot data after 144,800 bytes over LAN ([issue #42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)).
 - **Trace data, markers, measurements:** not implemented yet (the trace tools configure traces but do not read their data); see the [Roadmap](Roadmap).
-- **VXI-11 on the real analyzer:** not verified yet ([issue #75](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/75)); the default stays raw SCPI.
+- **Screenshot:** the analyzer stops a screen image after 144,800 bytes over raw TCP but delivers all of it over VXI-11 ([issue #42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)); the screenshot tool is not built yet.
 
 ## Still stuck?
 

@@ -2,14 +2,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { connection } from "../connection.js";
 import { DEFAULT_PORT, isValidHost, portFromEnv } from "../target.js";
-import { TRANSPORT_CHOICES, type TransportChoice, transportFromEnv, vxi11DeviceFromEnv } from "../transports/select.js";
+import { TRANSPORT_CHOICES, resolveTransport, vxi11DeviceFromEnv } from "../transports/select.js";
 import { errorResult, textResult, defineTool } from "./util.js";
 
 export function registerConnectionTools(server: McpServer): void {
   defineTool(
     server,
     "connect",
-    "Connect to a UNI-T UTS series spectrum analyzer over raw SCPI/TCP (default), VXI-11 or auto (VXI-11 when the instrument offers it, else raw). Returns the instrument identification and the transport in use.",
+    "Connect to a UNI-T UTS series spectrum analyzer over auto (default: VXI-11 when the instrument offers it, else raw SCPI/TCP), VXI-11 or raw SCPI/TCP. Returns the instrument identification and the transport in use.",
     {
       host: z
         .string()
@@ -26,7 +26,7 @@ export function registerConnectionTools(server: McpServer): void {
       transport: z
         .enum(TRANSPORT_CHOICES as [string, ...string[]])
         .optional()
-        .describe("raw, vxi11 or auto (defaults to the UTS_TRANSPORT env var, then raw). The VXI-11 device name comes from UTS_VXI11_DEVICE (default inst0)"),
+        .describe("raw, vxi11 or auto (defaults to the UTS_TRANSPORT env var, then auto; raw when only a port is given). The VXI-11 device name comes from UTS_VXI11_DEVICE (default inst0)"),
     },
     { readOnlyHint: false, openWorldHint: true },
     async ({ host, port, transport }) => {
@@ -41,7 +41,8 @@ export function registerConnectionTools(server: McpServer): void {
           return errorResult("UTS_IP is not a valid hostname or IP address");
         }
         const targetPort = port ?? portFromEnv(process.env.UTS_PORT);
-        const choice = (transport as TransportChoice | undefined) ?? transportFromEnv(process.env.UTS_TRANSPORT);
+        const portGiven = port !== undefined || (process.env.UTS_PORT !== undefined && process.env.UTS_PORT !== "");
+        const choice = resolveTransport({ param: transport, env: process.env.UTS_TRANSPORT, portGiven });
         const device = vxi11DeviceFromEnv(process.env.UTS_VXI11_DEVICE);
         if (port !== undefined && choice === "vxi11") {
           return errorResult(
