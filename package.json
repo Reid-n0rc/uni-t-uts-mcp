@@ -13,6 +13,7 @@
     "dev": "tsc && node build/index.js",
     "inspector": "npx @modelcontextprotocol/inspector node build/index.js",
     "prepublishOnly": "npm run build",
+    "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },
