@@ -1,0 +1,51 @@
+name: GitHub release
+
+# Creates the GitHub release for a v* tag. The notes are the matching section of CHANGELOG.md;
+# if there is none the release falls back to GitHub's generated notes.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # create the release; nothing else
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check the tag matches package.json
+        run: node scripts/release-tools.mjs check-tag "$GITHUB_REF_NAME"
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        run: |
+          if node scripts/release-tools.mjs notes "$GITHUB_REF_NAME" "$RUNNER_TEMP/notes.md"; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No CHANGELOG.md section for $GITHUB_REF_NAME; using generated release notes"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTES_FOUND: ${{ steps.notes.outputs.found }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; leaving it unchanged"
+            exit 0
+          fi
+          args=(--repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --verify-tag)
+          # Tags such as v0.2.0-rc.1 are marked as pre-releases.
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then args+=(--prerelease); fi
+          if [ "$NOTES_FOUND" = "true" ]; then
+            args+=(--notes-file "$RUNNER_TEMP/notes.md")
+          else
+            args+=(--generate-notes)
+          fi
+          gh release create "$GITHUB_REF_NAME" "${args[@]}"

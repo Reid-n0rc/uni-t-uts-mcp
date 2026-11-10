@@ -1,5 +1,14 @@
 name: Publish to npm
 
+# Runs only for version tags (v*). The tag must equal v<package.json version>; see docs/releasing.md.
+# Authentication, either of:
+#   - repository secret NPM_TOKEN (granular publish token): needed for the very first publish of
+#     a package that does not exist on npm yet, because trusted publishing can only be configured
+#     on an existing package;
+#   - npm trusted publishing (OIDC, no secret) once the package exists and this workflow is
+#     registered as a trusted publisher on npmjs.com.
+# Either way the package is published with provenance.
+
 on:
   push:
     tags:
@@ -10,11 +19,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
+      id-token: write # provenance attestation and trusted publishing
+    env:
+      # Empty when the secret is not configured; used only to choose the publish step below.
+      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Check the tag matches package.json
+        run: node scripts/release-tools.mjs check-tag "$GITHUB_REF_NAME"
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -23,7 +38,8 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Update npm
-        run: npm install -g npm@latest
+        # Trusted publishing needs npm 11.5.1 or newer.
+        run: npm install -g npm@11
 
       - name: Install dependencies
         run: npm ci
@@ -31,5 +47,15 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Publish
+      - name: Check the tarball contents
+        run: node scripts/check-pack.mjs
+
+      - name: Publish (NPM_TOKEN secret)
+        if: env.HAS_NPM_TOKEN == 'true'
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish (trusted publishing, no token)
+        if: env.HAS_NPM_TOKEN != 'true'
         run: npm publish --provenance --access public

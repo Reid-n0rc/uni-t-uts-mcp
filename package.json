@@ -2,10 +2,44 @@
   "name": "uni-t-uts-mcp",
   "version": "0.0.0",
   "description": "MCP server for UNI-T UTS series spectrum analyzers via SCPI over LAN",
+  "author": "Reid Crowe <reid@malmoset.com>",
+  "license": "MIT",
+  "homepage": "https://reid-n0rc.github.io/uni-t-uts-mcp/",
+  "bugs": {
+    "url": "https://github.com/Reid-n0rc/uni-t-uts-mcp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Reid-n0rc/uni-t-uts-mcp.git"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "uni-t",
+    "uts",
+    "uts3000b",
+    "uts1000b",
+    "spectrum-analyzer",
+    "scpi",
+    "test-equipment",
+    "instrument",
+    "rf"
+  ],
   "type": "module",
   "main": "build/index.js",
-  "bin": { "uni-t-uts-mcp": "./build/index.js" },
-  "files": ["build/**/*.js", "build/**/*.d.ts"],
+  "bin": {
+    "uni-t-uts-mcp": "build/index.js"
+  },
+  "files": [
+    "build/**/*.js",
+    "build/**/*.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
@@ -18,9 +52,6 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "license": "MIT",
-  "keywords": ["mcp", "model-context-protocol", "uni-t", "spectrum-analyzer", "scpi"],
-  "repository": { "type": "git", "url": "https://github.com/Reid-n0rc/uni-t-uts-mcp.git" },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
     "zod": "^4.6.7"
@@ -30,5 +61,7 @@
     "typescript": "^5.7.0",
     "vitest": "^5.1.0"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }
