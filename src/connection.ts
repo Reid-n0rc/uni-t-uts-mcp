@@ -1,13 +1,18 @@
-import * as net from "node:net";
-import { parseBlock } from "./blocks.js";
+import { RawTransport } from "./transports/raw.js";
+import {
+  TransportTimeout,
+  type Transport,
+  type TransportCapabilities,
+  type TransportFactory,
+} from "./transports/transport.js";
 
 /**
- * Raw SCPI over TCP (port 5025 verified on the UTS3036B, see
- * docs/verified-hardware.md). Commands are LF-terminated; replies end in LF.
- * Unsupported queries get no reply at all, so every query has a timeout.
- *
- * All traffic goes through one serialized queue so a command is never written
- * in the middle of a pending query.
+ * SCPI connection to the analyzer. The wire (raw SCPI over TCP port 5025, verified on the
+ * UTS3036B, see docs/verified-hardware.md) lives behind a `Transport` (src/transports/); this
+ * class adds what is common to every transport: one serialized queue so a command is never
+ * written in the middle of a pending query, query timeouts (unsupported queries get no reply at
+ * all), the hold-off after a timed-out query, `*OPC?` command pacing (when the transport's
+ * `syncsCommands` capability asks for it) and the user facing error messages.
  */
 
 export const DEFAULT_PORT = 5025;
@@ -21,8 +26,6 @@ const DEFAULT_OPC_TIMEOUT = 3000;
  */
 const DEFAULT_RECOVERY_MS = 2500;
 const DEFAULT_BINARY_TIMEOUT = 30000;
-const LF = 0x0a;
-const CR = 0x0d;
 
 const NOT_CONNECTED =
   "Not connected to the spectrum analyzer. Use the 'connect' tool first.";
@@ -58,8 +61,6 @@ interface Job {
   /** Commands only: follow with `*OPC?` and wait for its reply. */
   sync: boolean;
   expectSilence: boolean;
-  /** Commands only: the `*OPC?` has been written and its reply is awaited. */
-  waitingForSync: boolean;
   resolve: (value: Buffer | string | void) => void;
   reject: (reason: Error) => void;
 }
@@ -74,67 +75,53 @@ function validateCommand(cmd: string): void {
 }
 
 export class UtsConnection {
-  private socket: net.Socket | null = null;
+  private transport: Transport | null = null;
   private host = "";
   private port = DEFAULT_PORT;
-  private buffer = Buffer.alloc(0);
   private jobs: Job[] = [];
   private active: Job | null = null;
-  private timer: ReturnType<typeof setTimeout> | null = null;
-  /**
-   * The terminator (LF or CRLF) of a binary block may arrive after the payload was
-   * resolved. `any`: nothing seen yet; `lf`: a CR was seen, an LF should follow.
-   */
-  private pendingTerminator: "none" | "any" | "lf" = "none";
   private opcTimeoutMs = DEFAULT_OPC_TIMEOUT;
   private recoveryMs = DEFAULT_RECOVERY_MS;
   private holdUntil = 0;
   private lastQueryTimeoutAt = 0;
   private holdTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Why the socket went away unexpectedly (null after connect() or an explicit disconnect()). */
+  /** Why the link went away unexpectedly (null after connect() or an explicit disconnect()). */
   private lostReason: string | null = null;
+
+  /** `createTransport` makes the transport used by each `connect()` (raw SCPI over TCP by default). */
+  constructor(private readonly createTransport: TransportFactory = () => new RawTransport()) {}
+
+  /**
+   * Capability flags of the current transport (of a fresh one when not connected), so callers can
+   * adapt to the wire instead of checking which transport is in use.
+   */
+  get capabilities(): TransportCapabilities {
+    return (this.transport ?? this.createTransport()).capabilities;
+  }
 
   async connect(
     host: string,
     port: number = DEFAULT_PORT,
     options: ConnectOptions = {}
   ): Promise<string> {
-    if (this.socket) this.disconnect();
+    if (this.transport) this.disconnect();
     this.host = host;
     this.port = port;
     this.opcTimeoutMs = options.opcTimeoutMs ?? DEFAULT_OPC_TIMEOUT;
     this.recoveryMs = options.recoveryMs ?? DEFAULT_RECOVERY_MS;
     this.lastQueryTimeoutAt = 0;
 
-    const socket = await new Promise<net.Socket>((resolve, reject) => {
-      const s = new net.Socket();
-      const timer = setTimeout(() => {
-        s.destroy();
-        reject(new Error(`Connection failed: timeout connecting to ${host}:${port}`));
-      }, options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT);
-      s.once("error", (err) => {
-        clearTimeout(timer);
-        s.destroy();
-        reject(new Error(`Connection failed: ${err.message}`));
-      });
-      s.connect(port, host, () => {
-        clearTimeout(timer);
-        s.removeAllListeners("error");
-        resolve(s);
-      });
+    const transport = this.createTransport();
+    await transport.open({
+      host,
+      port,
+      connectTimeoutMs: options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT,
     });
 
-    this.socket = socket;
+    this.transport = transport;
     this.lostReason = null;
-    socket.setNoDelay(true);
-    this.buffer = Buffer.alloc(0);
-    this.pendingTerminator = "none";
-    socket.on("data", (chunk) => this.onData(chunk));
-    socket.on("error", (err) => {
-      if (this.socket === socket) this.lose(err.message);
-    });
-    socket.on("close", () => {
-      if (this.socket === socket) this.lose("closed by the instrument or the network");
+    transport.onLost((reason) => {
+      if (this.transport === transport) this.lose(reason);
     });
 
     try {
@@ -153,7 +140,7 @@ export class UtsConnection {
   }
 
   isConnected(): boolean {
-    return this.socket !== null && !this.socket.destroyed;
+    return this.transport !== null && this.transport.isOpen();
   }
 
   /**
@@ -209,13 +196,14 @@ export class UtsConnection {
       return Promise.reject(err);
     }
     return new Promise((resolve, reject) => {
-      this.jobs.push({ kind, cmd, timeoutMs, sync, expectSilence, waitingForSync: false, resolve, reject });
+      this.jobs.push({ kind, cmd, timeoutMs, sync, expectSilence, resolve, reject });
       this.pump();
     });
   }
 
   private pump(): void {
-    if (this.active || this.jobs.length === 0 || !this.socket) return;
+    const transport = this.transport;
+    if (this.active || this.jobs.length === 0 || !transport) return;
 
     const hold = this.holdUntil - Date.now();
     if (hold > 0) {
@@ -230,66 +218,82 @@ export class UtsConnection {
 
     const job = this.jobs.shift()!;
     this.active = job;
-    this.buffer = Buffer.alloc(0);
-
-    if (job.kind !== "command") {
-      this.timer = setTimeout(() => {
-        // The instrument is probably stalled by an unsupported query; keep clear of it.
-        if (!job.expectSilence) {
-          this.holdUntil = Date.now() + Math.max(0, this.recoveryMs - job.timeoutMs);
-          this.lastQueryTimeoutAt = Date.now();
-        }
-        this.failActive(
-          new Error(
-            `${job.kind === "binary" ? "Binary query" : "Query"} timeout after ${job.timeoutMs}ms for command: ${job.cmd}`
-          )
-        );
-      }, job.timeoutMs);
-    }
-
-    this.socket.write(job.cmd + "\n", (err) => {
-      if (this.active !== job) return;
-      if (err) {
-        this.failActive(new Error(`Write failed: ${err.message}`));
-      } else if (job.kind === "command") {
-        if (!job.sync) {
-          this.finishActive(undefined);
-        } else {
-          // Wait until the instrument has dealt with the command before writing anything else.
-          job.waitingForSync = true;
-          this.timer = setTimeout(() => {
-            this.failActive(
-              new Error(`Timeout waiting for the instrument to finish command (*OPC?): ${job.cmd}`)
-            );
-          }, this.opcTimeoutMs);
-          this.socket?.write("*OPC?\n", (opcErr) => {
-            if (opcErr && this.active === job) this.failActive(new Error(`Write failed: ${opcErr.message}`));
-          });
-        }
-      }
-    });
+    transport.discardInput();
+    void this.execute(transport, job);
   }
 
-  private finishActive(value: Buffer | string | void): void {
-    const job = this.active;
-    if (!job) return;
-    this.clearTimer();
+  /** Run one job on the transport and settle it, unless the connection was closed meanwhile. */
+  private async execute(transport: Transport, job: Job): Promise<void> {
+    try {
+      try {
+        await transport.write(job.cmd);
+      } catch (err) {
+        throw new Error(`Write failed: ${errorMessage(err)}`);
+      }
+
+      if (job.kind === "command") {
+        if (job.sync && transport.capabilities.syncsCommands) {
+          // Wait until the instrument has dealt with the command before writing anything else.
+          try {
+            await transport.write("*OPC?");
+          } catch (err) {
+            throw new Error(`Write failed: ${errorMessage(err)}`);
+          }
+          try {
+            await transport.readLine(this.opcTimeoutMs);
+          } catch (err) {
+            if (err instanceof TransportTimeout) {
+              throw new Error(`Timeout waiting for the instrument to finish command (*OPC?): ${job.cmd}`);
+            }
+            throw err;
+          }
+        }
+        this.finishActive(job, undefined);
+        return;
+      }
+
+      try {
+        this.finishActive(
+          job,
+          job.kind === "text"
+            ? await transport.readLine(job.timeoutMs)
+            : await transport.readBlock(job.timeoutMs)
+        );
+      } catch (err) {
+        if (!(err instanceof TransportTimeout)) throw err;
+        if (this.active === job) {
+          if (!job.expectSilence) {
+            // The instrument is probably stalled by an unsupported query; keep clear of it.
+            if (transport.capabilities.holdOffAfterTimeout) {
+              this.holdUntil = Date.now() + Math.max(0, this.recoveryMs - job.timeoutMs);
+            }
+            this.lastQueryTimeoutAt = Date.now();
+          }
+        }
+        throw new Error(
+          `${job.kind === "binary" ? "Binary query" : "Query"} timeout after ${job.timeoutMs}ms for command: ${job.cmd}`
+        );
+      }
+    } catch (err) {
+      this.failActive(job, err instanceof Error ? err : new Error(String(err)));
+    }
+  }
+
+  private finishActive(job: Job, value: Buffer | string | void): void {
+    if (this.active !== job) return;
     this.active = null;
     job.resolve(value);
     this.pump();
   }
 
-  private failActive(err: Error): void {
-    const job = this.active;
-    if (!job) return;
-    this.clearTimer();
+  private failActive(job: Job, err: Error): void {
+    if (this.active !== job) return;
     this.active = null;
-    this.buffer = Buffer.alloc(0);
     job.reject(err);
     this.pump();
   }
 
-  /** The socket failed or was closed by the other side: fail everything, naming the command in flight. */
+  /** The link failed or was closed by the other side: fail everything, naming the command in flight. */
   private lose(reason: string): void {
     const job = this.active;
     const message = `Connection to the spectrum analyzer was lost (${reason})`;
@@ -301,77 +305,23 @@ export class UtsConnection {
   }
 
   private closeAll(message: string, activeMessage?: string): void {
-    const pending = this.jobs.splice(0);
+    const pending = this.jobs;
     const job = this.active;
+    this.jobs = [];
     this.active = null;
-    this.clearTimer();
     this.holdUntil = 0;
     if (this.holdTimer) clearTimeout(this.holdTimer);
     this.holdTimer = null;
-    const socket = this.socket;
-    this.socket = null;
-    this.buffer = Buffer.alloc(0);
-    if (socket) {
-      socket.removeAllListeners();
-      socket.on("error", () => {});
-      socket.destroy();
-    }
+    const transport = this.transport;
+    this.transport = null;
+    transport?.close();
     job?.reject(new Error(activeMessage ?? message));
     for (const j of pending) j.reject(new Error(message));
   }
+}
 
-  private clearTimer(): void {
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
-  }
-
-  // ---------- replies ----------
-
-  private stripPendingTerminator(data: Buffer): Buffer {
-    let i = 0;
-    if (this.pendingTerminator === "any" && data.length > 0) {
-      if (data[0] === CR) {
-        i = 1;
-        this.pendingTerminator = "lf";
-      } else {
-        if (data[0] === LF) i = 1;
-        this.pendingTerminator = "none";
-      }
-    }
-    if (this.pendingTerminator === "lf" && i < data.length) {
-      if (data[i] === LF) i++;
-      this.pendingTerminator = "none";
-    }
-    return data.subarray(i);
-  }
-
-  private onData(chunk: Buffer): void {
-    const data = this.stripPendingTerminator(chunk);
-    this.buffer = Buffer.concat([this.buffer, data]);
-    const job = this.active;
-    if (!job) return;
-
-    if (job.kind === "command") {
-      if (job.waitingForSync && this.buffer.indexOf(LF) >= 0) this.finishActive(undefined);
-      return;
-    }
-
-    if (job.kind === "text") {
-      const end = this.buffer.indexOf(LF);
-      if (end >= 0) this.finishActive(this.buffer.subarray(0, end).toString("utf-8").trim());
-      return;
-    }
-
-    const result = parseBlock(this.buffer);
-    if (result.status === "ok") {
-      // Remember how much of the terminator still has to arrive so it is not read as a reply.
-      this.pendingTerminator =
-        result.terminator === "none" ? "any" : result.terminator === "cr" ? "lf" : "none";
-      this.finishActive(result.data);
-    } else if (result.status === "invalid") {
-      this.failActive(new Error(`Expected a binary block reply: ${result.reason}`));
-    }
-  }
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 // Singleton used by the tool modules.

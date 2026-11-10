@@ -7,7 +7,8 @@ Instructions for AI coding agents (Claude Code, Codex, etc.) working in this rep
 MCP server (TypeScript, stdio) for UNI-T UTS series spectrum analyzers (UTS1000B/T, UTS3000B) over SCPI. Layout is modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp):
 
 - `src/index.ts` – server entry, registers tool groups
-- `src/connection.ts` – SCPI connection singleton with a query queue
+- `src/connection.ts` – SCPI connection singleton: serialized queue, query timeouts, hold-off after a timed-out query, `*OPC?` command pacing, `msSinceQueryTimeout`, `expectSilence`
+- `src/transports/` – the wire under `UtsConnection`. `transport.ts` defines the internal `Transport` interface (open/close/isOpen/onLost, `write` a line, `readLine`/`readBlock` with a timeout, `discardInput`) and its capability flags; `raw.ts` is raw SCPI over TCP (framing, CRLF, `#` block assembly, late-terminator swallowing). Wire differences are expressed as capability flags (`syncsCommands`, `dropsInputDuringSweep`, `holdOffAfterTimeout`, read via `connection.capabilities`), never as transport-name checks in tools. A new transport (VXI-11, parent #64) implements `Transport` and passes `tests/transportContract.ts` by calling `runTransportContract` with its own factory and fake instrument
 - `src/tools/*.ts` – one file per tool group, each exporting `register<Group>Tools(server)`
 - `tests/unit/`, `tests/integration/` – vitest; integration tests mock `src/connection.js`
 - `docs/` – `references.md` (manuals and links), `verified-hardware.md` (what was tested on), tools reference, programming-guide notes, manual testing guide

@@ -21,11 +21,12 @@ Parameters and behavior: [docs/tools-reference.md](docs/tools-reference.md). Set
 
 Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp): TypeScript, stdio transport, vitest tests, npm and Docker publishing via tag-triggered GitHub Actions.
 
-- `src/connection.ts` – raw SCPI over TCP with a serialized queue, `*OPC?`-synced commands and hold-off after unsupported queries
+- `src/connection.ts` – serialized SCPI queue with timeouts, `*OPC?`-synced commands and hold-off after unsupported queries, on top of a pluggable transport
+- `src/transports/` – the `Transport` interface with capability flags, and the raw SCPI over TCP transport (`raw.ts`)
 - `src/blocks.ts`, `src/scpi.ts` – binary block parser; SCPI helpers and the safety denylist
 - `src/instrument.ts`, `src/errors.ts`, `src/acquisition.ts` – applying settings with error-queue checks, sweep synchronization
 - `src/tools/` – one file per tool group, registered in `src/server.ts`
-- `tests/` – unit and mocked integration tests, a fake SCPI server, and captured instrument fixtures
+- `tests/` – unit and mocked integration tests, a fake SCPI server, a transport contract suite (`transportContract.ts`), and captured instrument fixtures
 - `docs/` – [tools-reference.md](docs/tools-reference.md), [verified-hardware.md](docs/verified-hardware.md), [programming-guide.md](docs/programming-guide.md), [references.md](docs/references.md)
 
 ## Supported platforms
