@@ -20,7 +20,7 @@ Device: UNI-T,UTS3036B,<serial>,<firmware>
 | `port` | integer 1-65535 | No | `UTS_PORT` env var, then `5025` | TCP port of the raw transport. VXI-11 finds its own port through the portmapper (TCP port 111), so an explicit `port` together with `transport: "vxi11"` is an error; a `port` (or `UTS_PORT`) without any transport choice selects `raw` |
 | `transport` | `raw`, `vxi11` or `auto` | No | `UTS_TRANSPORT` env var, then `auto` (`raw` when only a port is given) | `raw`: raw SCPI over TCP. `vxi11`: VXI-11 core channel; fails if it cannot be opened. `auto`: VXI-11 if the portmapper on port 111 registers the VXI-11 core program and the link opens, otherwise raw (the reason for the fallback is logged to stderr and shown in the `Transport:` line) |
 
-The VXI-11 device name comes from `UTS_VXI11_DEVICE` (default `inst0`; 1 to 64 characters from letters, digits and `. _ , -`). An invalid `transport`, `UTS_TRANSPORT` or `UTS_VXI11_DEVICE` is an error that names the offending value or variable and sends nothing. Error and timeout messages name the transport when it is not raw, for example `Query timeout after 5000ms for command: :FOO? (over VXI-11)`. Over VXI-11 a blocking `*OPC?` read is used to wait for a sweep (see `single_sweep`), a query timeout is reported about 0.5 s after the requested one, and the link stays up. Large replies are not truncated over VXI-11 (see `scpi_query`).
+The VXI-11 device name comes from `UTS_VXI11_DEVICE` (default `inst0`; 1 to 64 characters from letters, digits and `. _ , -`). An invalid `transport`, `UTS_TRANSPORT` or `UTS_VXI11_DEVICE` is an error that names the offending value or variable and sends nothing. Error and timeout messages name the transport when it is not raw, for example `Query timeout after 5000ms for command: :FOO? (over VXI-11)`. Over VXI-11 a blocking `*OPC?` read is used to wait for a sweep (see `single_sweep`), a query timeout is reported about 0.5 s after the requested one, and the link stays up. Large replies are not truncated over VXI-11 (see `scpi_query` and `screenshot`).
 
 If `UTS_IP` is set, the server also connects automatically at startup, using `UTS_TRANSPORT` and `UTS_VXI11_DEVICE`; a failed auto-connect is logged to stderr and does not stop the server.
 
@@ -166,6 +166,14 @@ Restarts max hold, min hold or averaging. The instrument has no clear-trace comm
 ### `set_trace_math`
 
 Sends `:CALCulate:MATH TRACE<n>,<op>,TRACE<a>,TRACE<b>,<offset>`. `trace` (1-6), `operation` (`off`, `power_difference`, `power_sum`, `log_difference`, `log_offset`), `operand_a` and `operand_b` (1-6; required unless `off`), `offset_db` (-100..100, only for the two log operations, default 0). The setting cannot be read back (no query), so the result carries `trace_state` (the trace's type/update/display) and a warning; verify through the trace data. Enabling math switches the trace on (update and display true) and `off` does not switch it off again, so restore that with `set_trace`.
+
+## Screenshot
+
+### `screenshot`
+
+Read-only, no parameters. Captures the analyzer screen (1280 x 800) and returns it as an MCP **image content block** (`image/png`) followed by a text line with the size (about 90 KB, taking about 3 s). It reads the picture format (`:SYSTem:PICture:FORMat?`, `BMP` or `PNG`), selects `PNG`, queries `:DISPlay:DATA?` as a `#` block, checks the PNG signature, and **always restores the original format** (try/finally, also after a failed transfer). If the restore fails the result is an error that says so and still carries the image.
+
+Needs a transport whose large replies arrive complete (`completeLargeBlocks`: VXI-11). Over raw TCP the instrument stops after exactly 144,800 bytes (issue #42), so the tool refuses at once, sends nothing, and the error tells you to reconnect with `transport: "vxi11"` (or `auto`) or set `UTS_TRANSPORT`. Errors name the command: a timeout names `:DISPlay:DATA?`, an unreadable format reply names `:SYSTem:PICture:FORMat?`, an empty or non-PNG reply is rejected, and an instrument error while selecting the format carries its code. The tool does not save files; the client receives the image. The screen shows whatever the instrument displays (including its system information page if open).
 
 ## Error handling (all tools)
 

@@ -53,7 +53,7 @@ The wire under the connection is a `Transport` (`src/transports/transport.ts`). 
 - **Raw SCPI over TCP** (port 5025): LF-terminated lines, CRLF replies, `#` binary blocks assembled in `raw.ts`. While a single sweep runs the analyzer ignores every line it receives, so the sweep helper stays silent and polls `*OPC?`.
 - **VXI-11** (the default through `UTS_TRANSPORT=auto`, or `vxi11`): ONC RPC over TCP through the portmapper on port 111, implemented without dependencies in `src/vxi11/`. The analyzer queues commands sent during a sweep instead of dropping them, so the sweep helper writes `:INITiate:IMMediate` and does one blocking `*OPC?` read. It never answers a read that has nothing to deliver, so a timeout is the client's own deadline (see the verified-hardware notes).
 
-Wire differences are expressed as capability flags (`syncsCommands`, `dropsInputDuringSweep`, `holdOffAfterTimeout`), never as transport-name checks in tools, so a tool behaves the same on both. `UTS_TRANSPORT` is `auto` (default: VXI-11 when the analyzer registers it with the portmapper, else raw), `raw` or `vxi11`; `UTS_VXI11_DEVICE` names the device (default `inst0`). New transports must pass the shared contract suite `tests/transportContract.ts`.
+Wire differences are expressed as capability flags (`syncsCommands`, `dropsInputDuringSweep`, `holdOffAfterTimeout`, `completeLargeBlocks`), never as transport-name checks in tools, so a tool behaves the same on both. `UTS_TRANSPORT` is `auto` (default: VXI-11 when the analyzer registers it with the portmapper, else raw), `raw` or `vxi11`; `UTS_VXI11_DEVICE` names the device (default `inst0`). New transports must pass the shared contract suite `tests/transportContract.ts`.
 
 ## Concurrency: one tool call at a time
 
@@ -101,4 +101,4 @@ Required of every tool and enforced by a contract test:
 - **One instrument at a time** (a single connection). Multiple instruments are a proposal: [issue #67](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/67).
 - **VXI-11 has been verified on one analyzer only** (UTS3036B, firmware V1.04.0040); other models fall back to raw SCPI when they do not offer it.
 - **A long sweep blocks other tool calls**, by design, up to `UTS_BUSY_TIMEOUT_S`.
-- **Not implemented yet:** trace data fetch, markers, measurements and screenshots (the analyzer stops a screenshot transfer after 144,800 bytes over LAN, [issue #42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)). See the [Roadmap](Roadmap).
+- **Not implemented yet:** trace data fetch, markers and measurements. The `screenshot` tool needs VXI-11 because the analyzer stops a large reply after 144,800 bytes over raw TCP ([issue #42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)); it refuses with instructions over raw. See the [Roadmap](Roadmap).

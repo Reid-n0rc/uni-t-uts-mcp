@@ -2,7 +2,7 @@
 
 A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that lets an AI assistant control a **UNI-T UTS series spectrum analyzer** (UTS1000B/T, UTS3000B) over your local network. It talks SCPI over VXI-11 when the analyzer offers it, or over a raw TCP socket (port 5025), so there are no VISA drivers to install.
 
-> **Status:** release **v<!--VERSION-->** is out. It has <!--TOOL_COUNT--> tools in <!--GROUP_COUNT--> groups, verified on a **UNI-T UTS3036B, firmware V1.04.0040**, over LAN. Trace data fetch, markers, measurements and the screenshot tool are not implemented yet (see the [Roadmap](Roadmap)). You can install it from the npm registry (`npx -y uni-t-uts-mcp`), the release tarball, the git tag or a Docker image (see [Getting Started](Getting-Started)).
+> **Status:** release **v<!--VERSION-->** is out. It has <!--TOOL_COUNT--> tools in <!--GROUP_COUNT--> groups, verified on a **UNI-T UTS3036B, firmware V1.04.0040**, over LAN. Trace data fetch, markers and measurements are not implemented yet (see the [Roadmap](Roadmap)). You can install it from the npm registry (`npx -y uni-t-uts-mcp`), the release tarball, the git tag or a Docker image (see [Getting Started](Getting-Started)).
 
 ## What you can do today
 

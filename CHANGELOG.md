@@ -12,6 +12,9 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+- `screenshot` tool: captures the analyzer screen as a PNG image (`:SYSTem:PICture:FORMat PNG` + `:DISPlay:DATA?`, about 3 s) and always restores the picture format. It needs the VXI-11 transport; over raw TCP, where the analyzer truncates large replies at 144,800 bytes (issue #42), it refuses with instructions to switch transport. New transport capability flag `completeLargeBlocks`.
+
 ## [0.2.0] - 2026-11-10
 
 ### Added
