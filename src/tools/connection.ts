@@ -2,20 +2,60 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { connection } from "../connection.js";
 import { DEFAULT_PORT, isValidHost, portFromEnv } from "../target.js";
+import { AUTO_HOST, resolveAutoHost } from "../autoHost.js";
+import { discoverInstruments } from "../discovery.js";
 import { TRANSPORT_CHOICES, resolveTransport, vxi11DeviceFromEnv } from "../transports/select.js";
 import { errorResult, textResult, defineTool } from "./util.js";
+
+/** Hosts in `discover_instruments` results that must not be probed again: the one this server is connected to. */
+function connectedHosts(): Set<string> {
+  if (!connection.isConnected()) return new Set();
+  const info = connection.getConnectionInfo();
+  const host = /^[^\s:]+/.exec(info)?.[0];
+  return new Set(host ? [host] : []);
+}
 
 export function registerConnectionTools(server: McpServer): void {
   defineTool(
     server,
+    "discover_instruments",
+    "Find UNI-T / VXI-11 spectrum analyzers on the local network without knowing their IP address: broadcasts a portmapper query on each local IPv4 interface and identifies every responder with *IDN? (read-only; the serial number is not shown). Returns host, model, firmware and whether VXI-11 and raw port 5025 answer.",
+    {
+      timeout_ms: z
+        .number()
+        .int()
+        .min(100)
+        .max(10000)
+        .optional()
+        .describe("How long to wait for replies in ms (default 1500)"),
+    },
+    { readOnlyHint: true, openWorldHint: true },
+    async ({ timeout_ms }) => {
+      try {
+        const result = await discoverInstruments({ windowMs: timeout_ms, skipIdentify: connectedHosts() });
+        const hint =
+          result.instruments.some((i) => i.analyzer)
+            ? "Pass a host as the 'host' parameter of connect, or use host \"auto\" when exactly one analyzer is listed."
+            : "No analyzer found. Check that it is powered, on the same subnet and that LAN is enabled, or give its address to connect.";
+        return textResult(JSON.stringify({ instruments: result.instruments, notes: result.notes, hint }, null, 2));
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+    // Uses its own sockets, never the shared instrument connection: no need to wait behind (or hold up) other tools.
+    { exclusive: false }
+  );
+
+  defineTool(
+    server,
     "connect",
-    "Connect to a UNI-T UTS series spectrum analyzer over auto (default: VXI-11 when the instrument offers it, else raw SCPI/TCP), VXI-11 or raw SCPI/TCP. Returns the instrument identification and the transport in use.",
+    "Connect to a UNI-T UTS series spectrum analyzer over auto (default: VXI-11 when the instrument offers it, else raw SCPI/TCP), VXI-11 or raw SCPI/TCP. Returns the instrument identification and the transport in use. Use host \"auto\" (or UTS_IP=auto) to find the analyzer on the local network when exactly one answers.",
     {
       host: z
         .string()
         .refine(isValidHost, "host must be a hostname or IP address")
         .optional()
-        .describe("Hostname or IP address of the analyzer (defaults to the UTS_IP env var)"),
+        .describe('Hostname or IP address of the analyzer (defaults to the UTS_IP env var); "auto" discovers it on the local network (see discover_instruments)'),
       port: z
         .number()
         .int()
@@ -31,7 +71,12 @@ export function registerConnectionTools(server: McpServer): void {
     { readOnlyHint: false, openWorldHint: true },
     async ({ host, port, transport }) => {
       try {
-        const targetHost = host || process.env.UTS_IP;
+        let targetHost = host || process.env.UTS_IP;
+        if (targetHost?.toLowerCase() === AUTO_HOST) {
+          const found = await resolveAutoHost();
+          if ("error" in found) return errorResult(found.error);
+          targetHost = found.host;
+        }
         if (!targetHost) {
           return errorResult(
             "No host specified. Provide a 'host' parameter or set the UTS_IP environment variable."

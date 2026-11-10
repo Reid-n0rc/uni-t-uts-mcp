@@ -101,6 +101,9 @@ describe("connect host=auto", () => {
     expect(mockConnection.connect).toHaveBeenCalledWith("192.168.1.100", 5025, expect.objectContaining({ transport: "auto" }));
     expect(getText(res)).toContain("Connected to");
     expect(getText(res)).toContain("192.168.1.100");
+    expect(getText(res)).toMatch(/auto-selected by network discovery/i);
+    expect(getText(res)).toContain('"UTS3036B"');
+    expect(getText(res)).toMatch(/unauthenticated/i);
   });
 
   it("works through UTS_IP=auto when no host is given", async () => {
