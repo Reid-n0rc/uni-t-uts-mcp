@@ -41,7 +41,7 @@ Only one query per call: on the UTS3036B a `;`-joined line of queries is answere
 
 ### `scpi_command`
 
-Send a SCPI command with no reply expected. Queries are refused (use `scpi_query`).
+Send a SCPI command with no reply expected. Queries are refused (use `scpi_query`). Like every setter, it clears the error queue (`*CLS`), sends the command synced with `*OPC?` and then checks `:SYSTem:ERRor?`; an error reported by the instrument (for example `-131 Invalid suffix`) is returned as an error result naming the command.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
