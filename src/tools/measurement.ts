@@ -286,7 +286,19 @@ async function configure(m: Measurement, args: ParamArgs, entry: Entry) {
   return { parameters, warnings: paramWarnings(args, parameters) };
 }
 
-async function readResult(m: Measurement, fetch: boolean, timeoutS: number) {
+/** Over raw TCP a READ reply has no line terminator (verified), so it can never be read as a line: use FETCh there. */
+const readIsUsable = () => connection.transportName !== "raw";
+
+async function readResult(m: Measurement, fetchRequested: boolean, timeoutS: number) {
+  const warnings: string[] = [];
+  let fetch = fetchRequested;
+  if (!fetch && !readIsUsable()) {
+    fetch = true;
+    warnings.push(
+      "FETCh was used instead of READ: over raw TCP the instrument ends a READ reply without a line terminator, so it cannot be read. " +
+        "FETCh returns the latest result without starting a measurement; use the VXI-11 transport for READ."
+    );
+  }
   const verb = fetch ? "FETCh" : "READ";
   const timeoutMs = Math.round(timeoutS * 1000);
   const name = MEASUREMENTS[m];
@@ -301,21 +313,31 @@ async function readResult(m: Measurement, fetch: boolean, timeoutS: number) {
     if (values.length !== count) throw new ReplyError(command, reply, `expected ${count} value(s), got ${values.length}`);
     return values;
   };
+  const withWarnings = <T extends object>(result: T) => (warnings.length > 0 ? { ...result, warnings } : result);
   if (m === "channel_power") {
     const [power, density] = await list(`:${verb}:${name}?`, 2);
-    return { measurement: m, command: verb, channel_power_dbm: power, power_density_dbm_per_hz: density };
+    return withWarnings({ measurement: m, command: verb, channel_power_dbm: power, power_density_dbm_per_hz: density });
   }
   if (m === "time_power") {
     const [power] = await list(`:${verb}:${name}?`, 1);
-    return { measurement: m, command: verb, power_dbm: power };
+    return withWarnings({ measurement: m, command: verb, power_dbm: power });
   }
-  // OBW: the combined reply has seven values of which the manual documents only four, so the documented
-  // sub-results are queried. READ runs the measurement with the first, FETCh returns the rest of the same result.
-  const [obw] = await list(`:${verb}:${name}:OBWidth?`, 1);
+  // OBW: the combined reply has seven values of which the manual documents only four (and :READ:OBWidth:<sub>? gets
+  // no reply), so READ runs the measurement with the combined query and the documented sub-results are fetched.
+  if (!fetch) {
+    const command = `:READ:${name}?`;
+    const reply = await connection.query(command, timeoutMs);
+    try {
+      parseNumberList(reply);
+    } catch (err) {
+      throw new ReplyError(command, reply, err instanceof Error ? err.message : String(err));
+    }
+  }
+  const [obw] = await list(`:FETCh:${name}:OBWidth?`, 1);
   const [ferror] = await list(`:FETCh:${name}:FERRor?`, 1);
   const [xdb] = await list(`:FETCh:${name}:XDB?`, 1);
   const [total] = await list(`:FETCh:${name}:APOWr?`, 1);
-  return { measurement: m, command: verb, obw_hz: obw, frequency_error_hz: ferror, xdb_bandwidth_hz: xdb, total_power_dbm: total };
+  return withWarnings({ measurement: m, command: verb, obw_hz: obw, frequency_error_hz: ferror, xdb_bandwidth_hz: xdb, total_power_dbm: total });
 }
 
 async function requireActive(m: Measurement): Promise<void> {

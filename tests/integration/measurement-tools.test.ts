@@ -62,6 +62,7 @@ const fake = vi.hoisted(() => {
         case "RLIMit": return meas === "TPOWer" ? sci(state.tpR) : timeout(cmd);
       }
     }
+    if (cmd === ":READ:OBWidth?" && state.mode === "OBWidth") return "2.973026973e+06 ,-7.179511261e+01,3.000000000e+06 ,1001,3.000000000e+04 ,0.000000000e+00 ,2.997000e+06 ";
     if ((m = /^:(READ|FETCh):(CHPower|TPOWer|OBWidth)(?::(\w+))?\?$/.exec(cmd))) {
       const [, , meas, sub] = m;
       if (state.mode !== meas) return timeout(cmd);
@@ -119,12 +120,13 @@ const fake = vi.hoisted(() => {
     }
     state.errors.push('-113,"Undefined header"');
   });
+  const link = { transport: "vxi11" as string };
   const impls = { query: query.getMockImplementation()!, sendCommand: sendCommand.getMockImplementation()! };
-  return { state, reset, calls, queries, query, sendCommand, impls };
+  return { state, reset, calls, queries, query, sendCommand, impls, link };
 });
 
 vi.mock("../../src/connection.js", () => ({
-  connection: { query: fake.query, sendCommand: fake.sendCommand, msSinceQueryTimeout: () => Infinity, runExclusive: (fn: () => unknown) => fn() },
+  connection: { get transportName() { return fake.link.transport; }, query: fake.query, sendCommand: fake.sendCommand, msSinceQueryTimeout: () => Infinity, runExclusive: (fn: () => unknown) => fn() },
 }));
 
 let client: Client;
@@ -143,6 +145,7 @@ beforeEach(async () => {
   fake.query.mockImplementation(fake.impls.query);
   fake.sendCommand.mockImplementation(fake.impls.sendCommand);
   fake.reset();
+  fake.link.transport = "vxi11";
   vi.clearAllMocks();
   await callTool(client, "exit_measurement", { restore_settings: false });
   fake.reset();
@@ -284,6 +287,19 @@ describe("read_measurement", () => {
     expect(f.command).toBe("FETCh");
     expect(fake.queries).toEqual([":SENSe:CHPower:AVERage:STATe?", ":FETCh:CHPower?"]);
   });
+  it("over raw TCP READ replies have no line terminator, so FETCh is used and a warning says so", async () => {
+    fake.link.transport = "raw";
+    fake.state.mode = "CHPower";
+    const out = json(await callTool(client, "read_measurement", { measurement: "channel_power" }));
+    expect(out.command).toBe("FETCh");
+    expect(out.channel_power_dbm).toBe(-73.66048);
+    expect(out.warnings.join(" ")).toMatch(/READ/);
+    expect(fake.queries.some((q) => q.startsWith(":READ"))).toBe(false);
+    fake.queries.length = 0;
+    fake.state.mode = "OBWidth";
+    await callTool(client, "read_measurement", { measurement: "obw" });
+    expect(fake.queries.some((q) => q.startsWith(":READ"))).toBe(false);
+  });
   it("time power", async () => {
     fake.state.mode = "TPOWer";
     expect(json(await callTool(client, "read_measurement", { measurement: "time_power" }))).toEqual({
@@ -296,7 +312,7 @@ describe("read_measurement", () => {
     expect(out).toEqual({
       measurement: "obw", command: "READ", obw_hz: 2997003, frequency_error_hz: 0, xdb_bandwidth_hz: 12000, total_power_dbm: -71.80824,
     });
-    expect(fake.queries.slice(1)).toEqual([":READ:OBWidth:OBWidth?", ":FETCh:OBWidth:FERRor?", ":FETCh:OBWidth:XDB?", ":FETCh:OBWidth:APOWr?"]);
+    expect(fake.queries.slice(1)).toEqual([":READ:OBWidth?", ":FETCh:OBWidth:OBWidth?", ":FETCh:OBWidth:FERRor?", ":FETCh:OBWidth:XDB?", ":FETCh:OBWidth:APOWr?"]);
   });
   it("errors when the measurement is not active, without reading and without changing the mode", async () => {
     fake.state.mode = "OBWidth";
