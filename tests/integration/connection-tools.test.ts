@@ -8,6 +8,7 @@ const mockConnection = vi.hoisted(() => ({
   getConnectionInfo: vi.fn(() => "192.168.1.100:5025"),
   connect: vi.fn(async () => "UNI-TREND,UTS0000X,<serial>,V0.0.0"),
   disconnect: vi.fn(),
+  runExclusive: (fn: () => unknown) => fn(),
   query: vi.fn(async () => "UNI-TREND,UTS0000X,<serial>,V0.0.0"),
 }));
 

@@ -44,6 +44,7 @@ describe("SessionLock", () => {
     const t0 = Date.now();
     let waiterStart = 0;
     const holder = one.run(async () => { await two.run(async () => { await sleep(40); }); });
+    await sleep(5);
     const waiter = two.run(async () => { waiterStart = Date.now() - t0; });
     await Promise.all([holder, waiter]);
     // `waiter` is outside any session, so it queues behind the holder's session on `two`.

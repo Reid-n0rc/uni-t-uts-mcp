@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { applyCommands, queryBool, queryNumber, readBack } from "../instrument.js";
 import { formatWithUnit } from "../scpi.js";
-import { errorResult, setterFailure, textResult } from "./util.js";
+import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 
 // Commands: docs/programming-guide.md section 2 (frequency). Query forms and the
 // "Hz" suffix were verified on the UTS3036B (docs/verified-hardware.md).
@@ -83,7 +83,8 @@ function close(requested: number, actual: number): boolean {
 }
 
 export function registerFrequencyTools(server: McpServer): void {
-  server.tool(
+  defineTool(
+    server,
     "get_frequency",
     "Get the analyzer's frequency settings: center, span, start, stop, center step (and whether it is automatic) and offset, all in Hz.",
     {},
@@ -97,7 +98,8 @@ export function registerFrequencyTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "set_frequency",
     "Set frequency parameters (all in Hz). Give center and/or span, OR start and/or stop, OR full_span, OR zero_span; " +
       "center step and offset can be combined with any of these. Frequency parameters are coupled, so the settings are re-read " +
@@ -106,9 +108,6 @@ export function registerFrequencyTools(server: McpServer): void {
     { readOnlyHint: false, idempotentHint: true },
     async (args) => {
       try {
-        const problem = validate(args);
-        if (problem) return errorResult(problem);
-
         const commands: string[] = [];
         if (args.full_span) commands.push(":FREQuency:SPAN:FULL");
         if (args.zero_span) commands.push(":FREQuency:SPAN:ZERO");
@@ -163,6 +162,7 @@ export function registerFrequencyTools(server: McpServer): void {
       } catch (err) {
         return setterFailure(err, "get_frequency");
       }
-    }
+    },
+    { validate }
   );
 }

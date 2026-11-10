@@ -28,10 +28,11 @@ const UNITS: Record<string, number> = { HZ: 1, KHZ: 1e3, MHZ: 1e6, GHZ: 1e9 };
 
 function handler(line: string, socket: net.Socket): void {
   if (Date.now() < deafUntil) {
-    lost.push(line);
+    // The sweep owner's own *OPC? polls are meant to go unanswered until the sweep ends.
+    if (line !== "*OPC?") lost.push(line);
     return;
   }
-  const reply = (text: string) => socket.write(text + "\r\n");
+  const reply = (text: string): void => { socket.write(text + "\r\n"); };
   if (line === "*IDN?") return reply(IDN);
   if (line === "*OPC?") return reply("1");
   if (line === "*CLS") { errors = []; return; }
@@ -158,7 +159,10 @@ describe("parallel tool calls against the real connection", () => {
     expect(centers).toHaveLength(6);
     const clsAt = lines.map((l, i) => (l === "*CLS" ? i : -1)).filter((i) => i >= 0);
     expect(clsAt).toHaveLength(6);
-    for (const i of clsAt) expect(lines[i + 1]).toMatch(/^:FREQuency:SPAN|^:FREQuency:CENTer /);
+    for (const i of clsAt) {
+      const next = lines.slice(i + 1).find((l) => l !== "*OPC?");
+      expect(next).toMatch(/^:FREQuency:(SPAN|CENTer) /);
+    }
   });
 
   it("attributes an instrument error to the failing call only", async () => {
@@ -201,7 +205,8 @@ describe("parallel tool calls against the real connection", () => {
     expect(getText(w)).toMatch(/closed|not connected|lost/i);
     const s = await sweep;
     expect(s.isError).toBe(true);
-    // Everything is released: reconnect and carry on.
+    // Everything is released: reconnect (once the fake's sweep is over) and carry on.
+    await new Promise((r) => setTimeout(r, SWEEP_S * 1000 + 50));
     const again = await callTool(client, "connect", { host: "127.0.0.1", port: server.port });
     expect(again.isError, getText(again)).toBeFalsy();
     expect((await callTool(client, "get_frequency", {})).isError).toBeFalsy();

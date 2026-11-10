@@ -2,10 +2,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { connection } from "../connection.js";
 import { DEFAULT_PORT, isValidHost, portFromEnv } from "../target.js";
-import { errorResult, textResult } from "./util.js";
+import { errorResult, textResult, defineTool } from "./util.js";
 
 export function registerConnectionTools(server: McpServer): void {
-  server.tool(
+  defineTool(
+    server,
     "connect",
     "Connect to a UNI-T UTS series spectrum analyzer over TCP (raw SCPI). Returns the instrument identification on success.",
     {
@@ -43,7 +44,8 @@ export function registerConnectionTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "disconnect",
     "Disconnect from the spectrum analyzer.",
     {},
@@ -56,10 +58,13 @@ export function registerConnectionTools(server: McpServer): void {
       } catch (err) {
         return errorResult(err);
       }
-    }
+    },
+    // Must not wait behind a running operation: it fails everything queued and ends the connection.
+    { exclusive: false }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "identify",
     "Query the analyzer identification (*IDN?): manufacturer, model, serial number and firmware version.",
     {},
