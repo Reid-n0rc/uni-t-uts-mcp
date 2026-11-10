@@ -54,6 +54,10 @@ latest published at the time) over LAN; see [docs/verified-hardware.md](docs/ver
 - Connection handling: serialized query queue, command pacing, a hold-off after unsupported-query
   stalls, stale `-113` errors ignored, CRLF handling after replies and blocks, single-sweep
   synchronisation that works around the instrument ignoring commands while a sweep runs.
+- Tool calls are serialized per instrument: every tool runs inside an exclusive session, so several tool calls
+  issued at the same time can no longer interleave their commands or blame errors on the wrong call. A call that
+  waits too long gets a clear `Instrument busy` error (default 120 s, configurable with `UTS_BUSY_TIMEOUT_S`).
+  A test fails if a tool is registered without the session wrapper.
 - A transport abstraction under the connection, preparing for VXI-11 support.
 
 ### Platform support
@@ -76,9 +80,9 @@ latest published at the time) over LAN; see [docs/verified-hardware.md](docs/ver
 
 ### Known limitations
 
-- Parallel tool calls are not yet serialized per instrument: a client that issues several tool calls at the
-  same time can interleave their command sequences ([#66](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/66)).
-  Clients that call tools one after another are not affected.
+- `start_sweep` with `wait=false` releases the instrument session before the sweep ends, so another tool call
+  can run while the analyzer is still sweeping and have its commands ignored; use `single_sweep` or
+  `wait_for_sweep_complete` when other calls may follow.
 - Markers, measurements, trace data download and the screenshot tool are not implemented yet; the analyzer
   stops sending screenshots after 144,800 bytes over the raw LAN port
   ([#42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)).
