@@ -90,6 +90,7 @@ interface Statement {
 
 type SplitResult = { statements: Statement[] } | { error: string };
 
+const NON_ASCII = /[^\u0000-\u007f]/;
 const CONTROL_CHARS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 
 /**
@@ -101,6 +102,9 @@ const CONTROL_CHARS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
  * fail closed.
  */
 function splitStatements(line: string): SplitResult {
+  // Block lengths are counted in bytes by the instrument but in UTF-16 units here,
+  // so non-ASCII text could make the two parsers disagree. Fail closed.
+  if (NON_ASCII.test(line)) return { error: "command contains non-ASCII characters" };
   if (CONTROL_CHARS.test(line)) return { error: "command contains control characters" };
 
   const statements: Statement[] = [];
