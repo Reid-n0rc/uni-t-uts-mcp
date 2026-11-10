@@ -213,11 +213,11 @@ A marker's function: `noise` (noise level per Hz at the marker), `band_power` (p
 
 ### `get_marker_ndb` / `set_marker_ndb`
 
-The N-dB bandwidth measurement of a marker: the width in Hz of the trace around the marker where it is within N dB of the marker level. `get_marker_ndb` (read-only) returns `enabled`, `ndb` (negative dB) and `bandwidth_hz` (`null` while off; the result query is only sent while on). `set_marker_ndb` takes `marker` and at least one of `enabled` and `ndb` (-140 to -0.01, checked before anything is sent); N is sent first. Readback differences are `warnings`.
+The N-dB bandwidth measurement of a marker: the width in Hz of the trace around the marker where it is within N dB of the marker level. `get_marker_ndb` (read-only) returns `enabled`, `ndb` (negative dB) and `bandwidth_hz` (`null` while off, because the result query is only sent while on, and `null` when the instrument answers `nan` because the trace does not fall N dB on both sides of the marker). `set_marker_ndb` takes `marker` and at least one of `enabled` and `ndb` (-140 to -0.01, checked before anything is sent); N is sent first. Readback differences are `warnings`.
 
 ### `get_frequency_counter` / `set_frequency_counter`
 
-The marker frequency counter: `enabled` and `gate_time_s`. `get_frequency_counter` is read-only and takes no parameters. `set_frequency_counter` takes `enabled` and/or `gate_time_s` (1e-6 to 0.5 s, checked before anything is sent). Readback differences are `warnings`.
+The marker frequency counter: `enabled`, `gate_time_s` and `frequency_hz` (the counted frequency of the selected marker via `:CALCulate:MARKer:FCOunt:X?`, only queried while on; `null` while off or when the instrument reports its invalid value 9.91e37). `get_frequency_counter` is read-only and takes no parameters. `set_frequency_counter` takes `enabled` and/or `gate_time_s` (1e-6 to 0.5 s, checked before anything is sent). Readback differences are `warnings`.
 
 ## Screenshot
 

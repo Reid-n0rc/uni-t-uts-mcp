@@ -10,7 +10,7 @@ const fake = vi.hoisted(() => {
     span: Array.from({ length: 11 }, () => 1e6),
     ndbOn: Array.from({ length: 11 }, () => false),
     ndb: Array.from({ length: 11 }, () => -3),
-    fcOn: false, gate: 1e-3,
+    fcOn: false, gate: 1e-3, fcX: "1.000000000000e+07",
     errors: [] as string[],
   });
   const state = initial();
@@ -27,12 +27,13 @@ const fake = vi.hoisted(() => {
         case "FUNCtion:BAND:SPAN": return sci(state.span[n]);
         case "BANDwidth:STATe": return state.ndbOn[n] ? "1" : "0";
         case "BANDwidth:NDB": return sci(state.ndb[n]);
-        case "BANDwidth:RESult": return sci(state.ndb[n] === -3 ? 120000 : 250000);
+        case "BANDwidth:RESult": return state.ndb[n] === -20 ? "nan" : sci(state.ndb[n] === -3 ? 120000 : 250000);
       }
     }
     switch (cmd) {
       case ":CALCulate:MARKer:FCOunt:STATe?": return state.fcOn ? "1" : "0";
       case ":CALCulate:MARKer:FCOunt:GATetime?": return sci(state.gate);
+      case ":CALCulate:MARKer:FCOunt:X?": return state.fcX;
       case ":SYSTem:ERRor?": return state.errors.shift() ?? '0,"No error"';
       default: throw new Error(`unexpected query ${cmd}`);
     }
@@ -155,6 +156,12 @@ describe("N-dB bandwidth", () => {
     expect(json(res)).toEqual({ state: { marker: 1, enabled: true, ndb: -6, bandwidth_hz: 250000 }, warnings: [] });
   });
 
+  it("reports nan (no N-dB bandwidth found) as null", async () => {
+    const out = json(await callTool(client, "set_marker_ndb", { marker: 1, enabled: true, ndb: -20 }));
+    expect(out.state).toEqual({ marker: 1, enabled: true, ndb: -20, bandwidth_hz: null });
+    expect(out.warnings).toEqual([]);
+  });
+
   it("turns it off", async () => {
     fake.state.ndbOn[1] = true;
     const out = json(await callTool(client, "set_marker_ndb", { marker: 1, enabled: false }));
@@ -186,14 +193,22 @@ describe("N-dB bandwidth", () => {
 
 describe("frequency counter", () => {
   it("reads state and gate time", async () => {
-    expect(json(await callTool(client, "get_frequency_counter", {}))).toEqual({ enabled: false, gate_time_s: 1e-3 });
+    expect(json(await callTool(client, "get_frequency_counter", {}))).toEqual({ enabled: false, gate_time_s: 1e-3, frequency_hz: null });
+    expect(fake.query.mock.calls.map((c) => c[0])).not.toContain(":CALCulate:MARKer:FCOunt:X?");
+  });
+
+  it("returns the counted frequency while on and null for the invalid marker value", async () => {
+    fake.state.fcOn = true;
+    expect(json(await callTool(client, "get_frequency_counter", {})).frequency_hz).toBe(1e7);
+    fake.state.fcX = "9.910000000000e+37";
+    expect(json(await callTool(client, "get_frequency_counter", {})).frequency_hz).toBeNull();
   });
 
   it("sets gate time then enables", async () => {
     const res = await callTool(client, "set_frequency_counter", { enabled: true, gate_time_s: 0.01 });
     expect(res.isError, getText(res)).toBeFalsy();
     expect(fake.calls).toEqual([":CALCulate:MARKer:FCOunt:GATetime 0.01", ":CALCulate:MARKer:FCOunt:STATe ON"]);
-    expect(json(res)).toEqual({ state: { enabled: true, gate_time_s: 0.01 }, warnings: [] });
+    expect(json(res)).toEqual({ state: { enabled: true, gate_time_s: 0.01, frequency_hz: 1e7 }, warnings: [] });
   });
 
   it("rejects invalid input", async () => {

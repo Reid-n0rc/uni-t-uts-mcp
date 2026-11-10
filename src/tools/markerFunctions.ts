@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { applyCommands, queryBool, queryNumber, queryParsed, readBack } from "../instrument.js";
-import { formatNumber, onOff } from "../scpi.js";
+import { formatNumber, onOff, parseNumber } from "../scpi.js";
 import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 
 // Commands: docs/programming-guide.md section 4 (3K p.16-19). Behavior verified on the UTS3036B in
@@ -43,20 +43,25 @@ export interface MarkerNdbState {
   enabled: boolean;
   /** dB below the marker (negative), -140 to -0.01. */
   ndb: number;
-  /** Measured bandwidth in Hz; null while N-dB is off. */
+  /** Measured bandwidth in Hz; null while N-dB is off or when the trace does not fall N dB on both sides (the instrument says nan). */
   bandwidth_hz: number | null;
 }
+
+/** The instrument answers nan when no N-dB bandwidth can be found. */
+const parseBandwidth = (reply: string): number | null => (reply.trim().toLowerCase() === "nan" ? null : parseNumber(reply));
 
 async function readNdb(n: number): Promise<MarkerNdbState> {
   const enabled = await queryBool(`${M(n)}:BANDwidth:STATe?`);
   const ndb = await queryNumber(`${M(n)}:BANDwidth:NDB?`);
-  const bandwidth_hz = enabled ? await queryNumber(`${M(n)}:BANDwidth:RESult?`) : null;
+  const bandwidth_hz = enabled ? await queryParsed(`${M(n)}:BANDwidth:RESult?`, parseBandwidth) : null;
   return { marker: n, enabled, ndb, bandwidth_hz };
 }
 
 export interface FrequencyCounterState {
   enabled: boolean;
   gate_time_s: number;
+  /** Counted frequency of the selected marker in Hz; null while the counter is off or when the instrument reports no valid count (9.91e37). */
+  frequency_hz: number | null;
 }
 
 const FC = ":CALCulate:MARKer:FCOunt";
@@ -64,7 +69,9 @@ const FC = ":CALCulate:MARKer:FCOunt";
 async function readCounter(): Promise<FrequencyCounterState> {
   const enabled = await queryBool(`${FC}:STATe?`);
   const gate_time_s = await queryNumber(`${FC}:GATetime?`);
-  return { enabled, gate_time_s };
+  // The result query is only sent while the counter is on: with it off the instrument answers 9.91e37 (invalid).
+  const count = enabled ? await queryNumber(`${FC}:X?`) : null;
+  return { enabled, gate_time_s, frequency_hz: count === null || count >= 9.9e37 ? null : count };
 }
 
 export function registerMarkerFunctionTools(server: McpServer): void {
