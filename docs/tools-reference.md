@@ -16,13 +16,27 @@ Device: UNI-T,UTS3036B,<serial>,<firmware>
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `host` | string | No | `UTS_IP` env var | Hostname or IP address (letters, digits, `.`, `-`, `_`, `:` only) |
+| `host` | string | No | `UTS_IP` env var | Hostname or IP address (letters, digits, `.`, `-`, `_`, `:` only), or `auto` to find the analyzer with `discover_instruments` first: it connects if exactly one UNI-T analyzer answers on the local subnet(s), and otherwise returns an error that lists what was found (or says none was) and asks for an explicit `host`. The result says the host was auto-selected and shows the model and firmware (quoted) so you can check it; discovery is unauthenticated |
 | `port` | integer 1-65535 | No | `UTS_PORT` env var, then `5025` | TCP port of the raw transport. VXI-11 finds its own port through the portmapper (TCP port 111), so an explicit `port` together with `transport: "vxi11"` is an error; a `port` (or `UTS_PORT`) without any transport choice selects `raw` |
 | `transport` | `raw`, `vxi11` or `auto` | No | `UTS_TRANSPORT` env var, then `auto` (`raw` when only a port is given) | `raw`: raw SCPI over TCP. `vxi11`: VXI-11 core channel; fails if it cannot be opened. `auto`: VXI-11 if the portmapper on port 111 registers the VXI-11 core program and the link opens, otherwise raw (the reason for the fallback is logged to stderr and shown in the `Transport:` line) |
 
 The VXI-11 device name comes from `UTS_VXI11_DEVICE` (default `inst0`; 1 to 64 characters from letters, digits and `. _ , -`). An invalid `transport`, `UTS_TRANSPORT` or `UTS_VXI11_DEVICE` is an error that names the offending value or variable and sends nothing. Error and timeout messages name the transport when it is not raw, for example `Query timeout after 5000ms for command: :FOO? (over VXI-11)`. Over VXI-11 a blocking `*OPC?` read is used to wait for a sweep (see `single_sweep`), a query timeout is reported about 0.5 s after the requested one, and the link stays up. Large replies are not truncated over VXI-11 (see `scpi_query` and `screenshot`).
 
+`UTS_IP=auto` works the same way (also for the startup auto-connect, which logs the auto-selected host). An explicit `host` parameter always wins over `UTS_IP=auto` and never triggers discovery.
+
 If `UTS_IP` is set, the server also connects automatically at startup, using `UTS_TRANSPORT` and `UTS_VXI11_DEVICE`; a failed auto-connect is logged to stderr and does not stop the server.
+
+### `discover_instruments`
+
+Find UNI-T / VXI-11 analyzers on the local network without knowing their IP address. Read-only: it only identifies, it never changes instrument state. The server broadcasts an ONC RPC portmapper request (UDP port 111, `GETPORT` for the VXI-11 core program 395183, TCP) on each local IPv4 interface (the directed broadcast address of each subnet), collects the answers for a short window, then asks each responder `*IDN?` over VXI-11 (falling back to raw SCPI on TCP 5025) and checks whether port 5025 accepts a connection. The analyzer registers VXI-11 with its portmapper, which is why it answers. Works on Windows, macOS and Linux; no dependencies.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `timeout_ms` | integer 100-10000 | No | `1500` | How long to wait for replies |
+
+Returns JSON: `instruments` (each with `host`, `vxi11`, `vxi11Port`, `raw`, `analyzer`, `idn` with `manufacturer`, `model` and `firmware`, and a `note` when it could not be identified), `notes` (sockets that could not be opened, skipped hosts) and a `hint`. The serial number is deliberately not returned (use `identify` after connecting). `analyzer` is true for a UNI-T maker or a `UTS` model. Finding nothing is not an error.
+
+**Scope and trust.** Discovery never scans: it sends one request per local interface to that subnet's broadcast address (never a range of hosts or ports) and talks only to hosts that answered. It does not cross routers: an analyzer on another subnet is not found by broadcast (give its address to `connect`). The portmapper protocol is unauthenticated, so replies are accepted only from ordinary host addresses inside the subnet of the interface the request left from (not loopback, multicast, broadcast, network or the computer's own address) and only when they name an unprivileged port (1024-65535); the identification text is accepted only if it consists of plain identifier characters and is shown quoted. Anything on your LAN can still pretend to be an analyzer, so check the model and address that discovery or `host: "auto"` reports. The host this server is already connected to is listed but not probed again. Optional mDNS/DNS-SD (`_lxi._tcp`) is not implemented (the analyzer was not verified to advertise it). The tool does not use the shared instrument connection, so it neither waits for nor blocks other tools.
 
 ### `disconnect`
 
@@ -205,7 +219,7 @@ An MCP client may send several tool calls at once. The analyzer has one command 
 
 | Variable | Description |
 |----------|-------------|
-| `UTS_IP` | Analyzer hostname or IP; enables auto-connect and is the default for `connect` |
+| `UTS_IP` | Analyzer hostname or IP, or `auto` (find it on the local network); enables auto-connect and is the default for `connect` |
 | `UTS_PORT` | TCP port of the raw transport, default `5025` |
 | `UTS_TRANSPORT` | `auto` (default: VXI-11 if the instrument registers it with the portmapper, else raw), `raw` or `vxi11`; default for the `connect` tool's `transport` parameter. Setting `UTS_PORT` without `UTS_TRANSPORT` means `raw` |
 | `UTS_VXI11_DEVICE` | VXI-11 logical device name, default `inst0` |

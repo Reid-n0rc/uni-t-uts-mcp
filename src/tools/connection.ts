@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { connection } from "../connection.js";
 import { DEFAULT_PORT, isValidHost, portFromEnv } from "../target.js";
-import { AUTO_HOST, resolveAutoHost } from "../autoHost.js";
+import { AUTO_HOST, autoSelectedNote, resolveAutoHost } from "../autoHost.js";
 import { discoverInstruments } from "../discovery.js";
 import { TRANSPORT_CHOICES, resolveTransport, vxi11DeviceFromEnv } from "../transports/select.js";
 import { errorResult, textResult, defineTool } from "./util.js";
@@ -72,10 +72,12 @@ export function registerConnectionTools(server: McpServer): void {
     async ({ host, port, transport }) => {
       try {
         let targetHost = host || process.env.UTS_IP;
+        let autoNote = "";
         if (targetHost?.toLowerCase() === AUTO_HOST) {
           const found = await resolveAutoHost();
           if ("error" in found) return errorResult(found.error);
           targetHost = found.host;
+          autoNote = "\n" + autoSelectedNote(found.host, found.model, found.firmware);
         }
         if (!targetHost) {
           return errorResult(
@@ -101,7 +103,7 @@ export function registerConnectionTools(server: McpServer): void {
           log: (message) => console.error(message),
         });
         const where = connection.transportName === "vxi11" ? targetHost : `${targetHost}:${targetPort}`;
-        return textResult(`Connected to ${where}\nTransport: ${connection.transportLabel}\nDevice: ${idn}`);
+        return textResult(`Connected to ${where}\nTransport: ${connection.transportLabel}\nDevice: ${idn}${autoNote}`);
       } catch (err) {
         return errorResult(err);
       }

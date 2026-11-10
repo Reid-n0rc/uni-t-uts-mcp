@@ -14,7 +14,7 @@ const found = (...instruments: DiscoveredInstrument[]): (() => Promise<Discovery
 
 describe("resolveAutoHost", () => {
   it("returns the host when exactly one analyzer is found", async () => {
-    expect(await resolveAutoHost(found(inst("192.168.1.100")))).toEqual({ host: "192.168.1.100", model: "UTS3036B" });
+    expect(await resolveAutoHost(found(inst("192.168.1.100")))).toEqual({ host: "192.168.1.100", model: "UTS3036B", firmware: "V1" });
   });
   it("ignores responders that are not analyzers when counting", async () => {
     expect(await resolveAutoHost(found(inst("192.168.1.100"), inst("192.168.1.7", false)))).toMatchObject({ host: "192.168.1.100" });

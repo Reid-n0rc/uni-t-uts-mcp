@@ -39,6 +39,8 @@ export interface DiscoveryTarget {
   address: string;
   /** Local interface address to send from (so each interface gets its own broadcast). */
   bindAddress?: string;
+  /** Netmask of that interface: replies are accepted only from hosts inside this subnet (see `acceptResponder`). */
+  netmask?: string;
   /** UDP port of the portmapper (default 111; tests aim at a fake). */
   port?: number;
 }
@@ -110,10 +112,32 @@ export function broadcastTargets(interfaces: NodeJS.Dict<os.NetworkInterfaceInfo
       const key = `${info.address}>${broadcast}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      targets.push({ address: broadcast, bindAddress: info.address });
+      targets.push({ address: broadcast, bindAddress: info.address, netmask: info.netmask });
     }
   }
   return targets;
+}
+
+/**
+ * Trust rule for a reply source (the portmapper protocol is unauthenticated, so anything that can send a datagram
+ * could answer): with a netmask, only a plain host address inside the subnet of the interface the request left from
+ * (not the network or broadcast address, not this computer, never loopback or multicast); with an explicit unicast
+ * target and no netmask, only that very host. Anything unparsable is refused.
+ */
+export function acceptResponder(source: string, target: DiscoveryTarget): boolean {
+  const src = ipv4ToInt(source);
+  if (src === undefined) return false;
+  if (target.netmask === undefined || target.bindAddress === undefined) {
+    const t = ipv4ToInt(target.address);
+    return t !== undefined && t === src && (t & 0xff) !== 255;
+  }
+  const first = src >>> 24;
+  if (first === 127 || first >= 224 || first === 0) return false; // loopback, multicast/reserved, "this network"
+  const mask = ipv4ToInt(target.netmask);
+  const own = ipv4ToInt(target.bindAddress);
+  if (mask === undefined || own === undefined) return false;
+  if (((src & mask) >>> 0) !== ((own & mask) >>> 0)) return false;
+  return src !== own && ((src & ~mask) >>> 0) !== 0 && ((src | mask) >>> 0) !== 0xffffffff;
 }
 
 /** `manufacturer,model,serial,firmware` to its parts without the serial; undefined for anything else. */
@@ -122,6 +146,9 @@ export function parseIdn(reply: string): InstrumentIdentity | undefined {
   if (text.length === 0 || text.length > MAX_IDN_BYTES || !/^[\x20-\x7e]+$/.test(text)) return undefined;
   const parts = text.split(",").map((p) => p.trim());
   if (parts.length < 4 || !parts[0] || !parts[1]) return undefined;
+  // Untrusted text that reaches the assistant: only plain identifier characters in the fields we pass on.
+  const plain = /^[A-Za-z0-9 ._+\-\/()]+$/;
+  if (![parts[0], parts[1], parts[3]].every((f) => plain.test(f))) return undefined;
   return { manufacturer: parts[0].slice(0, 64), model: parts[1].slice(0, 64), firmware: parts[3].slice(0, 64) };
 }
 
@@ -143,7 +170,8 @@ function parseGetPortDatagram(msg: Buffer, xid: number): number | undefined {
     const r = parseReply(msg, { program: PMAP_PROGRAM, version: PMAP_VERSION, procedure: PMAPPROC_GETPORT });
     const port = r.u32();
     r.expectEnd();
-    return port >= 1 && port <= 65535 ? port : undefined;
+    // Below 1024 is a well-known service, never the analyzer's dynamic VXI-11 port: do not follow it.
+    return port >= 1024 && port <= 65535 ? port : undefined;
   } catch {
     return undefined;
   }
@@ -169,7 +197,7 @@ async function broadcastOnce(
     notes.push(`Broadcast on ${target.bindAddress ?? "the default interface"} failed: ${errText(err)}`);
   });
   socket.on("message", (msg, rinfo) => {
-    if (rinfo.family !== "IPv4" || !net.isIPv4(rinfo.address)) return;
+    if (rinfo.family !== "IPv4" || !acceptResponder(rinfo.address, target)) return;
     const port = parseGetPortDatagram(msg, xid);
     if (port !== undefined && !found.has(rinfo.address)) found.set(rinfo.address, port);
   });

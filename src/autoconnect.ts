@@ -1,6 +1,6 @@
 import type { ConnectOptions } from "./connection.js";
 import { isValidHost, portFromEnv } from "./target.js";
-import { AUTO_HOST, resolveAutoHost } from "./autoHost.js";
+import { AUTO_HOST, autoSelectedNote, resolveAutoHost } from "./autoHost.js";
 import type { DiscoveryResult } from "./discovery.js";
 import { resolveTransport, vxi11DeviceFromEnv } from "./transports/select.js";
 
@@ -35,6 +35,7 @@ export async function autoConnectFromEnv(
       const found = await resolveAutoHost(discover);
       if ("error" in found) throw new Error(found.error);
       host = found.host;
+      log(autoSelectedNote(found.host, found.model, found.firmware));
     }
     if (!isValidHost(host)) throw new Error("UTS_IP is not a valid hostname or IP address");
     const port = portFromEnv(env.UTS_PORT);
