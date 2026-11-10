@@ -54,7 +54,11 @@ const fake = vi.hoisted(() => {
       case ":FORMat?": return state.format;
       case ":INITiate:CONTinuous?": return state.continuous ? "1" : "0";
       case "*OPC?":
-        if (Date.now() < state.sweepEnd) throw new Error("Query timeout after 100ms for command: *OPC?");
+        if (Date.now() < state.sweepEnd) {
+          // A transport that queues input answers when the sweep ends; one that drops it never answers in time.
+          if (capabilities.dropsInputDuringSweep) throw new Error("Query timeout after 100ms for command: *OPC?");
+          await new Promise((resolve) => setTimeout(resolve, state.sweepEnd - Date.now()));
+        }
         return "1";
       case ":SYSTem:ERRor?": return state.errors.shift() ?? '0,"No error"';
     }
@@ -160,7 +164,7 @@ describe("get_trace_data: ASCII", () => {
     expect(out.summary.peak_frequency_hz).toBe(out.frequencies_hz[out.summary.peak_index]);
     expect(out.decimation).toEqual({ decimated: false });
     expect(out.warnings).toEqual([]);
-    // Already ASCII: the format is neither queried for a change nor set.
+    // Already ASCII: the format is only queried, never set.
     expect(fake.sentCommands).toEqual([]);
     expect(fake.queryBinary).not.toHaveBeenCalled();
   });
@@ -416,6 +420,7 @@ describe("get_trace_data: fresh", () => {
       "q :INITiate:CONTinuous?",
       "c :INITiate:CONTinuous OFF",
       "c :INITiate:IMMediate",
+      "q :FORMat?",
       "q :TRACe:DATA? TRACE1",
       "c :INITiate:CONTinuous ON",
     ]);
