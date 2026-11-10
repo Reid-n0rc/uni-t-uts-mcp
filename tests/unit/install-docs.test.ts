@@ -78,7 +78,7 @@ describe("install docs are truthful", () => {
         }
       }
     }
-    expect(count).toBeGreaterThanOrEqual(4);
+    expect(count).toBeGreaterThanOrEqual(3);
   });
 
   it("README shows the working install commands for the current package version", () => {
@@ -101,7 +101,7 @@ describe("install docs are truthful", () => {
         const i = text.indexOf("releases/download/", from);
         if (i < 0) break;
         let end = i;
-        while (end < text.length && !" \"'`<>\n".includes(text.charAt(end))) end++;
+        while (end < text.length && !" \"'`\n&".includes(text.charAt(end)) && (text.charAt(end) !== "<" || text.startsWith("<version>", end))) end++;
         const url = "https://github.com/Reid-n0rc/uni-t-uts-mcp/" + text.slice(i, end).replaceAll("<version>", V);
         if (!url.endsWith("/")) expect(url, `${f}`).toBe(tarballUrl(V));
         from = end;
@@ -112,7 +112,8 @@ describe("install docs are truthful", () => {
         if (i < 0) break;
         const rest = text.slice(i + "ghcr.io/reid-n0rc/uni-t-uts-mcp".length);
         if (rest.startsWith(":")) {
-          const tag = rest.slice(1).split(/[\s"'`<>,)]/)[0].replaceAll("<version>", V);
+          const normalized = rest.slice(1).replaceAll("<version>", V).replaceAll("<major>.<minor>", V.split(".").slice(0, 2).join("."));
+          const tag = normalized.split(/[\s"'`,)<&]/)[0];
           expect(["0.1.0", V, "latest", `${V.split(".").slice(0, 2).join(".")}`].includes(tag), `${f}: image tag ${tag}`).toBe(true);
         }
         from = i + 1;

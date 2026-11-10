@@ -11,6 +11,12 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+- `npm run client-config -- --host <address>` prints (never writes) the Claude Code command and the MCP JSON for your OS and paths.
+
+### Changed
+- README, site and docs now lead with install forms that work today (release tarball, `github:` spec, pinned Docker image, from a clone); `npx -y uni-t-uts-mcp` is labelled coming soon until the package is on npm. A test keeps the install commands in step with the package version.
+
 ## [0.1.0] - 2026-11-10
 
 First release. Every tool listed here was tested against a real UNI-T UTS3036B (firmware V1.04.0040, the
