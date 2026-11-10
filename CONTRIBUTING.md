@@ -6,7 +6,7 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Contrib
 
 ## Getting started
 
-Requires Node.js 20+.
+Requires Node.js 22+ (CI tests 22 and 24).
 
 ```sh
 git clone https://github.com/Reid-n0rc/uni-t-uts-mcp.git
