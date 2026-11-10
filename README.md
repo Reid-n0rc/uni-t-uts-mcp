@@ -16,7 +16,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for co
 | Acquisition | `get_acquisition`, `set_acquisition`, `start_sweep`, `single_sweep`, `wait_for_sweep_complete` |
 | Trace configuration | `get_trace`, `set_trace`, `restart_trace`, `set_trace_math` |
 
-Parameters and behavior: [docs/tools-reference.md](docs/tools-reference.md). Set `UTS_IP` (see [Install](#install); optionally also `UTS_PORT`, default 5025) to connect automatically at startup. The default transport is raw SCPI over TCP; `UTS_TRANSPORT=vxi11` (or `auto`, which uses VXI-11 when the analyzer offers it) selects VXI-11, with `UTS_VXI11_DEVICE` (default `inst0`) naming the device. VXI-11 queues commands during a sweep instead of dropping them and lets `single_sweep` wait with one blocking `*OPC?`; see the [programming guide](docs/programming-guide.md#vxi-11-transport).
+Parameters and behavior: [docs/tools-reference.md](docs/tools-reference.md). Set `UTS_IP` (see [Install](#install); optionally also `UTS_PORT`, default 5025) to connect automatically at startup. The default transport is raw SCPI over TCP; `UTS_TRANSPORT=vxi11` (or `auto`, which uses VXI-11 when the analyzer offers it) selects VXI-11, with `UTS_VXI11_DEVICE` (default `inst0`) naming the device. VXI-11 queues commands during a sweep instead of dropping them and lets `single_sweep` wait with one blocking `*OPC?`; see the [programming guide](docs/programming-guide.md#vxi-11-transport-srctransportsvxi11ts-srctransportsselectts).
 
 **Parallel tool calls are safe.** The instrument has a single command stream, so the server runs tool calls one at a time per instrument, first in first out: each tool's whole command sequence is atomic, results and errors are never mixed up between calls, and a long operation such as `single_sweep` makes other calls wait (they fail with `Instrument busy` after `UTS_BUSY_TIMEOUT_S` seconds, default 120). Details: [Concurrency](docs/tools-reference.md#concurrency-all-tools).
 
@@ -33,6 +33,7 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 - `src/tools/` – one file per tool group, registered in `src/server.ts`
 - `tests/` – unit and mocked integration tests, a fake SCPI server, a transport contract suite (`transportContract.ts`), and captured instrument fixtures
 - `scripts/client-config.mjs` – the `npm run client-config` printer; also the single place that holds the install specs and the `NPM_PUBLISHED` switch
+- `scripts/sync-wiki.mjs` – builds the wiki page set from the docs (see [Wiki](#wiki)); `docs/wiki/` holds the hand-written wiki pages
 - `docs/` – [tools-reference.md](docs/tools-reference.md), [verified-hardware.md](docs/verified-hardware.md), [programming-guide.md](docs/programming-guide.md), [references.md](docs/references.md)
 
 ## Install
@@ -122,6 +123,10 @@ Probe scripts take the host as an argument or from `UTS_IP`: `node scripts/probe
 ## Project site
 
 The project site is at https://reid-n0rc.github.io/uni-t-uts-mcp/ (source in `site/`). Its "Built for real hardware" section explains, benefit first, how the server copes with the analyzer's timing quirks. The site has an optional synthwave soundtrack, generated live in your browser with the Web Audio API (no audio files, no downloads, no external requests). It starts automatically where your browser allows it, otherwise on your first click, tap or key press (a small prompt says so); scrolling does not count, because browsers do not treat it as a user gesture. The Soundtrack button at the bottom left is the first thing in the tab order and mutes it; the choice is remembered in your browser and a muted visitor never gets autoplay. The tempo is about 128 BPM; to try another, add `?bpm=128` (or `#bpm=128`) to the address: values from 60 to 180 work, anything else is ignored, and it changes nothing but the tempo. The music pauses while the tab is hidden, and the hero spectrum reacts to it. The code is `site/soundtrack.cjs`, inlined into the page at build time. Its tool list is generated from the server's own tool definitions and `docs/tools-reference.md`, so it stays current. Preview it locally with `npm run site` and open `_site/index.html`; it is deployed by `.github/workflows/pages.yml` on every change to `main` that touches the site or the tools.
+
+## Wiki
+
+The [project wiki](https://github.com/Reid-n0rc/uni-t-uts-mcp/wiki) (getting started, every tool, instrument behavior, architecture, troubleshooting, roadmap) is generated from this repository and published automatically after every change to `main`, so do not edit it in the GitHub wiki editor. The Tools page comes from `docs/tools-reference.md`, Instrument Behavior from `docs/verified-hardware.md`, Home from `package.json` and the tool list, and Roadmap from the issue tracker; the other pages are hand-written in [docs/wiki/](docs/wiki/) and change through pull requests. `node scripts/sync-wiki.mjs --check` builds the pages and checks every link (CI runs it); `node scripts/sync-wiki.mjs --out <dir>` writes them to a directory. The project site is at https://reid-n0rc.github.io/uni-t-uts-mcp/.
 
 ## Documentation
 

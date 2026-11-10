@@ -12,6 +12,7 @@ The text of a release's section is also used as its GitHub release notes.
 ## [Unreleased]
 
 ### Added
+- The GitHub wiki is now generated from the repository (`scripts/sync-wiki.mjs`, `docs/wiki/`) and published automatically by `.github/workflows/wiki-sync.yml` after every change to `main`; CI checks that the pages build and every link resolves. The stale wiki content (install paths, concurrency, VXI-11, trace tools, limitations) was brought up to date.
 - `npm run client-config -- --host <address>` prints (never writes) the Claude Code command and the MCP JSON for your OS and paths.
 - VXI-11 as a selectable transport (`UTS_TRANSPORT=raw|vxi11|auto`, default `raw`; `UTS_VXI11_DEVICE`,
   default `inst0`; an optional `transport` parameter on `connect`). `auto` uses VXI-11 when the

@@ -1,0 +1,125 @@
+# Getting Started
+
+## Requirements
+
+- **Node.js 22 or newer** (CI tests Node 22 and 24 on Linux, macOS and Windows), or Docker.
+- A **UNI-T UTS series analyzer on your network**, reachable from the machine that runs the server. Raw SCPI is served on **TCP port 5025** (verified on the UTS3036B; other models are expected to behave the same but are untested).
+- An MCP client such as Claude Code or Claude Desktop.
+
+The server is pure Node (no native modules, no VISA).
+
+## Prepare the analyzer
+
+1. Connect the analyzer to your network and note its IP address (shown in the instrument's LAN/system settings).
+2. Check that port 5025 is reachable from your computer:
+   - macOS / Linux: `nc -z -w 2 192.168.1.100 5025`
+   - Windows (PowerShell): `Test-NetConnection 192.168.1.100 -Port 5025`
+3. Replace `192.168.1.100` in this page with your analyzer's address. Never commit real addresses or serial numbers to a repository.
+
+## Install
+
+Release v0.1.0 is out. Pick one of these; each registers the server under the name `uni-t-uts`. `UTS_IP` is optional: without it, tell the assistant "connect to the analyzer at 192.168.1.100" and it uses the `connect` tool.
+
+### Claude Code
+
+```sh
+# From the release tarball (recommended: no build step, no install scripts)
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz
+
+# From the git tag (npm clones the repository and builds it; needs git)
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y github:Reid-n0rc/uni-t-uts-mcp#v0.1.0
+
+# Docker (Linux image, amd64 and arm64)
+claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:0.1.0
+```
+
+On Windows, where `npx` is a `.cmd` file that clients cannot launch directly, put `cmd /c` in front of it:
+
+```sh
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz
+```
+
+### Claude Desktop, Cursor, VS Code and other clients
+
+Add an `mcpServers` entry to the client's MCP configuration (Claude Desktop: `claude_desktop_config.json`; Cursor: `~/.cursor/mcp.json`; some VS Code-style clients use a `servers` key instead of `mcpServers`).
+
+macOS / Linux:
+
+```json
+{ "mcpServers": { "uni-t-uts": { "command": "npx", "args": ["-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
+```
+
+Windows:
+
+```json
+{ "mcpServers": { "uni-t-uts": { "command": "cmd", "args": ["/c", "npx", "-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
+```
+
+Docker (any OS with Docker):
+
+```json
+{ "mcpServers": { "uni-t-uts": { "command": "docker", "args": ["run", "-i", "--rm", "-e", "UTS_IP=192.168.1.100", "ghcr.io/reid-n0rc/uni-t-uts-mcp:0.1.0"] } } }
+```
+
+The `github:` spec works in the same place as the tarball URL (replace the last argument).
+
+### From a clone (contributors)
+
+```sh
+git clone https://github.com/Reid-n0rc/uni-t-uts-mcp.git
+cd uni-t-uts-mcp
+npm ci && npm run build
+npm run client-config -- --host 192.168.1.100
+```
+
+`npm run client-config` only prints, it never writes a file: it shows the exact Claude Code command and the JSON block for your OS and the absolute path of your clone. Use `--from tarball`, `--from github` or `--from docker` to print the other forms.
+
+### From the npm registry (coming soon)
+
+The package has not been published to the npm registry yet, so `npx -y uni-t-uts-mcp` does not work today; use one of the forms above. Once it is published this will be the shortest form:
+
+```sh
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp
+```
+
+## Environment variables
+
+The server connects automatically at startup when `UTS_IP` is set (a failed auto-connect is only logged; you can still call the `connect` tool).
+
+| Variable | Description |
+|----------|-------------|
+| `UTS_IP` | Analyzer hostname or IP. Enables auto-connect and is the default host for the `connect` tool |
+| `UTS_PORT` | TCP port of the raw transport, default `5025` |
+| `UTS_TRANSPORT` | `raw` (default), `vxi11` or `auto` (VXI-11 if the analyzer offers it, otherwise raw). Default for the `connect` tool's `transport` parameter |
+| `UTS_VXI11_DEVICE` | VXI-11 logical device name, default `inst0` |
+| `UTS_BUSY_TIMEOUT_S` | How many seconds a tool call waits for another call to finish before failing with `Instrument busy`, default `120` |
+
+To set the address in a shell instead of the client configuration: `export UTS_IP=192.168.1.100` (bash, zsh), `$env:UTS_IP = "192.168.1.100"` (PowerShell) or `set UTS_IP=192.168.1.100` (cmd).
+
+### Raw TCP or VXI-11
+
+The default transport is raw SCPI over TCP port 5025. VXI-11 (`UTS_TRANSPORT=vxi11`, or `auto`) is also available; it uses TCP port 111 (the portmapper) and a port the portmapper reports, which changes between instrument restarts, so a host firewall must allow outbound connections to the analyzer. Over VXI-11 the analyzer queues commands sent during a sweep instead of dropping them, and `single_sweep` waits with one blocking `*OPC?`. VXI-11 has so far been verified against a fake instrument and prototype measurements, and the default stays raw until it has been verified on the hardware ([issue #75](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/75)). Details: [Architecture](Architecture) and the [programming guide](https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/docs/programming-guide.md#vxi-11-transport-srctransportsvxi11ts-srctransportsselectts).
+
+## First steps
+
+Ask your assistant to:
+
+1. **Identify** the analyzer (`identify`). You should get a line like `UNI-TREND,UTS3036B,<serial>,V1.04.0040`.
+2. **Read the current settings** (`get_frequency`, `get_amplitude`, `get_bandwidth`, `get_sweep`, `get_acquisition`, `get_trace`).
+3. **Change something small** (for example `set_frequency` with a new center and span) and check the returned state and any `warnings`.
+
+To try the tools without an AI client, use the MCP Inspector from a clone of the repository:
+
+```sh
+UTS_IP=192.168.1.100 npm run inspector      # macOS / Linux
+$env:UTS_IP = "192.168.1.100"; npm run inspector   # Windows PowerShell
+```
+
+If something does not work, see [Troubleshooting](Troubleshooting).
+
+## Good to know before you start
+
+- The analyzer **ignores every command while a single sweep is running** on the raw socket, so long manual sweep times make other tools time out. The server copes with this for its own sweeps. See [Instrument Behavior](Instrument-Behavior).
+- **Parallel tool calls are safe.** The server runs tool calls one at a time per instrument, in the order they arrive, so results and errors are never mixed up. A long operation such as `single_sweep` makes other calls wait, and a call that waits longer than `UTS_BUSY_TIMEOUT_S` seconds fails with `Instrument busy` without having sent anything.
+- Some commands are blocked unless explicitly confirmed (reset, network settings, panel lock, file writes). See [Safety and Security](Safety-and-Security).
+- Trace data fetch, markers, measurements and screenshots are not available yet; see the [Roadmap](Roadmap).
