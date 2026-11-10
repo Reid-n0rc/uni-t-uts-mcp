@@ -1,3 +1,4 @@
+import { SessionLock, busyTimeoutFromEnv, type RunOptions } from "./sessionLock.js";
 import { RawTransport } from "./transports/raw.js";
 import {
   TransportTimeout,
@@ -13,6 +14,11 @@ import {
  * written in the middle of a pending query, query timeouts (unsupported queries get no reply at
  * all), the hold-off after a timed-out query, `*OPC?` command pacing (when the transport's
  * `syncsCommands` capability asks for it) and the user facing error messages.
+ *
+ * Individual commands and queries are serialized by the queue, but a tool's whole sequence
+ * (`*CLS`, setters, error drain, readback...) must also not interleave with another tool's, so
+ * tools run inside `runExclusive()`: a FIFO exclusive-session lock per connection, independent of
+ * the transport (see src/sessionLock.ts and `defineTool` in src/tools/util.ts).
  */
 
 export const DEFAULT_PORT = 5025;
@@ -87,6 +93,8 @@ export class UtsConnection {
   private holdTimer: ReturnType<typeof setTimeout> | null = null;
   /** Why the link went away unexpectedly (null after connect() or an explicit disconnect()). */
   private lostReason: string | null = null;
+  /** The exclusive-session lock; its wait limit follows UTS_BUSY_TIMEOUT_S (default 120 s). */
+  private readonly lock = new SessionLock(() => this.busyTimeoutMs);
 
   /** `createTransport` makes the transport used by each `connect()` (raw SCPI over TCP by default). */
   constructor(private readonly createTransport: TransportFactory = () => new RawTransport()) {}
@@ -132,6 +140,22 @@ export class UtsConnection {
         `Connected but failed to initialize: ${err instanceof Error ? err.message : String(err)}`
       );
     }
+  }
+
+  /** How long a tool call waits for another one before failing with "instrument busy" (ms). */
+  get busyTimeoutMs(): number {
+    return busyTimeoutFromEnv();
+  }
+
+  /**
+   * Run `fn` as an exclusive session: no other session runs until it finishes, whether it
+   * succeeds, throws, times out or the connection goes away. Sessions start in FIFO order. Calls
+   * made from inside `fn` (helpers) join the running session instead of waiting for it. A caller
+   * kept waiting longer than `busyTimeoutMs` gets an `InstrumentBusyError`; closing or losing the
+   * connection rejects every waiter.
+   */
+  runExclusive<T>(fn: () => Promise<T> | T, options?: RunOptions): Promise<T> {
+    return this.lock.run(fn, options);
   }
 
   disconnect(): void {
@@ -315,6 +339,7 @@ export class UtsConnection {
     const transport = this.transport;
     this.transport = null;
     transport?.close();
+    this.lock.rejectWaiters(new Error(message));
     job?.reject(new Error(activeMessage ?? message));
     for (const j of pending) j.reject(new Error(message));
   }

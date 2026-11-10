@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { applyCommands, queryBool, queryNumber, queryParsed, readBack } from "../instrument.js";
 import { formatNumber, onOff } from "../scpi.js";
-import { errorResult, setterFailure, textResult } from "./util.js";
+import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 
 // Commands: docs/programming-guide.md section 3 (trace) and ambiguities 8 and 9. Behavior verified on the
 // UTS3036B (docs/verified-hardware.md): the per-trace queries :TRACe<n>:TYPE?, :UPDate:STATe? and
@@ -76,7 +76,8 @@ const SET_SHAPE = {
 };
 
 export function registerTraceTools(server: McpServer): void {
-  server.tool(
+  defineTool(
+    server,
     "get_trace",
     "Get the trace configuration: the selected (current) trace, and for each trace 1-6 (or only `trace`) its type (write, average, max_hold, " +
       "min_hold), update state (true = live, false = view/hold) and display state, plus the global average count and average type. " +
@@ -92,7 +93,8 @@ export function registerTraceTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "set_trace",
     "Set trace configuration: select the current trace, and for one trace set its type (write, average, max_hold, min_hold), update state " +
       "(live or view/hold) and display state, and set the global average count (1-999) and average type. Everything is re-read afterwards and anything " +
@@ -102,8 +104,6 @@ export function registerTraceTools(server: McpServer): void {
     { readOnlyHint: false, idempotentHint: true },
     async (args) => {
       try {
-        const problem = validate(args);
-        if (problem) return errorResult(problem);
         const { selected_trace, trace, type, update, display, average_count, average_type } = args;
 
         const commands: string[] = [];
@@ -139,10 +139,12 @@ export function registerTraceTools(server: McpServer): void {
       } catch (err) {
         return setterFailure(err, "get_trace");
       }
-    }
+    },
+    { validate }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "restart_trace",
     "Restart max hold, min hold or averaging by re-sending the trace's current type (:TRACe<n>:TYPE <current type>). Verified on the instrument: this clears " +
       "the accumulated hold/average and starts over, and so do changing the type or the update state; :INITiate:RESTart and :INITiate:IMMediate do NOT. " +
@@ -175,7 +177,8 @@ export function registerTraceTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "set_trace_math",
     "Set trace math for a trace (:CALCulate:MATH): result trace <- operand_a (op) operand_b. Operations: off, power_difference, power_sum, " +
       "log_difference, log_offset; offset_db (-100..100) applies only to the two log operations. The instrument has no query for the math " +

@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { applyCommands, queryBool, queryNumber, queryParsed, readBack } from "../instrument.js";
 import { formatNumber, onOff } from "../scpi.js";
-import { errorResult, setterFailure, textResult } from "./util.js";
+import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 
 // Commands: docs/programming-guide.md section 2 (bandwidth, sweep, detector; ambiguities 11, 17).
 // Verified on the UTS3036B (docs/verified-hardware.md): every setter clamps silently (and RBW/VBW snap
@@ -106,7 +106,8 @@ async function readDetector(trace: number) {
 const TRACE = z.number().int().min(1).max(6);
 
 export function registerBandwidthSweepTools(server: McpServer): void {
-  server.tool(
+  defineTool(
+    server,
     "get_bandwidth",
     "Get resolution and video bandwidth (Hz) with their auto flags, the VBW/RBW ratio and the filter shape (gaussian or flattop).",
     {},
@@ -120,7 +121,8 @@ export function registerBandwidthSweepTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "set_bandwidth",
     "Set RBW, VBW, the VBW/RBW ratio and the filter shape. Manual values turn the matching auto flag off. The instrument snaps/clamps " +
       "values and couples RBW, VBW and sweep time to the span and auto flags, so everything is re-read afterwards and any change is reported in 'warnings'.",
@@ -175,7 +177,8 @@ export function registerBandwidthSweepTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "get_sweep",
     "Get sweep settings: sweep time (s) with auto flag and auto rule, sweep type (sweep/fft) with auto flag, sweep points (the trace length), " +
       "trigger source (immediate/video) and video trigger level (dBm).",
@@ -190,7 +193,8 @@ export function registerBandwidthSweepTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "set_sweep",
     "Set sweep points, sweep time, sweep type, trigger source and video trigger level. Points, type and rule are applied before the sweep time so a manual " +
       "time is not overridden by the auto coupling. Changing sweep_points changes the trace length. Out-of-range values are clamped silently by the " +
@@ -249,7 +253,8 @@ export function registerBandwidthSweepTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "get_detector",
     "Get the detector (sample, positive, negative, normal, average) and its auto flag for one trace (1-6) or all six, via :SENSe:DETector:TRACe<n>.",
     { trace: TRACE.optional().describe("Trace number 1-6; all traces when omitted") },
@@ -265,7 +270,8 @@ export function registerBandwidthSweepTools(server: McpServer): void {
     }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "set_detector",
     "Set the detector of one trace (1-6): sample, positive, negative, normal or average (turns that trace's automatic detector off), or switch automatic selection on/off.",
     {
