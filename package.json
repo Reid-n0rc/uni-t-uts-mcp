@@ -51,6 +51,7 @@
     "typecheck": "tsc -p tsconfig.test.json",
     "client-config": "node scripts/client-config.mjs",
     "site": "npm run build && node scripts/build-site.mjs",
+    "og-image": "npm run build && node scripts/build-og-image.mjs",
     "build:mcpb": "node scripts/build-mcpb.mjs",
     "test": "vitest run",
     "test:mcpb": "vitest run tests/unit/mcpb-bundle.test.ts",

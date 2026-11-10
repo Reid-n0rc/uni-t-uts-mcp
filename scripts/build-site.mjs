@@ -22,6 +22,7 @@ export function buildSite({ root = resolve(here, ".."), outDir = join(root, "_si
   // Any extra assets next to the template are copied as they are.
   for (const entry of readdirSync(siteDir)) {
     if (entry === "index.html" || entry === "soundtrack.cjs") continue; // the soundtrack is inlined, not shipped
+    if (entry === "og" || entry === "social-preview.png") continue; // render source and the GitHub-settings upload are not part of the site
     cpSync(join(siteDir, entry), join(outDir, entry), { recursive: true });
   }
   writeFileSync(join(outDir, "index.html"), renderSite(template, groups, descriptions));
