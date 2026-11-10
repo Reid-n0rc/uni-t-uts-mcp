@@ -4,6 +4,8 @@ export interface FakeScpi {
   port: number;
   /** Every line (LF-terminated, LF stripped) received from any client, in order. */
   received: string[];
+  /** Arrival time (ms since epoch) of each entry in `received`. */
+  receivedAt: number[];
   /** Currently open server-side sockets. */
   sockets: Set<net.Socket>;
   close(): Promise<void>;
@@ -18,6 +20,7 @@ export async function startFakeScpi(
   handler: (line: string, socket: net.Socket) => void
 ): Promise<FakeScpi> {
   const received: string[] = [];
+  const receivedAt: number[] = [];
   const sockets = new Set<net.Socket>();
 
   const server = net.createServer((socket) => {
@@ -30,6 +33,7 @@ export async function startFakeScpi(
         const line = buffer.slice(0, index);
         buffer = buffer.slice(index + 1);
         received.push(line);
+        receivedAt.push(Date.now());
         handler(line, socket);
       }
     });
@@ -43,6 +47,7 @@ export async function startFakeScpi(
   return {
     port,
     received,
+    receivedAt,
     sockets,
     close: () =>
       new Promise<void>((resolve) => {
@@ -54,12 +59,18 @@ export async function startFakeScpi(
 
 export const IDN = "UNI-TREND,UTS0000X,<serial>,V0.0.0";
 
-/** Handler answering *IDN? and nothing else; extend per test. */
+/**
+ * Handler answering *IDN? and (by default) *OPC?; `extra` handles everything else.
+ * Pass `{ opc: false }` when a test wants to control the *OPC? reply itself.
+ */
 export function idnHandler(
-  extra?: (line: string, socket: net.Socket) => void
+  extra?: (line: string, socket: net.Socket) => void,
+  options: { opc?: boolean } = {}
 ): (line: string, socket: net.Socket) => void {
+  const answerOpc = options.opc ?? true;
   return (line, socket) => {
-    if (line === "*IDN?") socket.write(IDN + "\n");
+    if (line === "*IDN?") socket.write(IDN + "\r\n");
+    else if (line === "*OPC?" && answerOpc) socket.write("1\r\n");
     else extra?.(line, socket);
   };
 }
