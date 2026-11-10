@@ -119,7 +119,8 @@ const fake = vi.hoisted(() => {
     }
     state.errors.push('-113,"Undefined header"');
   });
-  return { state, reset, calls, queries, query, sendCommand };
+  const impls = { query: query.getMockImplementation()!, sendCommand: sendCommand.getMockImplementation()! };
+  return { state, reset, calls, queries, query, sendCommand, impls };
 });
 
 vi.mock("../../src/connection.js", () => ({
@@ -136,8 +137,10 @@ beforeAll(async () => {
 });
 afterAll(async () => { await cleanup(); });
 beforeEach(async () => {
-  fake.state.mode = "sa";
-  // Leave any saved state of an earlier test behind (exit is a no-op in SA mode when nothing is saved).
+  // Tests replace the mock implementations; put the fake instrument back. Leave any saved state of an
+  // earlier test behind (exit_measurement forgets it in spectrum analyzer mode).
+  fake.query.mockImplementation(fake.impls.query);
+  fake.sendCommand.mockImplementation(fake.impls.sendCommand);
   fake.reset();
   vi.clearAllMocks();
   await callTool(client, "exit_measurement", { restore_settings: false });
@@ -314,7 +317,7 @@ describe("exit_measurement", () => {
     expect(fake.calls).toEqual([]);
   });
   it("sends :CONFigure:SANalyzer and restores the frequency/bandwidth/sweep settings saved when the measurement was entered", async () => {
-    fake.state.rbwAuto = false; fake.state.rbw = 1e5; fake.state.continuous = false;
+    fake.state.rbwAuto = false; fake.state.rbw = 1e5; fake.state.vbw = 1e5; fake.state.continuous = false;
     await callTool(client, "configure_measurement", { measurement: "channel_power" });
     expect(fake.state.span).toBe(3e6);
     fake.calls.length = 0;
@@ -358,7 +361,7 @@ describe("exit_measurement", () => {
 
 describe("measure (one shot: configure, read, always restore)", () => {
   it("measures channel power and leaves the instrument as it was", async () => {
-    fake.state.center = 433e6; fake.state.span = 10e6; fake.state.rbwAuto = false; fake.state.rbw = 3e4; fake.state.sweepAuto = true; fake.state.sweepTime = 0.1;
+    fake.state.center = 433e6; fake.state.span = 10e6; fake.state.rbwAuto = false; fake.state.rbw = 3e4; fake.state.vbw = 3e4; fake.state.sweepAuto = true; fake.state.sweepTime = 6.2e-2;
     const before = JSON.stringify(fake.state);
     const res = await callTool(client, "measure", { measurement: "channel_power", integration_bandwidth_hz: 1e6 });
     expect(res.isError).toBeFalsy();
@@ -373,7 +376,8 @@ describe("measure (one shot: configure, read, always restore)", () => {
     expect(fake.state.rbw).toBe(3e4);
     expect(fake.state.rbwAuto).toBe(false);
     expect(fake.state.sweepAuto).toBe(true);
-    expect(JSON.stringify({ ...fake.state, errors: [] })).toBe(JSON.stringify({ ...JSON.parse(before), errors: [] }));
+    // Everything but the measurement's own parameter (the one that was set) is back as it was.
+    expect(JSON.stringify({ ...fake.state, errors: [], chBw: 0 })).toBe(JSON.stringify({ ...JSON.parse(before), errors: [], chBw: 0 }));
   });
   it("restores even when the read fails, and reports the read failure", async () => {
     fake.state.failRead = true;

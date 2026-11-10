@@ -181,6 +181,28 @@ export const CONTRACT: Record<string, ContractEntry> = {
   },
   markers_all_off: { kind: "setter", args: {} },
   get_peak_criteria: { kind: "getter", args: {} },
+  get_measurement: { kind: "getter", args: {} },
+  configure_measurement: {
+    kind: "setter",
+    args: { measurement: "channel_power", integration_bandwidth_hz: 1e6 },
+    invalid: [{}, { measurement: "nope" }, { measurement: "obw", integration_bandwidth_hz: 1e6 }, { measurement: "channel_power", average_count: 0 }, { measurement: "obw", xdb: 5 }],
+    warn: [{ measurement: "channel_power", integration_bandwidth_hz: 5e6 }, { measurement: "channel_power", average: false }],
+  },
+  read_measurement: {
+    kind: "getter",
+    args: { measurement: "channel_power" },
+    invalid: [{}, { measurement: "nope" }, { measurement: "obw", timeout_s: 0 }],
+  },
+  exit_measurement: {
+    kind: "setter",
+    args: {},
+    skip: { writeFailure: "in spectrum analyzer mode (the canned replies) it sends nothing, so there is no command to fail", instrumentError: "in spectrum analyzer mode (the canned replies) it sends nothing, so no error can be queued" },
+  },
+  measure: {
+    kind: "setter",
+    args: { measurement: "channel_power" },
+    invalid: [{}, { measurement: "obw", percent: 3 }, { measurement: "channel_power", timeout_s: 0 }, { measurement: "time_power", xdb: -5 }],
+  },
   set_peak_criteria: {
     kind: "setter",
     args: { threshold_dbm: -50 },
@@ -207,6 +229,9 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/DETector:TRACe\d\?$/, "NORMal"],
   [/^:TRACe\d:TYPE\?$/, "WRITe"],
   [/^:SYSTem:PICture:FORMat\?$/, "BMP"],
+  [/^:(READ|FETCh):CHPower\?$/, "-7.366048e+01,-1.366708e+02"],
+  [/^:(READ|FETCh):TPOWer\?$/, "-9.206767e+01"],
+  [/AVERage:TCONtrol\?$/, "EXPonential"],
   [/^:TRACe:SELect\?$/, "1"],
   [/AVERage:TYPE\?$/, "LOG"],
   [/(:AUTO|:STATe|:CONTinuous)\?$/, "1"],
