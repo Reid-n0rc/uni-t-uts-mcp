@@ -1,0 +1,301 @@
+# UTS3000B SCPI programming guide
+
+Basis: *UTS3000B Spectrum Analyzer Programming Manual* (file no. 2023.02.14, sw 00.00.01, 184 pp), cited below as **[3K p.N]**. Where the 3000B manual is silent, the newer *UTS1000B/T series Programming Manual* (2024.09.14, V1.03.0009, 427 pp; its cover lists UTS3000B/T as applicable models), cited as **[1K p.N]**, is used and marked **(1K only)**. Nothing here has been run against hardware unless stated in [verified-hardware.md](verified-hardware.md). "Hardware status" for each group is `unverified` until tracked otherwise.
+
+Page numbers are the PDF footer numbers ("N / 184", "N / 427"). Commands are written as in the manual (uppercase = required abbreviation, lowercase = optional long form, `[ ]` = optional node). Real values come back in scientific notation (e.g. `1.000000e+09`); on/off values come back `0`/`1`.
+
+## 1. Connection and conventions
+
+| Topic | Manual says | Ref |
+|---|---|---|
+| Interfaces | USB (USBTMC) and LAN, accessed through NI-VISA | 3K p.160-175 |
+| LAN resource string | `TCPIP0::<ip>::inst0::INSTR` (VISA/VXI-11 style) | 3K p.168, p.171 |
+| Raw TCP port | **Not stated anywhere** in either manual. (Project hardware test: raw SCPI on 5025 works, see verified-hardware.md.) | n/a |
+| Terminator | Command string must end with newline `<NL>`; responses end with `\n` | 3K p.3, p.4 |
+| Case | Case-insensitive; abbreviation = the uppercase letters | 3K p.4 |
+| Command form | Leading `:` optional in examples; `:SENSe` node may be omitted (`:FREQuency:CENTer 1GHz`); `?` suffix = query | 3K p.3, p.59-70 examples |
+| Units in args | Suffixes like `Hz`, `kHz`, `MHz`, `GHz`, `dB` used in examples (`1GHz`, `10MHz`); bare numbers use the default unit (Hz, s, dBm, dB) | 3K p.14, p.59 |
+| Booleans | `{1\|ON}` / `{0\|OFF}`; query returns `0`/`1` | 3K p.3 |
+| Integer params | Must not be decimals or exponent form | 3K p.4 |
+| Strings | Quoted, single or double (`"..."`) | 3K p.4 |
+| Single-value return | Real = scientific notation; others per type | 3K p.4 |
+| Block return | `#` + one digit N (number of length digits) + N-digit byte count + data + `\n`; example `#3123...` = 123 bytes | 3K p.4 |
+| Block return (newer manual) | `#9` + 9-digit byte count + data + `\n`, e.g. `#9000001000` (1000 bytes) **(1K only)** | 1K p.5 |
+| Invalid data | ASCII fields `*`; reals return the max representable value **(1K only)** | 1K p.5 |
+| Models in 3K manual | UTS1015B (1.5 GHz), UTS3036B (3.6 GHz), UTS3084B (8.4 GHz) | 3K p.59 |
+
+### IEEE 488.2 common commands
+
+| Command | Syntax | Notes | Ref |
+|---|---|---|---|
+| Identify | `*IDN?` | Manufacturer, model, serial, software version. Text says version is "separated by dot", but example uses commas. Model matches nameplate. | 3K p.5 |
+| Reset | `*RST` | Factory defaults; clears errors and send/receive queues. | 3K p.5 |
+| Operation complete | `*OPC` / `*OPC?` | `*OPC` sets standard-event bit when current operation finishes. `*OPC?` returns `1` when finished else `0` (manual text wrongly says 1 = unfinished). | 3K p.5 |
+| Clear status | `*CLS` | **(1K only)** Clears event and status byte registers. | 1K p.6 |
+| Event status enable | `*ESE <int>` / `*ESE?` | **(1K only)** | 1K p.6 |
+| Event status register | `*ESR?` | **(1K only)** Integer, read-only. | 1K p.6 |
+| Service request enable | `*SRE <int>` / `*SRE?` | **(1K only)** | 1K p.8 |
+| Status byte | `*STB?` | **(1K only)** | 1K p.9 |
+| Trigger | `*TRG` | **(1K only)** "Initiate an immediate scan". | 1K p.9 |
+| Save/recall state | `*SAV <1-16>` / `*RCL <1-16>` | **(1K only)** Equivalent to `:MMEMory:STORe\|LOAD:STATe "STATE_n.state"`. | 1K p.7-8 |
+| Error queue | `:SYSTem:ERRor?` | **Not documented in either manual.** | n/a |
+| `:STATus` subsystem | none | **Not documented in either manual.** | n/a |
+| `*WAI`, `*TST?` | none | Not documented. | n/a |
+
+### Instrument / system (3K p.6-12)
+
+| Command | Syntax | Notes |
+|---|---|---|
+| Select module | `:INSTrument[:SELect] {SA\|EMI\|AD}`; query returns `SA`/`EMI`/`AD` | SA = spectrum sweep; AD = analog demod. Everything in sections 2-6 below is the SA module. p.6 |
+| Module default | `:INSTrument:DEFault` | Restores current module p.6 |
+| Factory defaults | `:SYSTem:DEFault` | p.7 |
+| Keyboard/touch lock | `:SYSTem:LOCK {{1\|ON}\|{0\|OFF}}` / `?` | p.6 |
+| Power-on state | `:SYSTem:PON:TYPE {MODE\|LAST\|USER}` | p.9 |
+| Image format | `:SYSTem:PICture:FORMat {BMP\|PNG}` | p.10 |
+| LAN config | `:SYSTem:COMMunicate:LAN:IPV4:{ADAPter\|DHCP} {1\|0\|ON\|OFF}`, `...:IPV4:CONFIG "<ip>"`, `...:IPV4:MASK "<mask>"`, `...:IPV4:GATEway "<gw>"` (all with `?`) | p.10-11. Do not expose setters in MCP (can sever the link). |
+| Other | `:SYSTem:DISPlay:LANGuage`, `:SYSTem:DISPlay:CFORmat`, `:SYSTem:DISPlay:BACKlight:INTensity`, `:SYSTem:VOLume`, `:SYSTem:OUTPut:HDMI`, `:SYSTem:CONFigure <file>` (binary config read/write) | p.7-9 |
+| Front-panel keys | `:KEY:<key>`, `:KEY:<key>:LOCK`, `:KEY:<key>:LED?`, `:KEY:LOCK?` (38-char 0/1 string), `:KEY:LED?` (3-char: TG, Single, TLOCk) | p.12; key names in Appendix 1 p.178 |
+
+## 2. Frequency, amplitude, bandwidth, sweep (3K p.37-39, p.59-69, p.91-94)
+
+All are SA-module commands. Query form is the same string with `?`. Max frequency F_max: UTS3036B 3.6 GHz, UTS3084B 8.4 GHz (UTS3021B 2.1 GHz per 1K Appendix 3, p.427).
+
+### Frequency (p.59-63)
+
+| Function | Command | Parameter / range | Default unit |
+|---|---|---|---|
+| Start | `[:SENSe]:FREQuency:STARt <freq>` | 0 Hz to F_max - 100 Hz | Hz |
+| Stop | `[:SENSe]:FREQuency:STOP <freq>` | 100 Hz to F_max | Hz |
+| Center | `[:SENSe]:FREQuency:CENTer <freq>` | 50 Hz to F_max - 50 Hz | Hz |
+| Span | `[:SENSe]:FREQuency:SPAN <freq>` | 100 Hz to F_max | Hz |
+| Full span | `[:SENSe]:FREQuency:SPAN:FULL` | no query | |
+| Zero span | `[:SENSe]:FREQuency:SPAN:ZERO` | no query | |
+| Previous span | `[:SENSe]:FREQuency:SPAN:PREVious` | no query | |
+| Zoom | `[:SENSe]:FREQuency:ZOOM:IN` / `:ZOOM:OUT` | descriptions contradictory, see section 9 | |
+| Auto tune | `[:SENSe]:FREQuency:TUNE:IMMediate` | | |
+| Freq offset | `[:SENSe]:FREQuency:OFFSet <freq>` | range unspecified | Hz |
+| Center step | `[:SENSe]:FREQuency:CENTer:STEP[:INCRement] <freq>`, `...:STEP:AUTO {1\|0}` | | Hz |
+| Input impedance | `:INPut:IMPedance {50\|75}` (alias `[:SENSe]:CORRection:IMPedance[:INPut][:MAGNitude]`) | ohms | p.64 |
+
+### Amplitude (p.37-39, p.63-64, p.94)
+
+| Function | Command | Parameter / range |
+|---|---|---|
+| Reference level | `:DISPlay:WINDow:TRACe:Y[:SCALe]:RLEVel <real>` | dBm default; range not given (p.37) |
+| Ref level offset | `...:RLEVel:OFFSet <real>` | dB (p.38) |
+| Scale per division | `:DISPlay:WINDow:TRACe:Y[:SCALe]:PDIVision <real>` | 0.1 to 20 dB (p.37) |
+| Y scale type | `:DISPlay:WINDow:TRACe:Y[:SCALe]:SPACing {LOGarithmic\|LINear}` | p.39 |
+| Display line | `:DISPlay:WINDow:TRACe:Y:DLINe <ampl>`, `...:DLINe:STATe {1\|0}` | dBm (p.38) |
+| Units | `:UNIT:POWer {DBM\|DBMV\|DBUV\|V\|W}` | p.94 |
+| Attenuation | `[:SENSe]:POWer[:RF]:ATTenuation <ampl>` | integer dB, 0 to 51 (p.63) |
+| Attenuation auto | `[:SENSe]:POWer[:RF]:ATTenuation:AUTO {1\|0}` | p.63 |
+| Preamp | `[:SENSe]:POWer[:RF]:GAIN:STATe {1\|0}` | p.64 |
+| Preamp band | `[:SENSe]:POWer[:RF]:GAIN:BAND {LOW\|FULL}` | **(1K only)** 1K p.114 |
+| Ext. offset corrections | `[:SENSe]:CORRection:SELect <1-10>`, `:CORRection:CSET<n>[:STATe]`, `:CORRection:CSET<n>:DATA <freq,ampl,...>` (Hz, dB), `:CSET<n>:DELete`, `:CSET:ALL[:STATe]` (turns all off), `:CSET:ALL:DELete` | p.70-71 |
+
+### Bandwidth (p.64-66)
+
+| Function | Command | Parameter / range |
+|---|---|---|
+| RBW | `[:SENSe]:BANDwidth\|BWIDth[:RESolution] <freq>` | Hz; 1 Hz to max RBW (UTS3036B 3 MHz; UTS1015B 1 MHz), 1-3-10 steps |
+| RBW auto | `...[:RESolution]:AUTO {1\|0}` | |
+| VBW | `[:SENSe]:BANDwidth\|BWIDth:VIDeo <freq>` | Hz; 1 Hz to max VBW (same max as RBW), 1-3-10 |
+| VBW auto | `...:VIDeo:AUTO {1\|0}` | |
+| VBW/RBW ratio | `...:VIDeo:RATio <ratio>` | UTS3036B 3e-7 to 3e6 |
+| Filter shape | `...:SHAPe {GAUSsian\|FLATtop}` | |
+
+### Sweep (p.66-69, p.39, p.91-92)
+
+| Function | Command | Parameter / range |
+|---|---|---|
+| Sweep time | `[:SENSe]:SWEep:TIME <time>` | seconds; zero span 1 us to 4 ks, non-zero 1 ms to 4 ks |
+| Sweep time auto | `[:SENSe]:SWEep:TIME:AUTO {1\|0}`; rule `...:AUTO:RULes {NORMal\|ACCuracy}` | |
+| Sweep type | `[:SENSe]:SWEep:TYPE {SWEep\|FFT}`, `...:TYPE:AUTO {1\|0}` | |
+| Points | `[:SENSe]:SWEep:POINts <int>` | 11 to 40001 (UTS3036B; UTS1015B 10001) |
+| Single/continuous | `:INITiate:CONTinuous {1\|ON\|0\|OFF}` / `?` | 1 = continuous, 0 = single (manual text mislabels both as 1|ON on p.39; 1K p.69 confirms 0 = single). |
+| Start/restart/stop/pause/resume sweep | `:INITiate:IMMediate`, `:INITiate:RESTart`, `:INITiate:STOP`, `:INITiate:PAUSe`, `:INITiate:RESume` | **Documented only in the EMI module section (3K p.114-115)**, not in the SA section. Also `*TRG` (1K). Verify on SA. |
+| Trigger source | `:TRIGger[:SEQuence]:SOURce {IMMediate\|EXTernal\|VIDeo}` | p.91 |
+| Ext trigger slope | `:TRIGger[:SEQuence]:EXTernal:SLOPe {POSitive\|NEGative}` | p.91 |
+| Ext trigger delay | `:TRIGger[:SEQuence]:EXTernal:DELay <time>` | 1 ns to 500 ms (manual writes "1000ps") p.92 |
+| Video trigger level | `:TRIGger[:SEQuence]:VIDeo:LEVel <ampl>` | dBm p.92 |
+
+### Detector (p.69)
+
+| Command | Values |
+|---|---|
+| `[:SENSe]:DETector[:FUNCtion] {SAMPle\|POSitive\|NEGative\|NORMal\|AVERage}` | Current trace; manual says "for advanced measurement ... not suitable for spectrum sweep, TOI, harmonics" |
+| `[:SENSe]:DETector:TRACe<n> {same}` | Per trace n (1-6 on UTS3036B) |
+| `[:SENSe]:DETector:TRACe<n>:AUTO {1\|0}` | **(1K only)** 1K p.113 |
+
+## 3. Trace (3K p.89-91, p.31)
+
+| Function | Command | Notes |
+|---|---|---|
+| Select trace | `:TRACe:SELect <n>` | 1-6 (UTS3036B/3084B), 1-4 (UTS1015B) |
+| Trace mode (per trace) | `:TRACe<n>:TYPE {WRITe\|AVERage\|MAXHold\|MINHold}` | WRITe = clear/write (refresh) |
+| Trace mode (current trace) | `:TRACe:TYPE {same}` | |
+| Update on/off (live refresh) | `:TRACe<n>:UPDate:STATe {1\|0}` | View/hold |
+| Display on/off | `:TRACe<n>:DISPlay[:STATe] {1\|0}` | |
+| Average count | `[:SENSe]:AVERage:COUNt <1-999>` | Global; per-measurement counts also exist (below) |
+| Average type | `[:SENSe]:AVERage:TYPE {VOLTage\|POWEr\|LOG}` | manual lists "VOLTage" three times as labels; values are VOLTage, POWEr, LOG |
+| Trace math | `:CALCulate:MATH <trace>,<type>,<op1>,<op2>,<real>` | type `OFF\|PDIFference\|PSUM\|LDIFference\|LOFFset`; p.26 |
+| Clear trace | no explicit command | See ambiguities. Setting `:TRACe<n>:TYPE WRITe` or `:INITiate:RESTart` are candidates, unverified. |
+
+### Trace data transfer
+
+| Topic | 3000B manual | 1K manual |
+|---|---|---|
+| Read trace | **No trace-data query documented** | `:TRACe[:DATA]? {TRACE1..TRACE6}` (1K p.127) |
+| Write trace | none | `:TRACe[:DATA] TRACEn,<v1>,<v2>,...` |
+| Format select | none | `:FORMat[:TRACe][:DATA] {ASCll\|REAL32\|REAL64}` / `?` (1K p.68); default ASCII; query returns `ASC8`, `REAL32` or `REAL64` |
+| ASCII | n/a | Comma-separated scientific-notation values, no block header; one value per sweep point; unit dBm default (follows `:UNIT:POWer`, unconfirmed) |
+| Binary | n/a | IEEE 754 float, 32 or 64 bit, wrapped in the data block header (`#9`+9 digits per 1K p.5; 3K p.4 describes `#`+1 digit N). Byte order not stated. |
+| Point count | `[:SENSe]:SWEep:POINts` 11..40001 | Number of values = sweep points |
+| X axis | compute: `f_i = start + i*(stop-start)/(points-1)` | not stated; derive from `:FREQuency:STARt?`/`STOP?`/`:SWEep:POINts?` |
+| Alternate | `:READ:CHPower2?` returns channel-power trace data **(1K only)** (1K p.~70) | |
+| Save trace to file | `:MMEMory:STORe:TRACe TRACEn,"<name>.trace"`, `:MMEMory:LOAD:TRACe TRACEn,"<name>.trace"` (3K p.49-50); file lives on the instrument | |
+
+## 4. Markers (3K p.13-26)
+
+`<n>` = marker 1-10; marker trace 1-6. `:CALCulate:MARKer:SELect <1-10>` selects the current marker (p.13). A marker is on only after its mode is not OFF.
+
+| Function | Command | Parameter / return | Ref |
+|---|---|---|---|
+| Mode (on/off/delta) | `:CALCulate:MARKer<n>:MODE {OFF\|POSition\|DELTa\|FIXed}` | POSition = normal | p.13 |
+| Trace assignment | `:CALCulate:MARKer<n>:TRACe <int>` | | p.14 |
+| X position | `:CALCulate:MARKer<n>:X <freq>\|<time>` | Hz or s (per X readout type). Query returns Hz (e.g. `1.000000e+09`) | p.14 |
+| Y / readout | `:CALCulate:MARKer<n>:Y?` | dBm (or marker-function result: dBm, dBm/Hz). Setter `:Y <ampl>` exists; semantics unclear. | p.14 |
+| Delta reference | `:CALCulate:MARKer<n>:REFerence <int>` | other marker number, not itself | p.15 |
+| X readout type | `:CALCulate:MARKer<n>:X:READout {FREQuency\|PERiod\|TIME\|ITIMe}`, `...:READout:AUTO {1\|0}` | | p.15-16 |
+| Marker lines | `:CALCulate:MARKer<n>:LINes[:STATe] {1\|0}` | | p.16 |
+| Marker function | `:CALCulate:MARKer<n>:FUNCtion {OFF\|NOISe\|BPOWer\|BDENsity}`; band: `...:FUNCtion:BAND:SPAN`, `:BAND:LEFT`, `:BAND:RIGHt` (Hz) | result via `:Y?` | p.16-18 |
+| N-dB bandwidth | `:CALCulate:MARKer<n>:BANDwidth[:STATe] {1\|0}`, `...:BANDwidth\|BWIDth:NDB <real>` (-0.01 to -140 dB), `...:BANDwidth\|BWIDth:RESult?` (Hz) | | p.18-19 |
+| Freq counter | `:CALCulate:MARKer:FCOunt[:STATe] {1\|0}`, `:CALCulate:MARKer:FCOunt:GATetime <time>` (1 us to 500 ms) | counter result query not documented | p.19 |
+| All markers off | `:CALCulate:MARKer:AOFF` | no query | p.20 |
+| Marker-to-instrument | `:CALCulate:MARKer<n>[:SET]:CENTer`, `:STEP`, `:STARt`, `:STOP`, `:RLEVel` | no args, no return | p.20-21 |
+| Marker table | `:CALCulate:MARKer:TABLe[:STATe] {1\|0}` | | p.21 |
+| Peak search | `:CALCulate:MARKer<n>:MAXimum[:MAX]` | no return; moves marker to highest peak | p.22 |
+| Next peak | `:CALCulate:MARKer<n>:MAXimum:NEXT` | next-highest | p.22 |
+| Next left/right | `:CALCulate:MARKer<n>:MAXimum:LEFT` / `:RIGHt` | | p.22-23 |
+| Min search | `:CALCulate:MARKer<n>:MINimum` | | p.23 |
+| Peak-to-peak | `:CALCulate:MARKer<n>:PTPeak` | | p.23 |
+| Continuous peak | `:CALCulate:MARKer<n>:CPSearch[:STATe] {1\|0}` | | p.24 |
+| Peak table | `:CALCulate:MARKer:PEAK:TABLe[:STATe] {1\|0}` (also `:TRACe:MATH:PEAK:TABLe:STATe`) | table contents not readable by documented commands | p.24, p.91 |
+| Peak threshold | `:CALCulate:MARKer:PEAK:THReshold <ampl>` (+30 to -200 dBm), `...:THReshold:STATe {1\|0}` (auto), `...:THReshold:LINE[:STATe] {1\|0}` | | p.24-25 |
+| Peak excursion | `:CALCulate:MARKer:PEAK:EXCursion <ampl>` (0-100 dB), `...:EXCursion:STATe {1\|0}` (auto) | | p.25-26 |
+
+Typical "find peak and read it" sequence (manual's own application example, p.179): set center/span/RBW, `:CALCulate:MARKer1:MAXimum`, then `:CALCulate:MARKer1:X?` and `:CALCulate:MARKer1:Y?`.
+
+## 5. Limit lines (3K p.27-32)
+
+| Function | Command | Notes |
+|---|---|---|
+| Select | `:CALCulate:LLINe:SELect <n>` | 1-6 (UTS3036B), 1-4 (UTS1015B) |
+| Display | `:CALCulate:LLINe<n>:DISPlay {1\|0}` | |
+| Test trace | `:CALCulate:LLINe<n>:TRACe <int>` | |
+| Type | `:CALCulate:LLINe<n>:TYPE {UPPer\|LOWer}` | |
+| Margin | `:CALCulate:LLINe<n>:MARGin <real>` (-40..40 dB), `...:MARGin:STATe {1\|0}` | |
+| Data | `:CALCulate:LLINe<n>:DATA <freq,ampl,connect,...>` / `?` | Hz, dBm, connect 0/1 (first point's flag ignored; reads back 1) |
+| Copy | `:CALCulate:LLINe<n>:COPY {LLINE1..LLINE6}` | |
+| Build from trace | `:CALCulate:LLINe<n>:BUILd {TRACE1..TRACE6}` | |
+| Offsets | `:CALCulate:LLINe<n>:OFFSet:X <Hz>`, `:OFFSet:Y <dB>`, `:OFFSet:UPDate` | |
+| Delete | `:CALCulate:LLINe<n>:DELete`, `:CALCulate:LLINe:ALL:DELete` | |
+| Files | `:MMEMory:LOAD:LIMit LLINEn,"<f>.limit"`, `:MMEMory:STORe:LIMit LLINEn,"<f>.limit"` | p.48-49 |
+
+No pass/fail query for limit lines is documented.
+
+## 6. Tracking generator (called "trace source" in the manual) (3K p.50, p.39, p.93)
+
+| Function | Command |
+|---|---|
+| Output on/off | `:OUTPut[:EXTernal][:STATe] {1\|0}` (p.50) |
+| Output level | `:SOURce[:EXTernal]:POWer[:LEVel][:IMMediate][:AMPLitude] <ampl>` dBm; range unspecified (p.93) |
+| Level offset | `:SOURce:CORRection:OFFSet <real>` -200..200 dB (p.93) |
+| Reference trace | `:SOURce:TRACe:REFerence:STATe {1\|0}` (p.93) |
+| Normalization | `:CALCulate:NTData[:STATe] {1\|0}` (p.27); reference level `:DISPlay:WINDow:TRACe:Y[:SCALe]:NRLevel <dB>` (p.39) |
+
+## 7. Measurement functions (3K p.32-36, p.40-58, p.72-88)
+
+Enter a measurement with `:CONFigure:<meas>` (presets that measurement's parameters; p.32-34) or `:CONFigure:<meas>:NDEFault` (enter without preset; p.35-36). `:CONFigure:SANalyzer` returns to plain sweep. Meas names: `CHPower`, `TPOWer`, `OBWidth`, `TOI`, `ACPower`, `SPECtrogram`, `CNRatio`, `HARMonics`. (The `:CONFigure:TOI:NDEFault` entry prints its syntax as `:CONFigure:TOI:DEFault`; typo.)
+
+**FETCh vs READ** (p.51): `:FETCh:...?` returns the latest result immediately; `:READ:...?` starts a measurement, waits for completion, then returns. Each `FETCh` query has an identical-named `READ` query. All returns are scientific-notation, comma-separated when multiple values.
+
+| Measurement | Result queries (FETCh/READ) | Units | Ref (FETCh p. / READ p.) |
+|---|---|---|---|
+| Channel power | `:FETCh:CHPower?` (power, density); `:CHPower:CHPower?`; `:CHPower:DENSity?` | dBm, dBm/Hz | 40 / 51 |
+| Time-domain power | `:FETCh:TPower?` | dBm | 40 / 52 |
+| OBW | `:OBWidth?` (OBW, freq error, xdB BW, total power); `:OBWidth:OBWidth?`; `:OBWidth:FERRor?`; `:OBWidth:XDB?`; `:OBWidth:APOWr?` | Hz, Hz, Hz, dBm | 41-42 / 52-53 |
+| TOI | `:TOI:LOW:TRD?`, `:TOI:UP:TRD?` (freq, ampl, dBc coefficient, TOI dBm); `:TOI:LOW:TONE?`, `:TOI:UP:TONE?` (freq, ampl); `:TOI:IPT?` (dBc, dBm) | Hz, dBm, dBc | 42-43 / 53-55 |
+| ACPR | `:ACPower?` (main, lower, lower rel., upper, upper rel.); `:ACPower:MAIN?`; `:ACPower:LOWer?`; `:ACPower:UPPer?` | dBm, dBc | 44 / 55-56 |
+| C/N | `:CNRatio?` (carrier, noise, C/N); `:CNRatio:CARRier?`; `:CNRatio:NOISe?`; `:CNRatio:CNRatio?` | dBm, dBm, dB | 45-46 / 56-57 |
+| Harmonics | `:HARMonics:AMPLitude:ALL?` (fund. dBm then 2nd..10th in dBc); `:AMPLitude<n>?` (n=1-10); `:FREQuency:ALL?`; `:FREQuency<n>?`; `:DISTortion?` (THD %, dBc) | dBm/dBc, Hz, %, dBc | 46-47 / 57-58 |
+
+Measurement parameters (all `[:SENSe]:<meas>:...`, p.72-88): `AVERage[:STATe] {1|0}`, `AVERage:COUNt <1-999>`, `AVERage:TCONtrol {EXPonential|REPeat}`, `AVERage:TYPE {VOLTage|POWEr|LOG}` for CHPower, TPOWer, OBWidth, TOI, ACPower, SPECtrogram, CNRatio, HARMonics. Others: `CHPower:BANDwidth:INTegration <Hz>`; `TPOWer:LLIMit|RLIMit <time 0-10 ms>`; `OBWidth:PERCent <0-1>`, `OBWidth:XDB <-100..-0.1 dB>`; `ACPower:BANDwidth|BWIDth:INTegration <Hz>`, `ACPower:CARRier:LIST:BANDwidth <Hz>`, `ACPower:OFFSet:LIST[:FREQuency] <Hz>`, `ACPower:OFFSet[:OUTer]:LIST:SIDE {BOTH|NEGative|POSitive}`; `CNRatio:BANDwidth:INTegration|NOISe <Hz>`, `CNRatio:OFFSet <Hz>`; `HARMonics:FREQuency:FUNDamental <Hz>`, `HARMonics:NUMBer <2-10>`, `HARMonics:SWEeptime <1 ms-100 s>`.
+
+Newer manual adds numbered forms `:READ:CHPower<n>?`, `:READ:ACPower<n>?`, `:READ:CNRatio<n>?`, `:READ:HARMonics<n>?` where n=1 gives results and n=2 gives trace data **(1K only, 1K p.~70-72)**, and per-measurement `:DETector[:FUNCtion]` settings.
+
+## 8. Screenshot, files
+
+| Function | Command | Notes | Ref |
+|---|---|---|---|
+| Screenshot | `:DISPlay:ZBmp?` | Returns screen image, "compressed"; compression scheme, header and framing are **not documented** | 3K p.37 |
+| Screenshot (newer) | `:DISPlay:DATA?` | **(1K only)** "Returns the screen image"; format follows `:SYSTem:PICture:FORMat {BMP\|PNG}` presumably | 1K p.53 |
+| Image format | `:SYSTem:PICture:FORMat {BMP\|PNG}` | | 3K p.10 |
+| Save/load state | `:MMEMory:STORe:STATe "<f>.state"`, `:MMEMory:LOAD:STATe "<f>.state"` | on-instrument files | 3K p.48-50 |
+| Correction files | `:MMEMory:LOAD\|STORe:CORRection <1-10>,"<f>.corr"` | | 3K p.48-49 |
+| No `HCOPy` subsystem | | | |
+
+## 9. Sync / OPC after sweeps
+
+- The 3000B manual documents only `*OPC` / `*OPC?` (p.5). It gives no statement of what "current operation" covers for a sweep, no `:STATus:OPERation` registers, and no `*WAI`. `*ESR?`/`*STB?` exist only in the 1K manual.
+- Documented blocking behavior: `:READ:<meas>?` "starts a measurement and waits for the measurement to complete" (p.51). `:FETCh` does not wait.
+- Single sweep: `:INITiate:CONTinuous OFF` (single mode). Start with `:INITiate:IMMediate` (documented under EMI, p.114) or `*TRG` (1K) or the Single key (`:KEY:Single`, key name in Appendix 1).
+- Suggested (unverified) pattern: `:INITiate:CONTinuous OFF; :INITiate:IMMediate; *OPC?` and read the response with a timeout above the expected sweep time (`:SWEep:TIME?`, up to 4000 s). Verify that `*OPC?` actually blocks until the sweep ends; if not, fall back to sleeping for `SWEep:TIME` plus margin, or polling.
+
+## 10. Suggested MCP tool groups
+
+| Tool group | Commands |
+|---|---|
+| connection | open/close TCP socket (port configurable; 5025 verified in this project); `*IDN?`, `*RST` (confirm-gated), `*OPC?`, `*CLS`/`*ESR?` (1K, probe first), `:INSTrument:SELect SA`, `:SYSTem:DEFault` (confirm-gated) |
+| frequency | `FREQuency:CENTer/SPAN/STARt/STOP/SPAN:FULL/SPAN:ZERO/OFFSet/CENTer:STEP`; getters for each |
+| amplitude | `DISPlay:WINDow:TRACe:Y:RLEVel/PDIVision/SPACing/RLEVel:OFFSet`, `UNIT:POWer`, `POWer:ATTenuation[:AUTO]`, `POWer:GAIN:STATe`, `INPut:IMPedance` |
+| bandwidth_sweep | `BANDwidth[:RESolution][:AUTO]`, `BANDwidth:VIDeo[:AUTO]`, `BANDwidth:SHAPe`, `SWEep:TIME[:AUTO]`, `SWEep:POINts`, `SWEep:TYPE`, `DETector:TRACe<n>`, `INITiate:CONTinuous`, `INITiate:IMMediate`/`STOP`, `TRIGger:*`, `AVERage:COUNt/TYPE` |
+| trace | `TRACe<n>:TYPE`, `TRACe<n>:UPDate:STATe`, `TRACe<n>:DISPlay`, `TRACe:SELect`, `CALCulate:MATH`; data fetch via `FORMat ASCii` + `TRACe:DATA? TRACEn` (1K command, probe first) and frequency axis computed client-side |
+| marker | `MARKer<n>:MODE/TRACe/X/Y?/REFerence/FUNCtion/BAND:SPAN`, `MAXimum`, `MAXimum:NEXT/LEFT/RIGHt`, `MINimum`, `PTPeak`, `AOFF`, `[:SET]:CENTer/STARt/STOP/RLEVel`, `PEAK:THReshold/EXCursion`, `BANDwidth:NDB/RESult?`, `FCOunt` |
+| measure | `CONFigure:<meas>`, `READ:<meas>...?`, `FETCh:<meas>...?`, the `[:SENSe]:<meas>:*` parameters, `CONFigure:SANalyzer` to exit |
+| screenshot | `SYSTem:PICture:FORMat`, `DISPlay:ZBmp?` (3K) with fallback `DISPlay:DATA?` (1K); parse block header, save to disk, return path |
+| limit/tracking-gen (optional) | `CALCulate:LLINe*`, `OUTPut`, `SOURce:POWer`, `CALCulate:NTData` |
+| raw_scpi | pass-through with newline termination; auto-detect `?` to read a reply; handle both `#`-block header styles; optional timeout; denylist `:SYSTem:COMMunicate:LAN:*` setters and `:SYSTem:CONFigure` unless explicitly confirmed |
+
+Safety notes: `*RST`, `:SYSTem:DEFault`, `:SYSTem:LOCK`, `:KEY:*:LOCK`, LAN setters, and `MMEMory:STORe` (overwrites on-instrument files) should require explicit confirmation or be omitted from typed tools.
+
+## 11. Ambiguities and items to verify on hardware
+
+1. **Raw TCP port and terminator**: manuals only show VISA `TCPIP0::<ip>::inst0::INSTR`; raw port 5025 must be assumed (verified once per verified-hardware.md). Whether a trailing `\r\n` is tolerated is unstated.
+2. **Error queue**: no `:SYSTem:ERRor?` or `:STATus` in either manual. Probe it; if absent, detect failures only via timeouts/empty replies.
+3. **`*CLS`, `*ESR?`, `*STB?`, `*TRG`**: only in 1K manual; confirm they exist on the UTS3000B firmware.
+4. **Trace data**: `:TRACe[:DATA]?` and `:FORMat[:TRACe][:DATA]` are absent from the 3K manual and present in 1K. Confirm on hardware, including the ASCII separator, trailing newline, whether point count equals `:SWEep:POINts?`, the unit under non-dBm `:UNIT:POWer`, and whether trace n must be selected first.
+5. **Binary block header**: 3K p.4 says `#<N><len>`, 1K p.5 says `#9<9-digit len>`. Parse generically. `REAL32`/`REAL64` byte order and whether the block length counts bytes or values are unstated; the manual calls them "integer" but cites IEEE 754 floats. `:FORMat?` returns `ASC8` while the setter is `ASCll`; check the actual token.
+6. **Single-sweep start**: `:INITiate:IMMediate/RESTart/STOP/PAUSe/RESume` are documented only in the EMI section; verify they work in SA mode. `:INITiate:CONTinuous` text in 3K labels both states "1|ON" (typo); 0 = single is confirmed only by 1K p.69.
+7. **Sweep completion**: whether `*OPC?` blocks until a single sweep finishes; behavior of `*OPC?` during continuous sweep; behavior when sweep time is auto.
+8. **Clear trace / reset averaging**: no dedicated command. Test whether re-sending `:TRACe<n>:TYPE MAXHold` or `AVERage`, or `:INITiate:RESTart`, restarts hold/average. `:AVERage:COUNt` appears global, not per-trace, and no "average count reached" query exists.
+9. **Appendix example inconsistency**: p.179 example uses `:trace1:mode write` and `:key:default`, neither defined in the command list (list defines `:TRACe<n>:TYPE`). Use `TYPE`; test `:KEY:Default`.
+10. **`:CALCulate:MARKer<n>:Y?` semantics**: returns the marker-function result when a function (NOISe/BPOWer/BDENsity) is on. For DELTa mode, whether `X?`/`Y?` return absolute or relative values is unstated. Marker auto-on when `MAXimum` is sent while MODE=OFF is unstated. Query of `:CALCulate:MARKer:FCOunt` result is not documented.
+11. **`:SENSe:DETector[:FUNCtion]`** is described as "for advanced measurement" and not applicable to plain sweep; use `:DETector:TRACe<n>` for spectrum traces. Detector `AUTO` per trace is 1K only.
+12. **Zoom commands**: `:FREQuency:ZOOM:IN` text says it "expands the sweep bandwidth", `ZOOM:OUT` says it "reduces" it; direction ambiguous. Avoid; set span explicitly.
+13. **Limits and ranges not given**: reference level range, `SOURce:POWer` range, frequency offset range, attenuation step (only "integer 0-51"), whether out-of-range values clamp or error, whether bare numbers are accepted vs. needing unit suffix (examples use both).
+14. **Screenshot**: `:DISPlay:ZBmp?` payload is "compressed" with unspecified algorithm and framing; test it against `:DISPlay:DATA?` and `:SYSTem:PICture:FORMat`.
+15. **`*IDN?`**: manual says the version is dot-separated but shows commas; hardware returns manufacturer string `UNI-TREND` (per verified-hardware.md), not the manual's `UNI-T Technologies`.
+16. **Typos in boolean descriptions** (several `1|ON` listed twice in place of `0|OFF`; `*OPC?` "1 = unfinished"; `:SYSTem:LOCK?` "0 = unlocked / 1 = unlocked"). Assume 1 = on/true/finished.
+17. **Peak-table / marker-table contents** and **limit-line pass/fail** have no documented read-back.
+18. **Parameter coupling**: setting `SPAN`, `STARt`, `STOP`, `CENTer` interact; setting RBW/VBW/sweep time with AUTO on may be overridden. Re-query after set.
+19. **Query response for set-only commands** (`SPAN:FULL`, `MAXimum`, etc.) is "No return value"; use `*OPC?` or a follow-up query to know it completed.
+
+## 12. UTS1000B/T differences (from the UTS1000B/T manual, 427 pp)
+
+- That manual is a superset covering UTS5000A, UTS3000A/B/T/T+, UTS1000B/T (cover p.1) and is dated 2024-09; its Appendix 3 (p.427) lists per-model limits: UTS1015B/1032B/1015T/1032T = 1.5/3.2 GHz, max RBW 1 MHz, 10001 points, 4 traces, 4 limit lines; UTS3021B 2.1 GHz, UTS3036B 3.6 GHz, UTS3084B/T 8.4 GHz, max RBW 3 MHz, 40001 points, 6 traces, 6 limit lines; UTS3015T+/3032T+ same as 1000 class; UTS3036T+/3084T+ same as 3000 class.
+- Adds: `*CLS *ESE *ESR? *SRE *STB? *TRG *SAV *RCL`; `:FORMat[:TRACe][:DATA]`; `:TRACe[:DATA]`; `:DISPlay:DATA?` (replacing `:DISPlay:ZBmp?`); `[:SENSe]:POWer[:RF]:GAIN:BAND {LOW|FULL}`; `:SYSTem:COMMunicate:{LAN:STATe?,MAC?,USB:STATe?,KEYBoard:STATe?,MOUSe:STATe?}`; numbered `READ:<meas><n>?` queries; per-measurement `DETector[:FUNCtion]`; IQ and real-time analysis modules.
+- Fixes `:INITiate:CONTinuous` description (0|OFF = single sweep).
+- Uses `#9`+9-digit block header (3K manual: single-digit length-of-length).
+- Both manuals share the `:CALCulate:MARKer`, `:SENSe:FREQuency/BANDwidth/SWEep/DETector`, `:TRACe<n>:TYPE`, `:UNIT:POWer`, `:DISPlay:WINDow:TRACe:Y` families unchanged in syntax.
+- Neither manual documents a LAN raw-socket port or an error queue.
