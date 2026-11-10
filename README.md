@@ -16,6 +16,10 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 
 Manual and reference links: [docs/references.md](docs/references.md).
 
+## Security
+
+Report vulnerabilities privately; see [SECURITY.md](SECURITY.md).
+
 ## License
 
 [MIT](LICENSE)

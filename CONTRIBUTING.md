@@ -2,7 +2,7 @@
 
 Thanks for helping out. This project is an MCP server for UNI-T UTS series spectrum analyzers.
 
-By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Contributions are licensed under the [MIT License](LICENSE).
+By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security issue, see [SECURITY.md](SECURITY.md) (please do not open a public issue). Contributions are licensed under the [MIT License](LICENSE).
 
 ## Getting started
 
