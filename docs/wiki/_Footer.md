@@ -1,0 +1,1 @@
+MIT licensed. Verified on a UNI-T UTS3036B (firmware V1.04.0040); other models are untested. This wiki is generated from the repository's `docs/` folder, which is authoritative: change it there, not here.
