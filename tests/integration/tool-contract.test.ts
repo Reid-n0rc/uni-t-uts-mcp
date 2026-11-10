@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { createServer } from "../../src/server.js";
+import { probeTuning, forgetSavedSettings } from "../../src/tools/measurement.js";
 import { callTool, getText, type ToolResult } from "../helpers.js";
 import { APPLICABLE, CONTRACT, fake, type ContractEntry, type Mode } from "../toolContract.js";
 import { readdirSync, readFileSync } from "node:fs";
@@ -19,6 +20,7 @@ let cleanup: () => Promise<void>;
 let toolNames: string[] = [];
 
 beforeAll(async () => {
+  probeTuning.recoveryMs = 0; // no real pauses after the fake's probe timeouts
   const [ct, st] = InMemoryTransport.createLinkedPair();
   const server = createServer();
   client = new Client({ name: "contract", version: "0.0.0" });
@@ -32,7 +34,10 @@ beforeAll(async () => {
 afterAll(async () => {
   await cleanup();
 });
-beforeEach(() => fake.reset());
+beforeEach(() => {
+  fake.reset();
+  forgetSavedSettings();
+});
 afterEach(() => {
   // Every operation of every test must have run inside an exclusive session (defineTool).
   expect(fake.violations, "instrument operations outside an exclusive session: a tool bypasses defineTool()").toEqual([]);

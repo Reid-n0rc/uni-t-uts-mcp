@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
 import { createTestServer, callTool, getText } from "../helpers.js";
-import { registerMeasurementTools } from "../../src/tools/measurement.js";
+import { registerMeasurementTools, probeTuning } from "../../src/tools/measurement.js";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 /**
@@ -131,6 +131,7 @@ let client: Client;
 let cleanup: () => Promise<void>;
 
 beforeAll(async () => {
+  probeTuning.recoveryMs = 0;
   const ctx = await createTestServer(registerMeasurementTools);
   client = ctx.client;
   cleanup = ctx.cleanup;

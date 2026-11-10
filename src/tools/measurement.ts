@@ -9,7 +9,13 @@ import { defineTool, errorResult, setterFailure, textResult } from "./util.js";
 // "Measurements"): NO query reports the active measurement, :CONFigure:<meas> presets span/RBW/sweep and
 // :CONFigure:SANalyzer does not put them back, and a query that belongs to another mode gets no reply.
 
+// A probe that misses makes the instrument stall (about 2.15 s over raw TCP, verified-hardware.md), and writes sent
+// meanwhile are lost (raw) or blocked until the stall ends (VXI-11, where a blocked write can even time out and
+// drop the link). So after every miss the next probe waits out the stall, and the timeout stays short.
 const PROBE_TIMEOUT_MS = 1500;
+/** Pause after a probe that got no reply, before the next query. Mutable so tests do not sleep. */
+export const probeTuning = { recoveryMs: 3000 };
+
 const DEFAULT_READ_TIMEOUT_S = 30;
 const SA = "spectrum_analyzer" as const;
 
@@ -138,13 +144,17 @@ const isTimeout = (err: unknown) => err instanceof Error && /^Query timeout/.tes
 /** A probe that got no reply: its timeout message (which names the command). */
 class ProbeMiss extends Error {}
 
+
 /** Ask a query only one mode answers: its reply means that mode is active, a timeout is a ProbeMiss. Other failures propagate. */
 async function probe<T>(command: string, parse: (reply: string) => T): Promise<T> {
   let reply: string;
   try {
     reply = await connection.query(command, PROBE_TIMEOUT_MS);
   } catch (err) {
-    if (isTimeout(err)) throw new ProbeMiss((err as Error).message);
+    if (isTimeout(err)) {
+      await new Promise((resolve) => setTimeout(resolve, probeTuning.recoveryMs));
+      throw new ProbeMiss((err as Error).message);
+    }
     throw err;
   }
   try {
@@ -176,18 +186,22 @@ const isSpectrumAnalyzer = (misses: string[] = []) =>
 
 const isActive = (m: Measurement, misses: string[] = []) => answers(misses, `${sense(m)}:AVERage:STATe?`, parseBool);
 
+const probeMode = (mode: Mode, misses: string[]) => (mode === SA ? isSpectrumAnalyzer(misses) : isActive(mode, misses));
+
 /**
  * There is no query for the active measurement, so find it by asking what only that mode answers. Spectrum
- * analyzer mode costs one query; each mode that is not active costs one probe timeout (about 2.7 s with
- * the instrument's recovery stall), so a measurement mode answers after at most two misses.
+ * analyzer mode costs one query; every other mode costs one probe timeout (plus the instrument's recovery
+ * stall) per mode asked before it.
  */
 async function detectMode(): Promise<Mode> {
   const misses: string[] = [];
-  if (await isSpectrumAnalyzer(misses)) return SA;
-  for (const m of MEASUREMENT_NAMES) if (await isActive(m, misses)) return m;
+  const order: Mode[] = [SA, ...MEASUREMENT_NAMES];
+  for (const mode of order) {
+    if (await probeMode(mode, misses)) return mode;
+  }
   throw new Error(
     "Could not determine the instrument mode: it answered neither in spectrum analyzer mode nor in channel power, time-domain power or " +
-      `OBW mode (${misses.join("; ")}). Another measurement (ACPR, C/N, harmonics, TOI, spectrogram) may be active, or the instrument is not responding.`
+      `OBW mode (${misses.join("; ")}). Another measurement (ACPR, C/N, harmonics, TOI, spectrogram) may be active, or the instrument is not responding. To leave another measurement send :CONFigure:SANalyzer with scpi_command.`
   );
 }
 
@@ -250,6 +264,11 @@ function saWarnings(want: SaState, got: SaState): string[] {
 
 /** Settings saved when a measurement was entered from spectrum analyzer mode, for exit_measurement to put back. */
 let savedSa: SaState | undefined;
+
+/** For tests: forget the saved settings (the tool table runs every tool from a clean state). */
+export function forgetSavedSettings(): void {
+  savedSa = undefined;
+}
 
 /** Leave the measurement, check that spectrum analyzer mode is back, and (given a state) restore and verify the settings. */
 async function exitMeasurement(restore: SaState | undefined): Promise<{ warnings: string[] }> {
@@ -356,7 +375,7 @@ export function registerMeasurementTools(server: McpServer): void {
         const { measurement, preset, ...params } = args;
         // Save the spectrum analyzer settings first: the preset overwrites them. Already in a measurement: keep what was saved.
         let saved: SaState | undefined;
-        if (await isSpectrumAnalyzer()) saved = await readSa();
+        if ((await detectMode()) === SA) saved = await readSa();
         const result = await configure(measurement, params, preset === false ? "ndefault" : "preset");
         if (saved) savedSa = saved;
         return textResult(
@@ -393,12 +412,13 @@ export function registerMeasurementTools(server: McpServer): void {
     "exit_measurement",
     "Leave the measurement and return to spectrum analyzer mode (:CONFigure:SANalyzer). The measurement preset leaves the span, RBW and sweep time changed, " +
       "so unless restore_settings=false the frequency, bandwidth, sweep time and continuous-sweep settings saved by configure_measurement are put back " +
-      "and verified (a measurement entered elsewhere has nothing saved: a warning says so). Does nothing when already in spectrum analyzer mode.",
+      "and verified (a measurement entered elsewhere has nothing saved: a warning says so, and finding the mode takes a few seconds). Does nothing when already in spectrum analyzer mode.",
     { restore_settings: z.boolean().optional().describe("Restore the settings saved when the measurement was entered (default true)") },
     { readOnlyHint: false, idempotentHint: true },
     async (args) => {
       try {
-        const mode = await detectMode();
+        // Settings saved by configure_measurement mean we entered a measurement: skip the slow mode probing.
+        const mode = savedSa ? undefined : await detectMode();
         if (mode === SA) {
           savedSa = undefined;
           return textResult(JSON.stringify({ measurement: SA, restored: false, warnings: [] }, null, 2));
