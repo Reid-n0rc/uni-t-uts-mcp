@@ -4,6 +4,14 @@ name: Wiki sync
 # docs/verified-hardware.md, package.json, docs/wiki/*.md and the issue tracker) and pushes them to
 # the wiki repository as an ordinary commit. Nothing is pushed when the pages did not change, and
 # history is never rewritten. Uses only the default GITHUB_TOKEN; no other credentials are used.
+#
+# Why the `issues` trigger is safe (issue #103): the repository is public, so issue titles, bodies and
+# labels are untrusted. This workflow therefore never reads the event payload: no expression in this
+# file uses it, nothing is passed to a shell or to the script as an input or argument, and the checkout
+# is the default branch (never an issue-controlled ref). The script reads the issue list itself through
+# the API, lists only issues by an owner, member or collaborator, and renders their titles and labels
+# as escaped, length-capped plain text with private-looking data redacted (see scripts/sync-wiki.mjs).
+# Permissions stay minimal: contents: write (the wiki push) and issues: read.
 on:
   push:
     branches: [main]
