@@ -193,6 +193,34 @@ Returns compact JSON: `trace`, `trace_type` (`write`, `average`, `max_hold`, `mi
 - **`fresh`.** Runs one single sweep first (the same method as `single_sweep`, valid on both transports) so the values are a complete, current sweep, reads, and switches continuous mode back on if it was on (`fresh.continuous_restored`). If that restore fails the error says so and points to `set_acquisition`. Without `fresh` the values are whatever the trace holds now, which in continuous mode can be a sweep in progress, and a frozen (view/hold) or hidden trace is reported in `warnings`.
 - **`max_points`.** When the trace has more points, peak-preserving min/max decimation is applied: the trace is cut into `floor(max_points/2)` equal buckets and the minimum and maximum of each are kept in order, so the global peak and minimum are always in the result. `decimation` says `decimated: true`, `original_points`, `returned_points` and the method; `indices` gives each returned point's index in the full trace; `warnings` repeats it. Nothing is decimated silently.
 - **Errors.** A malformed, empty, short or long reply is an error that names the command and quotes the start of the reply (or of the block); a value count different from `:SENSe:SWEep:POINts?` is an error naming both counts; a timeout names the command.
+## Markers
+
+Command syntax: [programming-guide.md](programming-guide.md) section 4 (markers). Markers are numbered 1 to 10; every tool validates the number before it touches the instrument. Verified on the UTS3036B: see [verified-hardware.md](verified-hardware.md).
+
+### `get_marker`
+
+Read-only. Optional `marker` (1-10, default 1). Returns `marker`, `mode` (`off`, `normal`, `delta`, `fixed`), `trace` (1-6), and the marker's frequency `x` (Hz; seconds in zero span) and level `y` (current power unit, dBm by default) together. A delta marker also returns `reference_marker`, and its `x` and `y` are relative to that marker. An off marker has `x` and `y` of `null`: the instrument still answers `X?`/`Y?` for it, but with stale values.
+
+### `set_marker`
+
+`marker` (1-10) plus at least one of `mode` (`off`, `normal`, `delta`, `fixed`), `trace` (1-6), `reference_marker` (1-10, another marker; used by delta mode) and `x_hz` (position in Hz, 0 or more). Sent in the order mode, trace, reference, x, then the marker is re-read and returned as `marker` with `warnings` for anything the instrument did not take. The instrument does **not** clamp `x_hz` to the sweep span (a position outside it is accepted and its level is meaningless), and a position set on a marker that is off is ignored (a warning says so): use `mode: "normal"` first or `marker_search`. Setting `reference_marker` on a marker that is off turns it on in delta mode (verified). For a delta marker the position is not compared because the readback is relative.
+
+### `marker_search`
+
+`marker` and `action`: `peak` (`:MAXimum`), `next_peak` (`:MAXimum:NEXT`), `next_left` / `next_right` (`:MAXimum:LEFT` / `:RIGHt`), `minimum` (`:MINimum`) or `peak_to_peak` (`:PTPeak`). Returns the marker (frequency and level together) after the search. A search turns a marker that is off on in normal mode; `peak_to_peak` leaves the marker in delta mode (and says so in `note`). Peaks must satisfy the criteria of `get_peak_criteria`. The search acts on the trace the marker is assigned to and the currently displayed data: use `single_sweep` first for a reproducible result.
+
+### `marker_to_instrument`
+
+`marker` (must be on) and `target`: `center`, `step` (center frequency step; this turns automatic step off), `start`, `stop` or `reference_level`, sent as `:CALCulate:MARKer<n>:SET:<target>`. Returns `target`, the new `value` and its `unit` (`Hz`, or the current power unit for `reference_level`). A marker that is off is refused before anything is sent. The instrument rejects a `center` that would put the span outside its range with `-224`, which is returned as an error.
+
+### `markers_all_off`
+
+No parameters. Sends `:CALCulate:MARKer:AOFF` and reads every marker's mode to confirm; returns `all_off` and `warnings` for any marker still on. The instrument's marker positions and traces keep their last values.
+
+### `get_peak_criteria` / `set_peak_criteria`
+
+Peak search criteria: `threshold_dbm` (a peak must be above it; -200 to 30) and `excursion_db` (a peak must rise this far above its valleys; 0 to 100), each with a `threshold_auto` / `excursion_auto` flag. In automatic mode the instrument computes the value from the trace and reports it. `get_peak_criteria` is read-only and takes no parameters. `set_peak_criteria` needs at least one of the four parameters; giving a value turns that criterion's automatic mode **off** (verified), `*_auto: true` switches it back on and cannot be combined with a value for the same criterion. Values outside the documented ranges are refused before anything is sent; the readback is compared and clamped values are `warnings`.
+
 ## Screenshot
 
 ### `screenshot`

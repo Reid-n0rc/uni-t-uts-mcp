@@ -140,6 +140,34 @@
     {
       "name": "get_trace_data",
       "description": "Read a trace's amplitude values with the frequency axis, unit and summary statistics."
+    },
+    {
+      "name": "get_marker",
+      "description": "Read a marker's mode, trace, frequency and level."
+    },
+    {
+      "name": "set_marker",
+      "description": "Set a marker's mode, trace, reference marker or position."
+    },
+    {
+      "name": "marker_search",
+      "description": "Move a marker to the peak, next peak, minimum or peak-to-peak."
+    },
+    {
+      "name": "marker_to_instrument",
+      "description": "Set center, step, start, stop or reference level from a marker."
+    },
+    {
+      "name": "markers_all_off",
+      "description": "Turn all markers off."
+    },
+    {
+      "name": "get_peak_criteria",
+      "description": "Read the peak search threshold and excursion."
+    },
+    {
+      "name": "set_peak_criteria",
+      "description": "Set the peak search threshold and excursion."
     }
   ],
   "tools_generated": false,
