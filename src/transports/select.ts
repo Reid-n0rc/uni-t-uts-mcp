@@ -1,4 +1,6 @@
 import { getPort, PMAP_PORT } from "../vxi11/portmapper.js";
+import { RpcProtocolError } from "../vxi11/rpc.js";
+import { DEFAULT_ATTEMPTS, DEFAULT_BACKOFF_MS, planAttempts, sleep } from "../vxi11/retry.js";
 import { VXI11_CORE_PROGRAM, VXI11_CORE_VERSION } from "../vxi11/client.js";
 
 /**
@@ -81,27 +83,78 @@ export interface Vxi11Probe {
 export interface ProbeOptions {
   /** Portmapper port (default 111). */
   portmapperPort?: number;
+  /** Time allowed for each attempt (default 5000); ignored when `budgetMs` is given. */
   timeoutMs?: number;
+  /** Total time for all attempts including the pauses between them; the per-attempt timeout is derived from it. */
+  budgetMs?: number;
+  /** Number of attempts (default 3). */
+  attempts?: number;
+  /** Pause after the first failed attempt, doubling afterwards (default 500 ms). */
+  backoffMs?: number;
+}
+
+export interface Vxi11Probe {
+  available: boolean;
+  /** Why VXI-11 is not available (set when `available` is false). */
+  reason?: string;
+  /** How many attempts were made. */
+  attempts?: number;
+}
+
+export const VXI11_PROBE_ENV = "UTS_VXI11_PROBE_TIMEOUT_S";
+/** Total time `auto` (and an explicit `vxi11`) may spend reaching the portmapper and opening the link. */
+export const DEFAULT_VXI11_PROBE_BUDGET_MS = 15000;
+
+/** `UTS_VXI11_PROBE_TIMEOUT_S`: total seconds (1 to 120, decimals allowed) for reaching VXI-11; unset or empty means the default. */
+export function vxi11ProbeBudgetFromEnv(value: string | undefined): number | undefined {
+  if (value === undefined || value === "") return undefined;
+  const v = value.trim();
+  const seconds = /^\d+(\.\d+)?$/.test(v) ? Number(v) : NaN;
+  if (!(seconds >= 1 && seconds <= 120)) {
+    throw new Error(`Invalid ${VXI11_PROBE_ENV} "${shown(value)}": expected a number of seconds from 1 to 120`);
+  }
+  return Math.round(seconds * 1000);
 }
 
 /**
  * Ask the portmapper on `host` (TCP port 111) whether the VXI-11 core program is registered.
- * Never throws; bounded by `timeoutMs` (default 5000).
+ * Never throws. A routed path (VPN, Tailscale) can need several seconds for a cold connect, so a failed
+ * attempt (no connection, no answer in time, dropped) is retried with a growing pause, up to `attempts`
+ * tries within the total budget (default 15 s). "Not registered" and malformed replies are final.
  */
 export async function probeVxi11(host: string, options: ProbeOptions = {}): Promise<Vxi11Probe> {
-  try {
-    const port = await getPort(host, VXI11_CORE_PROGRAM, VXI11_CORE_VERSION, {
-      portmapperPort: options.portmapperPort ?? PMAP_PORT,
-      timeoutMs: options.timeoutMs ?? 5000,
-    });
-    if (port === 0) {
-      return { available: false, reason: `the VXI-11 core program is not registered with the portmapper on ${host}` };
+  const pmPort = options.portmapperPort ?? PMAP_PORT;
+  const attempts = options.attempts ?? DEFAULT_ATTEMPTS;
+  const backoffMs = options.backoffMs ?? DEFAULT_BACKOFF_MS;
+  const plan =
+    options.budgetMs !== undefined
+      ? planAttempts(options.budgetMs, attempts, backoffMs)
+      : { attempts, perAttemptMs: options.timeoutMs ?? 5000, backoffsMs: planAttempts(0, attempts, backoffMs).backoffsMs };
+  let last = "";
+  for (let n = 1; n <= plan.attempts; n++) {
+    try {
+      const port = await getPort(host, VXI11_CORE_PROGRAM, VXI11_CORE_VERSION, { portmapperPort: pmPort, timeoutMs: plan.perAttemptMs });
+      if (port === 0) {
+        return {
+          available: false,
+          attempts: n,
+          reason: `the VXI-11 core program is not registered with the portmapper on ${host} (port ${pmPort})`,
+        };
+      }
+      return { available: true, attempts: n };
+    } catch (err) {
+      last = err instanceof Error ? err.message : String(err);
+      if (err instanceof RpcProtocolError) {
+        return { available: false, attempts: n, reason: `the portmapper on ${host} (port ${pmPort}) sent an invalid reply (${last})` };
+      }
+      if (n < plan.attempts) await sleep(plan.backoffsMs[n - 1]);
     }
-    return { available: true };
-  } catch (err) {
-    return {
-      available: false,
-      reason: `the portmapper on ${host} did not answer (${err instanceof Error ? err.message : String(err)})`,
-    };
   }
+  return {
+    available: false,
+    attempts: plan.attempts,
+    reason:
+      `the portmapper on ${host} (port ${pmPort}) did not answer after ${plan.attempts} attempts of ${plan.perAttemptMs} ms (${last}); ` +
+      `a slow routed path may need a longer ${VXI11_PROBE_ENV}`,
+  };
 }

@@ -289,4 +289,5 @@ An MCP client may send several tool calls at once. The analyzer has one command 
 | `UTS_PORT` | TCP port of the raw transport, default `5025` |
 | `UTS_TRANSPORT` | `auto` (default: VXI-11 if the instrument registers it with the portmapper, else raw), `raw` or `vxi11`; default for the `connect` tool's `transport` parameter. Setting `UTS_PORT` without `UTS_TRANSPORT` means `raw` |
 | `UTS_VXI11_DEVICE` | VXI-11 logical device name, default `inst0` |
+| `UTS_VXI11_PROBE_TIMEOUT_S` | Total seconds (1 to 120, default `15`) `auto` and `vxi11` may spend reaching VXI-11: up to three attempts to reach the portmapper on port 111 and open the link, with doubling pauses, all inside this budget. Raise it for a slow routed path (VPN, Tailscale) |
 | `UTS_BUSY_TIMEOUT_S` | How long a tool call waits for another one to finish before failing with `Instrument busy`, in seconds (default `120`); see Concurrency |

@@ -45,6 +45,11 @@ export interface FakeVxi11Options {
   writeAcceptLimit?: number;
   /** Mimic the real firmware's silent read timeouts and single output slot (see above). */
   firmware?: boolean;
+  /**
+   * The first `n` links created are "stale": the instrument accepts create_link but never answers any later
+   * call on them except destroy_link (the symptom of issue #127, a link left over from a previous process).
+   */
+  staleFirstLinks?: number;
   scpi?: ScpiHandler;
 }
 
@@ -78,6 +83,8 @@ export interface FakeVxi11Instrument {
   readonly sweeping: boolean;
   sweepsCompleted: number;
   setScpiHandler(handler: ScpiHandler): void;
+  /** Link ids that stopped answering (see `staleFirstLinks`); `staleLinks.add(id)` makes an open link stall. */
+  staleLinks: Set<number>;
   /** Make the next `count` calls of `procedure` fail with VXI-11 error `code`. */
   injectError(procedure: number, code: number, count?: number): void;
   /** Destroy the TCP connection when the next call of `procedure` arrives. */
@@ -115,6 +122,7 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
     clears: 0,
     destroyedLinks: 0,
     stb: 0,
+    staleLinks: new Set(),
     get sweeping() {
       return sweeping;
     },
@@ -216,6 +224,7 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
       const linkId = args.u32();
       const link = linkState.get(linkId);
       if (!link || !fake.links.has(linkId)) return errorReply(4);
+      if (fake.staleLinks.has(linkId) && procedure !== PROC.destroyLink) return undefined;
       return body(args, linkId, link, call);
     });
   };
@@ -241,6 +250,7 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
     if (name !== device) return new XdrWriter().u32(3).u32(0).u32(0).u32(0);
     const id = nextLink++;
     fake.links.add(id);
+    if (fake.createLinkDevices.length <= (options.staleFirstLinks ?? 0)) fake.staleLinks.add(id);
     linkState.set(id, { input: Buffer.alloc(0), output: [], waiters: new Set() });
     return new XdrWriter().u32(0).u32(id).u32(111).u32(maxRecvSize);
   });

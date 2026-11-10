@@ -22,7 +22,7 @@ No connection is open. Either set `UTS_IP` in the MCP client's configuration (th
 Another tool call (named in the message) held the instrument longer than `UTS_BUSY_TIMEOUT_S` seconds (default 120), typically a `single_sweep` with a long sweep time. Nothing was sent by the call that failed. Retry later, shorten the sweep time, or raise `UTS_BUSY_TIMEOUT_S`. Parallel tool calls are otherwise safe: they run one at a time in arrival order.
 
 **VXI-11 does not connect (`UTS_TRANSPORT=vxi11`)**
-VXI-11 needs outbound TCP to port 111 (the portmapper) and to the port the portmapper reports, which changes when the analyzer restarts. Check the firewall. The default `UTS_TRANSPORT=auto` falls back to raw SCPI and logs the reason to the server's stderr, and `UTS_TRANSPORT=raw` skips VXI-11 altogether. `UTS_VXI11_DEVICE` must be 1 to 64 characters from letters, digits and `. _ , -`.
+VXI-11 needs outbound TCP to port 111 (the portmapper) and to the port the portmapper reports, which changes when the analyzer restarts. Check the firewall. The default `UTS_TRANSPORT=auto` falls back to raw SCPI and logs the reason to the server's stderr, and `UTS_TRANSPORT=raw` skips VXI-11 altogether. Over a slow routed path (VPN, Tailscale) raise `UTS_VXI11_PROBE_TIMEOUT_S` (total seconds, default 15, up to 120): the portmapper connect and the link are retried inside that budget, and the log line says why `auto` fell back. `UTS_VXI11_DEVICE` must be 1 to 64 characters from letters, digits and `. _ , -`.
 
 **"Connected but failed to initialize"**
 The TCP connection opened but the analyzer did not answer `*IDN?` in time. Check that the port really is the SCPI port and that nothing else is holding the instrument.

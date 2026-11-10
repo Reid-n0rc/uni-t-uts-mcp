@@ -45,6 +45,8 @@ export interface OpenOptions {
   host: string;
   port: number;
   connectTimeoutMs: number;
+  /** Total time for opening, retries included (VXI-11: `UTS_VXI11_PROBE_TIMEOUT_S`); default three times `connectTimeoutMs`. */
+  connectBudgetMs?: number;
 }
 
 /** A read did not complete in time. */
@@ -67,6 +69,8 @@ export interface Transport {
   open(options: OpenOptions): Promise<void>;
   /** Idempotent; releases the link without reporting it as lost. */
   close(): void;
+  /** Resolves once everything `close()` started (for VXI-11 the destroy_link calls) has finished; used at process exit. */
+  drain?(): Promise<void>;
   isOpen(): boolean;
   /** Register the callback for an unexpected loss of the link (replaces any previous one). */
   onLost(callback: (reason: string) => void): void;

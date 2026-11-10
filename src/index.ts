@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createServer } from "./server.js";
 import { autoConnectFromEnv } from "./autoconnect.js";
 import { connection } from "./connection.js";
+import { installShutdownHandlers } from "./shutdown.js";
 
 // Prevent uncaught errors from killing the MCP server process.
 process.on("uncaughtException", (err) => {
@@ -14,6 +15,7 @@ process.on("unhandledRejection", (reason) => {
 });
 
 async function main(): Promise<void> {
+  installShutdownHandlers(process, connection, (code) => process.exit(code));
   const server = createServer();
   await server.connect(new StdioServerTransport());
   console.error("uni-t-uts-mcp server running on stdio");
