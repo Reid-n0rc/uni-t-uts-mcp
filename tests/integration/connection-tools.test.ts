@@ -43,7 +43,7 @@ describe("tool listing", () => {
   it("registers connect, disconnect and identify with sensible hints", async () => {
     const { tools } = await client.listTools();
     const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
-    expect(Object.keys(byName).sort()).toEqual(["connect", "disconnect", "identify"]);
+    expect(Object.keys(byName).sort()).toEqual(["connect", "disconnect", "discover_instruments", "identify"]);
     expect(byName.identify.annotations?.readOnlyHint).toBe(true);
     expect(byName.connect.annotations?.openWorldHint).toBe(true);
   });

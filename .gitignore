@@ -7,3 +7,4 @@ build/
 _site/
 dist/
 _wiki/
+coverage/

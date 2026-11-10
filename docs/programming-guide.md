@@ -233,6 +233,8 @@ Enter a measurement with `:CONFigure:<meas>` (presets that measurement's paramet
 
 Measurement parameters (all `[:SENSe]:<meas>:...`, p.72-88): `AVERage[:STATe] {1|0}`, `AVERage:COUNt <1-999>`, `AVERage:TCONtrol {EXPonential|REPeat}`, `AVERage:TYPE {VOLTage|POWEr|LOG}` for CHPower, TPOWer, OBWidth, TOI, ACPower, SPECtrogram, CNRatio, HARMonics. Others: `CHPower:BANDwidth:INTegration <Hz>`; `TPOWer:LLIMit|RLIMit <time 0-10 ms>`; `OBWidth:PERCent <0-1>`, `OBWidth:XDB <-100..-0.1 dB>`; `ACPower:BANDwidth|BWIDth:INTegration <Hz>`, `ACPower:CARRier:LIST:BANDwidth <Hz>`, `ACPower:OFFSet:LIST[:FREQuency] <Hz>`, `ACPower:OFFSet[:OUTer]:LIST:SIDE {BOTH|NEGative|POSitive}`; `CNRatio:BANDwidth:INTegration|NOISe <Hz>`, `CNRatio:OFFSet <Hz>`; `HARMonics:FREQuency:FUNDamental <Hz>`, `HARMonics:NUMBer <2-10>`, `HARMonics:SWEeptime <1 ms-100 s>`.
 
+**Verified on the UTS3036B (details in verified-hardware.md, "Measurements"):** there is no query for the active measurement (`:CONFigure?`, `:CONFigure:CHPower?`, `:INSTrument:SELect?` (always `SA`) and others get no reply); `:CONFigure:<meas>` and `:CONFigure:<meas>:NDEFault` both change the span (3 MHz, zero span for TPOWer) and the auto RBW/sweep time, and `:CONFigure:SANalyzer` leaves them; the `[:SENSe]:<meas>:*` parameters answer only while that measurement is active, and the spectrum analyzer queries (`:SENSe:DETector:TRACe1?`, `:TRACe1:TYPE?`) only in spectrum analyzer mode. `:FETCh:CHPower?` returns power and density, `:FETCh:TPOWer?` one value, `:FETCh:OBWidth?` seven values (the manual lists four); `:FETCh:OBWidth:OBWidth?`/`:FERRor?`/`:XDB?`/`:APOWr?` answer but the `:READ:OBWidth:<sub>?` forms and `:CHPower:CHPower?`, `:CHPower:DENSity?`, `:OBWidth:OBWidth?` (the forms without FETCh/READ) get no reply. `:READ:<meas>?` replies end with a space and no CRLF over raw TCP.
+
 Newer manual adds numbered forms `:READ:CHPower<n>?`, `:READ:ACPower<n>?`, `:READ:CNRatio<n>?`, `:READ:HARMonics<n>?` where n=1 gives results and n=2 gives trace data **(1K only, 1K p.~70-72)**, and per-measurement `:DETector[:FUNCtion]` settings.
 
 ## 8. Screenshot, files
@@ -377,3 +379,7 @@ Messages are written as one `device_write` with END and no terminator; a reply i
 If the flags ever need to change for another firmware, change the constants in `VXI11_CAPABILITIES`; nothing else has to change.
 
 Verified on the real UTS3036B (issue #75) as well as against the in-process fake VXI-11 instrument (`tests/fakeVxi11Instrument.ts`, whose `firmware: true` option reproduces the read behavior above).
+
+## Discovery (portmapper over UDP, `src/discovery.ts`)
+
+ONC RPC runs over UDP too (no record marking: one datagram is one message). `GETPORT` (portmapper program 100000 v2, procedure 3) with mapping `{395183, 1, IPPROTO_TCP=6, 0}` sent to UDP port 111 returns the TCP port of the VXI-11 core channel, 0 when it is not registered. The reply is 28 bytes (xid, REPLY, accepted, AUTH_NONE verifier, SUCCESS, port); match the xid and reject anything else. Sent to a subnet's broadcast address every VXI-11 instrument answers. The protocol is unauthenticated: see the trust rules in the tools reference.

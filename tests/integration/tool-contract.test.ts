@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { createServer } from "../../src/server.js";
+import { probeTuning, forgetSavedSettings } from "../../src/tools/measurement.js";
 import { callTool, getText, type ToolResult } from "../helpers.js";
 import { APPLICABLE, CONTRACT, fake, type ContractEntry, type Mode } from "../toolContract.js";
 import { readdirSync, readFileSync } from "node:fs";
@@ -7,6 +8,11 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 vi.mock("../../src/connection.js", async () => ({ connection: (await import("../toolContract.js")).fakeConnection }));
+// discover_instruments uses real sockets: the contract test must never touch the network.
+vi.mock("../../src/discovery.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/discovery.js")>()),
+  discoverInstruments: async () => ({ instruments: [], notes: [] }),
+}));
 
 /**
  * Error handling standard (AGENTS.md): for every registered tool, under every failure mode that applies
@@ -19,6 +25,8 @@ let cleanup: () => Promise<void>;
 let toolNames: string[] = [];
 
 beforeAll(async () => {
+  probeTuning.recoveryMs = 0;
+  probeTuning.settleMs = 0; // no real pauses after the fake's probe timeouts
   const [ct, st] = InMemoryTransport.createLinkedPair();
   const server = createServer();
   client = new Client({ name: "contract", version: "0.0.0" });
@@ -32,7 +40,10 @@ beforeAll(async () => {
 afterAll(async () => {
   await cleanup();
 });
-beforeEach(() => fake.reset());
+beforeEach(() => {
+  fake.reset();
+  forgetSavedSettings();
+});
 afterEach(() => {
   // Every operation of every test must have run inside an exclusive session (defineTool).
   expect(fake.violations, "instrument operations outside an exclusive session: a tool bypasses defineTool()").toEqual([]);
@@ -197,7 +208,7 @@ describe("every tool is an exclusive instrument session", () => {
 });
 
 describe("parallel mode", () => {
-  const instrumentTools = entries.filter(([, e]) => e.kind !== "connect" && e.kind !== "disconnect");
+  const instrumentTools = entries.filter(([, e]) => e.kind !== "connect" && e.kind !== "disconnect" && e.kind !== "discover");
 
   /** Session ids in the order operations ran; a session id that comes back after another one means interleaving. */
   function expectContiguous(): number[] {
