@@ -153,6 +153,13 @@ describe("checkPages", () => {
     };
     expect(checkPages(pages, { repoRoot: ROOT }).join("\n")).toContain("does-not-exist.md");
   });
+  it("reports an anchor that does not exist in a linked repository markdown file", () => {
+    const pages = {
+      ...good(),
+      "Getting-Started.md": "# Getting Started\n\n[x](https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/docs/programming-guide.md#no-such-section)\n",
+    };
+    expect(checkPages(pages, { repoRoot: ROOT }).join("\n")).toContain("no-such-section");
+  });
   it("reports private data in any page", () => {
     const pages = { ...good(), "Getting-Started.md": "# Getting Started\n\nUse 10.20.30.40 here.\n" };
     expect(checkPages(pages).join("\n")).toContain("10.20.30.40");
