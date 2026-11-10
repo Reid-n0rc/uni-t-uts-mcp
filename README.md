@@ -39,7 +39,7 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 
 ## Install
 
-Everything in this section works today (v0.1.0). You need Node.js 22 or newer (or Docker). Use your analyzer's address in place of `192.168.1.100`.
+Everything in this section works today (v0.1.0, also on npm). You need Node.js 22 or newer (or Docker). Use your analyzer's address in place of `192.168.1.100`.
 
 `UTS_IP` is optional. If you leave it out, tell the assistant "connect to the analyzer at 192.168.1.100" and it will use the `connect` tool.
 
@@ -48,7 +48,10 @@ Everything in this section works today (v0.1.0). You need Node.js 22 or newer (o
 Pick one; each registers the server under the name `uni-t-uts`.
 
 ```sh
-# From the release tarball (recommended: no build step, no install scripts)
+# From the npm registry (shortest; npx downloads and runs it)
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp
+
+# From the release tarball (same files as npm, fetched from GitHub: no build step, no install scripts)
 claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz
 
 # From the git tag (npm clones the repository and builds it; needs git)
@@ -61,6 +64,9 @@ claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/r
 On Windows, where `npx` is a `.cmd` file that clients cannot launch directly, put `cmd /c` in front of it:
 
 ```sh
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y uni-t-uts-mcp
+
+# or from the release tarball
 claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz
 ```
 
@@ -84,10 +90,22 @@ Add this `mcpServers` entry to the client's MCP configuration (Claude Desktop: `
 macOS / Linux:
 
 ```json
+{ "mcpServers": { "uni-t-uts": { "command": "npx", "args": ["-y", "uni-t-uts-mcp"], "env": { "UTS_IP": "192.168.1.100" } } } }
+```
+
+Or from the release tarball:
+
+```json
 { "mcpServers": { "uni-t-uts": { "command": "npx", "args": ["-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
 ```
 
 Windows:
+
+```json
+{ "mcpServers": { "uni-t-uts": { "command": "cmd", "args": ["/c", "npx", "-y", "uni-t-uts-mcp"], "env": { "UTS_IP": "192.168.1.100" } } } }
+```
+
+Or from the release tarball:
 
 ```json
 { "mcpServers": { "uni-t-uts": { "command": "cmd", "args": ["/c", "npx", "-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
@@ -99,7 +117,7 @@ Docker (any OS with Docker):
 { "mcpServers": { "uni-t-uts": { "command": "docker", "args": ["run", "-i", "--rm", "-e", "UTS_IP=192.168.1.100", "ghcr.io/reid-n0rc/uni-t-uts-mcp:0.1.0"] } } }
 ```
 
-The `github:` spec works in the same place as the tarball URL (replace the last argument).
+The `github:` spec works in the same place as the package name or tarball URL (replace the last argument).
 
 ### From a clone (contributors)
 
@@ -110,15 +128,7 @@ npm ci && npm run build
 npm run client-config -- --host 192.168.1.100
 ```
 
-`npm run client-config` only prints, it never writes a file. It shows the exact Claude Code command and the JSON block for your OS and for the absolute path of this clone (Windows paths and `cmd /c` included). Use `--from tarball`, `--from github` or `--from docker` to print the other forms, and leave out `--host` to print the config without `UTS_IP`.
-
-### From the npm registry (coming soon, after the first npm publish)
-
-The package has not been published to npm yet, so `npx -y uni-t-uts-mcp` does not work today and you should use one of the forms above. Once it is published this will be the shortest form:
-
-```sh
-claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp
-```
+`npm run client-config` only prints, it never writes a file. It shows the exact Claude Code command and the JSON block for your OS and for the absolute path of this clone (Windows paths and `cmd /c` included). Use `--from npm`, `--from tarball`, `--from github` or `--from docker` to print the other forms, and leave out `--host` to print the config without `UTS_IP`.
 
 ## Supported platforms
 

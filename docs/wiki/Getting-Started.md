@@ -23,7 +23,10 @@ Release v0.1.0 is out. Pick one of these; each registers the server under the na
 ### Claude Code
 
 ```sh
-# From the release tarball (recommended: no build step, no install scripts)
+# From the npm registry (shortest; npx downloads and runs it)
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp
+
+# From the release tarball (same files as npm, fetched from GitHub: no build step, no install scripts)
 claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz
 
 # From the git tag (npm clones the repository and builds it; needs git)
@@ -36,6 +39,9 @@ claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/r
 On Windows, where `npx` is a `.cmd` file that clients cannot launch directly, put `cmd /c` in front of it:
 
 ```sh
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y uni-t-uts-mcp
+
+# or from the release tarball
 claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz
 ```
 
@@ -46,10 +52,22 @@ Add an `mcpServers` entry to the client's MCP configuration (Claude Desktop: `cl
 macOS / Linux:
 
 ```json
+{ "mcpServers": { "uni-t-uts": { "command": "npx", "args": ["-y", "uni-t-uts-mcp"], "env": { "UTS_IP": "192.168.1.100" } } } }
+```
+
+Or from the release tarball:
+
+```json
 { "mcpServers": { "uni-t-uts": { "command": "npx", "args": ["-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
 ```
 
 Windows:
+
+```json
+{ "mcpServers": { "uni-t-uts": { "command": "cmd", "args": ["/c", "npx", "-y", "uni-t-uts-mcp"], "env": { "UTS_IP": "192.168.1.100" } } } }
+```
+
+Or from the release tarball:
 
 ```json
 { "mcpServers": { "uni-t-uts": { "command": "cmd", "args": ["/c", "npx", "-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
@@ -72,15 +90,7 @@ npm ci && npm run build
 npm run client-config -- --host 192.168.1.100
 ```
 
-`npm run client-config` only prints, it never writes a file: it shows the exact Claude Code command and the JSON block for your OS and the absolute path of your clone. Use `--from tarball`, `--from github` or `--from docker` to print the other forms.
-
-### From the npm registry (coming soon)
-
-The package has not been published to the npm registry yet, so `npx -y uni-t-uts-mcp` does not work today; use one of the forms above. Once it is published this will be the shortest form:
-
-```sh
-claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp
-```
+`npm run client-config` only prints, it never writes a file: it shows the exact Claude Code command and the JSON block for your OS and the absolute path of your clone. Use `--from npm`, `--from tarball`, `--from github` or `--from docker` to print the other forms.
 
 ## Environment variables
 

@@ -25,7 +25,7 @@ The text of a release's section is also used as its GitHub release notes.
   default stays raw. Allow outbound TCP to port 111 and the dynamic VXI-11 port in a firewall.
 
 ### Changed
-- README, site and docs now lead with install forms that work today (release tarball, `github:` spec, pinned Docker image, from a clone); `npx -y uni-t-uts-mcp` is labelled coming soon until the package is on npm. A test keeps the install commands in step with the package version.
+- The package is live on npm: `npx -y uni-t-uts-mcp` (0.1.0, published from CI with provenance, identical to the release tarball) is now the first install command in the README, site and wiki, with the tarball, `github:` spec, Docker image and clone forms kept as alternatives. `npm run client-config -- --from npm` prints it. `docs/releasing.md` documents the trusted-publishing switch and that npm processes first publishes asynchronously. A test keeps the install commands in step with the package name and version.
 
 ## [0.1.0] - 2026-11-10
 

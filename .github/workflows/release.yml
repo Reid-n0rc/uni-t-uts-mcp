@@ -4,7 +4,7 @@ name: GitHub release
 # (uni-t-uts-mcp-<version>.tgz) and the Claude Desktop MCP bundle
 # (uni-t-uts-mcp-<version>.mcpb) attached, and the matching CHANGELOG.md section as notes
 # (GitHub's generated notes if there is none). This is the primary release channel
-# while the package is not published to npm; see docs/releasing.md.
+# next to the npm package (npm-publish.yml); see docs/releasing.md.
 
 on:
   push:
