@@ -382,6 +382,74 @@ describe("robustness against a misbehaving server", () => {
   });
 });
 
+describe("overall deadlines and iteration caps", () => {
+  const oneByte = (): XdrWriter => new XdrWriter().u32(0).u32(1).opaque(Buffer.from("x")); // reason REQCNT, never END
+  const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+  it("a read that gets 1 byte per call without END times out within the requested timeout", async () => {
+    const { fake, client } = await setup();
+    fake.rpc.register(CORE, 1, 12, oneByte);
+    const t0 = Date.now();
+    const err = await client.read({ timeoutMs: 200, maxBytes: 10_000_000 }).catch((e) => e);
+    expect(err).toBeInstanceOf(Vxi11IoTimeoutError);
+    expect(Date.now() - t0).toBeLessThan(200 + 100 + 150);
+  });
+
+  it("never sends a zero I/O timeout after the first read call", async () => {
+    const { fake, client } = await setup();
+    const timeouts: number[] = [];
+    fake.rpc.register(CORE, 1, 12, (args) => {
+      args.u32();
+      args.u32();
+      timeouts.push(args.u32());
+      return oneByte();
+    });
+    await client.read({ timeoutMs: 100, maxBytes: 10_000_000 }).catch(() => undefined);
+    expect(timeouts.length).toBeGreaterThan(1);
+    expect(timeouts.slice(1).every((t) => t >= 1 && t <= 100)).toBe(true);
+  });
+
+  it("a read whose replies are slow passes the deadline mid-loop and times out in time", async () => {
+    const { fake, client } = await setup();
+    fake.rpc.register(CORE, 1, 12, async () => {
+      await delay(120);
+      return oneByte();
+    });
+    const t0 = Date.now();
+    const err = await client.read({ timeoutMs: 200, maxBytes: 1000 }).catch((e) => e);
+    expect(err).toBeInstanceOf(Vxi11IoTimeoutError);
+    expect(Date.now() - t0).toBeLessThan(200 + 100 + 150);
+  });
+
+  it("caps the number of device_read calls with a protocol error when the timeout is long", async () => {
+    const { fake, client } = await setup();
+    fake.rpc.register(CORE, 1, 12, oneByte);
+    const err = await client.read({ timeoutMs: 60_000, maxBytes: 10_000_000, maxCalls: 50 }).catch((e) => e);
+    expect(err).toBeInstanceOf(Vxi11ProtocolError);
+    expect(fake.rpc.calls.filter((c) => c.procedure === 12)).toHaveLength(50);
+  });
+
+  it("a chunked write with 1-byte acceptance and slow replies times out in time", async () => {
+    const { fake, client } = await setup();
+    fake.rpc.register(CORE, 1, 11, async () => {
+      await delay(120);
+      return new XdrWriter().u32(0).u32(1);
+    });
+    const t0 = Date.now();
+    const err = await client.write("0123456789", { timeoutMs: 200 }).catch((e) => e);
+    expect(err).toBeInstanceOf(Vxi11IoTimeoutError);
+    expect(Date.now() - t0).toBeLessThan(200 + 100 + 150);
+  });
+
+  it("caps the number of device_write calls with a protocol error", async () => {
+    const { fake, client } = await setup();
+    fake.rpc.register(CORE, 1, 11, () => new XdrWriter().u32(0).u32(1));
+    const err = await client.write("x".repeat(500), { timeoutMs: 60_000, maxCalls: 20 }).catch((e) => e);
+    expect(err).toBeInstanceOf(Vxi11ProtocolError);
+    expect(fake.rpc.calls.filter((c) => c.procedure === 11)).toHaveLength(20);
+  });
+});
+
 describe("simulated sweep (queued commands, blocking *OPC?)", () => {
   it("answers a blocking *OPC? only when the sweep ends and does not drop queued commands", async () => {
     const { fake, client } = await setup({ sweepMs: 300 });
