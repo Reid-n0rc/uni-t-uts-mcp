@@ -206,4 +206,11 @@ describe("checkCommand hardening (#31)", () => {
     expect(checkCommand(":FOO:DATA #2xx12").allowed).toBe(false);
     expect(checkCommand(":FOO:DATA #5001000123").allowed).toBe(false);
   });
+
+  it("fails closed on non-ASCII input (block lengths are counted in bytes)", () => {
+    // "é" is 1 UTF-16 unit but 2 UTF-8 bytes: a #<len> block could be misjudged.
+    expect(checkCommand(":FOO:DATA #12é;*RST").allowed).toBe(false);
+    expect(checkCommand(":DISP:TEXT \"café\"").allowed).toBe(false);
+    expect(checkCommand(":FREQ:CENT? \u2028").allowed).toBe(false);
+  });
 });
