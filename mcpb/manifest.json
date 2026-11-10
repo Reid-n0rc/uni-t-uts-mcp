@@ -168,6 +168,26 @@
     {
       "name": "set_peak_criteria",
       "description": "Set the peak search threshold and excursion."
+    },
+    {
+      "name": "get_measurement",
+      "description": "Tell whether the analyzer is in spectrum analyzer mode, or check one measurement and read its parameters."
+    },
+    {
+      "name": "configure_measurement",
+      "description": "Enter channel power, time-domain power or OBW and set its parameters."
+    },
+    {
+      "name": "read_measurement",
+      "description": "Read the result of the active channel power, time-domain power or OBW measurement."
+    },
+    {
+      "name": "exit_measurement",
+      "description": "Leave the measurement and restore the saved frequency, bandwidth and sweep settings."
+    },
+    {
+      "name": "measure",
+      "description": "One-shot channel power, time-domain power or OBW measurement that restores the analyzer afterwards."
     }
   ],
   "tools_generated": false,
