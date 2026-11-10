@@ -1,13 +1,17 @@
 #!/usr/bin/env node
-// Read-only probe of SCPI basics (issue #2). Host comes from UTS_IP, never hard-coded.
+// Read-only probe of SCPI basics (issue #2). The host is never hard-coded.
+// Usage: node scripts/probe-basics.mjs <host>     (or set UTS_IP; the argument wins)
+//   bash:        UTS_IP=192.168.1.100 node scripts/probe-basics.mjs
+//   PowerShell:  $env:UTS_IP = "192.168.1.100"; node scripts/probe-basics.mjs
+//   cmd:         set UTS_IP=192.168.1.100 && node scripts/probe-basics.mjs
 // Sends only queries plus *CLS (clears status registers; no instrument settings change).
 // Serial numbers are redacted from the output.
 import net from "node:net";
 
-const host = process.env.UTS_IP;
+const host = process.argv[2] || process.env.UTS_IP;
 const port = Number(process.env.UTS_PORT || 5025);
 if (!host) {
-  console.error("Set UTS_IP");
+  console.error("Usage: node scripts/probe-basics.mjs <host>   (or set UTS_IP)");
   process.exit(1);
 }
 

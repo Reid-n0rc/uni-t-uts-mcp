@@ -1,0 +1,8 @@
+# Normalize source and docs to LF on every platform.
+* text=auto eol=lf
+
+# Captured instrument data must stay byte-exact (CRLF and binary data); never convert.
+tests/fixtures/** -text
+
+*.bin binary
+*.png binary

@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Probe of trace data and screenshot formats (issue #3).
-// Usage: UTS_IP=<host> node scripts/probe-trace.mjs <output-dir>
+// Usage: node scripts/probe-trace.mjs <output-dir> [host]   (host defaults to UTS_IP)
+//   bash:        UTS_IP=192.168.1.100 node scripts/probe-trace.mjs out
+//   PowerShell:  $env:UTS_IP = "192.168.1.100"; node scripts/probe-trace.mjs out
+//   cmd:         set UTS_IP=192.168.1.100 && node scripts/probe-trace.mjs out
 // Reads trace data and the screenshot; the only state change is switching :FORMat
 // (and :SYSTem:PICture:FORMat if it exists), which is restored afterwards.
 // Raw replies are written to <output-dir> for inspection; nothing is redacted there,
@@ -9,11 +12,11 @@ import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 
-const host = process.env.UTS_IP;
+const host = process.argv[3] || process.env.UTS_IP;
 const port = Number(process.env.UTS_PORT || 5025);
 const outDir = process.argv[2];
 if (!host || !outDir) {
-  console.error("Usage: UTS_IP=<host> node scripts/probe-trace.mjs <output-dir>");
+  console.error("Usage: node scripts/probe-trace.mjs <output-dir> [host]   (or set UTS_IP)");
   process.exit(1);
 }
 fs.mkdirSync(outDir, { recursive: true });

@@ -7,6 +7,7 @@ What this project has actually been tested against. Anything not listed here is 
 | UNI-T UTS3036B | V1.04.0040 | LAN, raw SCPI over TCP | 5025 | `*IDN?` returns `UNI-TREND,UTS3036B,<serial>,V1.04.0040` (2026-11-10) |
 
 Notes:
+- Operating systems: the unit/integration suite (which uses an in-process fake instrument, no hardware) runs in CI on Ubuntu, macOS and Windows with Node 22 and 24. Live hardware checks so far were done from macOS only; the SCPI/TCP code path is OS-independent.
 - Terminators: `\n`, `\r\n`, `\r` and no terminator were all accepted; use `\n`. Replies end with a newline. Ports 5024 and 23 gave no response.
 - Serial numbers are intentionally not recorded in this repo.
 - Documentation basis: the UTS3000B programming manual (see [references.md](references.md)). Per-command hardware verification status will be tracked in [programming-guide.md](programming-guide.md).
@@ -24,7 +25,7 @@ Notes:
 | `:INITiate:CONTinuous?` / `:SWEep:POINts?` / `:SWEep:TIME?` / `:FORMat?` | `1` / `1001` / `2.647500e-03 ` / `ASC8` |
 | unknown query | no reply; the next query still works |
 
-Raw output (serial redacted): [tests/fixtures/p1-basics-probe.txt](../tests/fixtures/p1-basics-probe.txt). Reproduce with `UTS_IP=<host> node scripts/probe-basics.mjs`.
+Raw output (serial redacted): [tests/fixtures/p1-basics-probe.txt](../tests/fixtures/p1-basics-probe.txt). Reproduce with `node scripts/probe-basics.mjs <host>` (or set `UTS_IP`).
 
 ## Observed during F6 (2026-11-10, firmware V1.04.0040)
 
@@ -45,7 +46,7 @@ Raw output (serial redacted): [tests/fixtures/p1-basics-probe.txt](../tests/fixt
 | `:DISPlay:DATA?` | `#7` + `4096054`, then an uncompressed `BM` bitmap. **Only 144,800 bytes arrive**; no reply after `PNG` was selected |
 | Sweep state | continuous sweep paused to test the screenshot, then restored to continuous |
 
-Samples (trace data only; screenshots are truncated so only their 48-byte headers are kept): [tests/fixtures/p2/](../tests/fixtures/p2/). Reproduce with `UTS_IP=<host> node scripts/probe-trace.mjs <output-dir>`.
+Samples (trace data only; screenshots are truncated so only their 48-byte headers are kept): [tests/fixtures/p2/](../tests/fixtures/p2/). Reproduce with `node scripts/probe-trace.mjs <output-dir> [host]` (host defaults to `UTS_IP`).
 
 ## Command timing and error queue (2026-11-10, issue #45, firmware V1.04.0040)
 
