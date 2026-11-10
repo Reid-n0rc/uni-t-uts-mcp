@@ -46,6 +46,7 @@
     "start": "node build/index.js",
     "dev": "tsc && node build/index.js",
     "inspector": "npx @modelcontextprotocol/inspector node build/index.js",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc -p tsconfig.test.json",
     "site": "npm run build && node scripts/build-site.mjs",
