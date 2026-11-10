@@ -11,13 +11,13 @@ afterEach(async () => {
 });
 
 describe("createServer", () => {
-  it("builds a server exposing the connection tools", async () => {
+  it("builds a server exposing the connection and raw SCPI tools", async () => {
     const server = createServer();
     const [ct, st] = InMemoryTransport.createLinkedPair();
     client = new Client({ name: "t", version: "0.0.0" });
     await Promise.all([client.connect(ct), server.connect(st)]);
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
-    for (const n of ["connect", "disconnect", "identify"]) expect(names).toContain(n);
+    for (const n of ["connect", "disconnect", "identify", "scpi_query", "scpi_command"]) expect(names).toContain(n);
   });
 });

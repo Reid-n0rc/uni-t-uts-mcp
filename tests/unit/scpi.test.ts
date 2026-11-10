@@ -8,6 +8,7 @@ import {
   parseBool,
   checkCommand,
   assertAllowed,
+  analyzeLine,
   DangerousCommandError,
 } from "../../src/scpi.js";
 
@@ -227,5 +228,30 @@ describe("checkCommand hardening (#31)", () => {
   it("still accepts CRLF and LF terminators", () => {
     expect(checkCommand(":FREQ:CENT?\r\n").allowed).toBe(true);
     expect(checkCommand(":FREQ:CENT?\n").allowed).toBe(true);
+  });
+});
+
+describe("analyzeLine", () => {
+  it("counts statements and queries", () => {
+    expect(analyzeLine("*IDN?")).toEqual({ ok: true, statements: 1, queries: 1 });
+    expect(analyzeLine(":FREQ:CENT 1 GHz")).toEqual({ ok: true, statements: 1, queries: 0 });
+    expect(analyzeLine(":FREQ:CENT?;:FREQ:SPAN?")).toEqual({ ok: true, statements: 2, queries: 2 });
+    expect(analyzeLine("*IDN?;*CLS")).toEqual({ ok: true, statements: 2, queries: 1 });
+  });
+
+  it("ignores a trailing LF but counts statements after an embedded one", () => {
+    expect(analyzeLine("*IDN?\n")).toEqual({ ok: true, statements: 1, queries: 1 });
+    expect(analyzeLine("*IDN?\n*OPC?")).toEqual({ ok: true, statements: 2, queries: 2 });
+  });
+
+  it("does not count a ? inside a string or block as a query", () => {
+    expect(analyzeLine(':MMEM:CAT "a?b"')).toEqual({ ok: true, statements: 1, queries: 0 });
+  });
+
+  it("fails closed with a reason on unparseable input", () => {
+    const r = analyzeLine(':FOO "unterminated');
+    expect(r.ok).toBe(false);
+    expect(analyzeLine("").ok).toBe(true);
+    expect(analyzeLine("")).toEqual({ ok: true, statements: 0, queries: 0 });
   });
 });
