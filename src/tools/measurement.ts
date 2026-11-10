@@ -446,7 +446,7 @@ export function registerMeasurementTools(server: McpServer): void {
     "get_measurement",
     "Report whether the instrument is in spectrum analyzer mode, or check one measurement. The instrument has no query for the active measurement, so " +
       "without 'measurement' this asks one query that only spectrum analyzer mode answers (spectrum_analyzer, or an error that a measurement is active). " +
-      "With 'measurement' (channel_power, time_power or obw) it checks that measurement and returns its parameters; an error means it is not active. " +
+      "With 'measurement' (channel_power, time_power, obw, acpr, toi, cn or harmonics) it checks that measurement and returns its parameters; an error means it is not active. " +
       "A check that gets no reply costs a few seconds while the instrument recovers.",
     { measurement: MEASUREMENT.optional().describe("Check this measurement and return its parameters") },
     { readOnlyHint: true },
@@ -455,7 +455,7 @@ export function registerMeasurementTools(server: McpServer): void {
         const misses: string[] = [];
         if (args.measurement === undefined) {
           if (!(await isSpectrumAnalyzer(misses))) {
-            return errorResult(`${notSpectrumAnalyzer(misses)} Use get_measurement with measurement=channel_power, time_power or obw to check which one.`);
+            return errorResult(`${notSpectrumAnalyzer(misses)} Use get_measurement with measurement=<name> (channel_power, time_power, obw, acpr, toi, cn or harmonics) to check which one.`);
           }
           return textResult(JSON.stringify({ measurement: SA }, null, 2));
         }
@@ -471,7 +471,7 @@ export function registerMeasurementTools(server: McpServer): void {
   defineTool(
     server,
     "configure_measurement",
-    "Enter a measurement (channel_power, time_power or obw) and set its parameters; the instrument stays in the measurement until exit_measurement. " +
+    "Enter a measurement (channel_power, time_power, obw, acpr, toi, cn or harmonics) and set its parameters; the instrument stays in the measurement until exit_measurement. " +
       "preset=true (default) is :CONFigure:<meas>, false is :CONFigure:<meas>:NDEFault. Either way the instrument changes the span, RBW and sweep time " +
       "(for example span 3 MHz); when entered from spectrum analyzer mode the previous frequency, bandwidth and sweep settings are saved and " +
       "exit_measurement puts them back. While a measurement is active most spectrum analyzer queries (detector, trace type) get no reply.",
@@ -501,7 +501,8 @@ export function registerMeasurementTools(server: McpServer): void {
     "read_measurement",
     "Read the result of the active measurement. READ (default) runs the measurement and waits for it; fetch=true returns the latest result at once. " +
       "channel_power gives channel power (dBm) and density (dBm/Hz), time_power gives power (dBm), obw gives occupied bandwidth (Hz), frequency error (Hz), " +
-      "x dB bandwidth (Hz) and total power (dBm). Errors when that measurement is not active; it never changes the mode.",
+      "x dB bandwidth (Hz) and total power (dBm), acpr gives main, lower and upper channel power (dBm) and lower/upper relative power (dBc), cn gives carrier and noise power (dBm) and C/N (dB), " +
+      "toi gives the lower and upper third-order products and tones and the intercept, harmonics gives the fundamental, harmonics 2..n (dBc) and distortion (THD). Errors when that measurement is not active; it never changes the mode.",
     { measurement: MEASUREMENT, fetch: z.boolean().optional().describe("Return the latest result without starting a measurement"), timeout_s: TIMEOUT },
     { readOnlyHint: true },
     async (args) => {
@@ -548,7 +549,7 @@ export function registerMeasurementTools(server: McpServer): void {
     server,
     "measure",
     "One-shot measurement that leaves the instrument as it found it: from spectrum analyzer mode it saves the frequency, bandwidth and sweep settings, enters the " +
-      "measurement (channel_power, time_power or obw) with the given parameters, READs the result, and ALWAYS (even on errors) exits to spectrum analyzer " +
+      "measurement (channel_power, time_power, obw, acpr, toi, cn or harmonics) with the given parameters, READs the result, and ALWAYS (even on errors) exits to spectrum analyzer " +
       "mode, restores the settings and verifies. With the requested measurement already active it only reads and puts any parameters you changed back. " +
       "It refuses when the instrument is not in spectrum analyzer mode and the requested measurement is not the active one (use exit_measurement first). Takes the measurement's averaging time.",
     { measurement: MEASUREMENT, preset: z.boolean().optional().describe("Preset the measurement's parameters when entering (default true)"), timeout_s: TIMEOUT, ...PARAMS },

@@ -19,7 +19,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for co
 | Trace configuration | `get_trace`, `set_trace`, `restart_trace`, `set_trace_math` |
 | Trace data | `get_trace_data` |
 | Markers | `get_marker`, `set_marker`, `marker_search`, `marker_to_instrument`, `markers_all_off`, `get_peak_criteria`, `set_peak_criteria` |
-| Measurements | `get_measurement`, `configure_measurement`, `read_measurement`, `exit_measurement`, `measure` (channel power, time-domain power, OBW) |
+| Measurements | `get_measurement`, `configure_measurement`, `read_measurement`, `exit_measurement`, `measure` (channel power, time-domain power, OBW, ACPR, TOI, C/N, harmonics) |
 | Screenshot | `screenshot` (PNG image of the screen; needs VXI-11, see [tools reference](docs/tools-reference.md#screenshot)) |
 
 Parameters and behavior: [docs/tools-reference.md](docs/tools-reference.md). Set `UTS_IP` (see [Install](#install); optionally also `UTS_PORT`, default 5025) to connect automatically at startup. The default transport is `auto`: VXI-11 when the analyzer offers it (verified on the UTS3036B), otherwise raw SCPI over TCP; `UTS_TRANSPORT=raw` or `vxi11` forces one (setting only `UTS_PORT` also means raw), and `UTS_VXI11_DEVICE` (default `inst0`) names the VXI-11 device. VXI-11 queues commands during a sweep instead of dropping them, lets `single_sweep` wait with one blocking `*OPC?`, and does not truncate the screenshot transfer; see the [programming guide](docs/programming-guide.md#vxi-11-transport-srctransportsvxi11ts-srctransportsselectts).
