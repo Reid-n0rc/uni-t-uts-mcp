@@ -3,6 +3,8 @@ export interface WikiIssue {
   title: string;
   state: "open" | "closed";
   labels: string[];
+  /** author_association from the GitHub API (OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR, NONE, ...) */
+  authorAssociation?: string;
 }
 export interface WikiSources {
   toolsReference: string;
@@ -15,7 +17,7 @@ export const REPO_URL: string;
 export const GENERATED_PAGES: string[];
 export function slugify(heading: string): string;
 export function loadSources(root?: string): WikiSources;
-export function buildWikiPages(sources: WikiSources, options?: { issues?: WikiIssue[] | null }): WikiPages;
+export function buildWikiPages(sources: WikiSources, options?: { issues?: WikiIssue[] | null; warnings?: string[] }): WikiPages;
 export function parseIssues(json: unknown): WikiIssue[];
 export function fetchIssues(options?: { repo?: string; token?: string }): WikiIssue[] | null;
 export function findPrivateData(text: string): string[];
