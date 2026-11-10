@@ -181,7 +181,7 @@ export const CONTRACT: Record<string, ContractEntry> = {
   },
   markers_all_off: { kind: "setter", args: {} },
   get_peak_criteria: { kind: "getter", args: {} },
-  get_measurement: { kind: "getter", args: {} },
+  get_measurement: { kind: "getter", args: {}, invalid: [{ measurement: "nope" }] },
   configure_measurement: {
     kind: "setter",
     args: { measurement: "channel_power", integration_bandwidth_hz: 1e6 },

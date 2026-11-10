@@ -186,23 +186,13 @@ const isSpectrumAnalyzer = (misses: string[] = []) =>
 
 const isActive = (m: Measurement, misses: string[] = []) => answers(misses, `${sense(m)}:AVERage:STATe?`, parseBool);
 
-const probeMode = (mode: Mode, misses: string[]) => (mode === SA ? isSpectrumAnalyzer(misses) : isActive(mode, misses));
-
 /**
- * There is no query for the active measurement, so find it by asking what only that mode answers. Spectrum
- * analyzer mode costs one query; every other mode costs one probe timeout (plus the instrument's recovery
- * stall) per mode asked before it.
+ * There is no query for the active measurement and probing for it means asking queries that get no reply, which
+ * stall the instrument (and over VXI-11 can drop the link), so the tools never scan: they ask whether the instrument is in
+ * spectrum analyzer mode (one query that answers) and, only where it matters, whether ONE named measurement is active.
  */
-async function detectMode(): Promise<Mode> {
-  const misses: string[] = [];
-  const order: Mode[] = [SA, ...MEASUREMENT_NAMES];
-  for (const mode of order) {
-    if (await probeMode(mode, misses)) return mode;
-  }
-  throw new Error(
-    "Could not determine the instrument mode: it answered neither in spectrum analyzer mode nor in channel power, time-domain power or " +
-      `OBW mode (${misses.join("; ")}). Another measurement (ACPR, C/N, harmonics, TOI, spectrogram) may be active, or the instrument is not responding. To leave another measurement send :CONFigure:SANalyzer with scpi_command.`
-  );
+function notSpectrumAnalyzer(misses: string[]): string {
+  return `The instrument is not in spectrum analyzer mode (${misses.join("; ")}), so a measurement is active (or the instrument does not answer).`;
 }
 
 // ---------------- spectrum analyzer state (what a measurement preset overwrites) ----------------
@@ -345,20 +335,28 @@ export function registerMeasurementTools(server: McpServer): void {
   defineTool(
     server,
     "get_measurement",
-    "Report the active measurement mode (spectrum_analyzer, channel_power, time_power or obw) with the measurement's parameters. The instrument has no " +
-      "query for this, so the mode is found by probing: spectrum analyzer mode takes one query, a measurement mode can take a few seconds. " +
-      "An error means another measurement (ACPR, C/N, harmonics, TOI) is active or the instrument does not answer.",
-    {},
+    "Report whether the instrument is in spectrum analyzer mode, or check one measurement. The instrument has no query for the active measurement, so " +
+      "without 'measurement' this asks one query that only spectrum analyzer mode answers (spectrum_analyzer, or an error that a measurement is active). " +
+      "With 'measurement' (channel_power, time_power or obw) it checks that measurement and returns its parameters; an error means it is not active. " +
+      "A check that gets no reply costs a few seconds while the instrument recovers.",
+    { measurement: MEASUREMENT.optional().describe("Check this measurement and return its parameters") },
     { readOnlyHint: true },
-    async () => {
+    async (args) => {
       try {
-        const mode = await detectMode();
-        if (mode === SA) return textResult(JSON.stringify({ measurement: SA }, null, 2));
-        return textResult(JSON.stringify({ measurement: mode, parameters: await readParams(mode) }, null, 2));
+        const misses: string[] = [];
+        if (args.measurement === undefined) {
+          if (!(await isSpectrumAnalyzer(misses))) {
+            return errorResult(`${notSpectrumAnalyzer(misses)} Use get_measurement with measurement=channel_power, time_power or obw to check which one.`);
+          }
+          return textResult(JSON.stringify({ measurement: SA }, null, 2));
+        }
+        await requireActive(args.measurement);
+        return textResult(JSON.stringify({ measurement: args.measurement, parameters: await readParams(args.measurement) }, null, 2));
       } catch (err) {
         return errorResult(err);
       }
-    }
+    },
+    {}
   );
 
   defineTool(
@@ -374,8 +372,9 @@ export function registerMeasurementTools(server: McpServer): void {
       try {
         const { measurement, preset, ...params } = args;
         // Save the spectrum analyzer settings first: the preset overwrites them. Already in a measurement: keep what was saved.
+        // Save the settings the preset overwrites. A silent probe means a measurement is already active (keep what was saved then).
         let saved: SaState | undefined;
-        if ((await detectMode()) === SA) saved = await readSa();
+        if (await isSpectrumAnalyzer([])) saved = await readSa();
         const result = await configure(measurement, params, preset === false ? "ndefault" : "preset");
         if (saved) savedSa = saved;
         return textResult(
@@ -412,14 +411,15 @@ export function registerMeasurementTools(server: McpServer): void {
     "exit_measurement",
     "Leave the measurement and return to spectrum analyzer mode (:CONFigure:SANalyzer). The measurement preset leaves the span, RBW and sweep time changed, " +
       "so unless restore_settings=false the frequency, bandwidth, sweep time and continuous-sweep settings saved by configure_measurement are put back " +
-      "and verified (a measurement entered elsewhere has nothing saved: a warning says so, and finding the mode takes a few seconds). Does nothing when already in spectrum analyzer mode.",
+      "and verified (a measurement entered elsewhere has nothing saved: a warning says so). Does nothing when already in spectrum analyzer mode.",
     { restore_settings: z.boolean().optional().describe("Restore the settings saved when the measurement was entered (default true)") },
     { readOnlyHint: false, idempotentHint: true },
     async (args) => {
       try {
-        // Settings saved by configure_measurement mean we entered a measurement: skip the slow mode probing.
-        const mode = savedSa ? undefined : await detectMode();
-        if (mode === SA) {
+        // Settings saved by configure_measurement mean we entered a measurement: nothing to probe. Otherwise one query
+        // tells whether this is a no-op; a silent instrument is taken to be in a measurement and is sent the exit.
+        const inSa = savedSa ? false : await isSpectrumAnalyzer([]);
+        if (inSa) {
           savedSa = undefined;
           return textResult(JSON.stringify({ measurement: SA, restored: false, warnings: [] }, null, 2));
         }
@@ -441,16 +441,18 @@ export function registerMeasurementTools(server: McpServer): void {
     "One-shot measurement that leaves the instrument as it found it: from spectrum analyzer mode it saves the frequency, bandwidth and sweep settings, enters the " +
       "measurement (channel_power, time_power or obw) with the given parameters, READs the result, and ALWAYS (even on errors) exits to spectrum analyzer " +
       "mode, restores the settings and verifies. With the requested measurement already active it only reads and puts any parameters you changed back. " +
-      "It refuses when a different measurement is active (use exit_measurement first). Takes the measurement's averaging time plus a few seconds of mode probing.",
+      "It refuses when the instrument is not in spectrum analyzer mode and the requested measurement is not the active one (use exit_measurement first). Takes the measurement's averaging time.",
     { measurement: MEASUREMENT, preset: z.boolean().optional().describe("Preset the measurement's parameters when entering (default true)"), timeout_s: TIMEOUT, ...PARAMS },
     { readOnlyHint: false, idempotentHint: true },
     async (args) => {
       try {
         const { measurement, preset, timeout_s, ...params } = args;
-        const original = await detectMode();
-        if (original !== SA && original !== measurement) {
+        const misses: string[] = [];
+        const original: Mode | undefined = (await isSpectrumAnalyzer(misses)) ? SA : (await isActive(measurement, misses)) ? measurement : undefined;
+        if (original === undefined) {
           return errorResult(
-            `The ${original} measurement is active; entering ${measurement} would overwrite its span and settings, which cannot be restored. Use exit_measurement first.`
+            `${notSpectrumAnalyzer(misses)} It is not ${measurement} either, and entering ${measurement} would overwrite the span and settings of the ` +
+              "measurement that is active, which cannot be restored. Use exit_measurement first."
           );
         }
         const entry: Entry = original === measurement ? "none" : preset === false ? "ndefault" : "preset";

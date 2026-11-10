@@ -166,36 +166,48 @@ describe("get_measurement", () => {
     const out = json(await callTool(client, "get_measurement"));
     expect(out).toEqual({ measurement: "spectrum_analyzer" });
     expect(fake.queries).toEqual([":SENSe:DETector:TRACe1?"]);
+    expect(fake.calls).toEqual([]);
   });
-  it("detects each measurement and returns its parameters", async () => {
+  it("never scans: in a measurement mode it is an error after the one query that got no reply", async () => {
+    fake.state.mode = "OBWidth";
+    const res = await callTool(client, "get_measurement");
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toMatch(/not in spectrum analyzer mode/);
+    expect(getText(res)).toContain(":SENSe:DETector:TRACe1?");
+    expect(fake.queries).toEqual([":SENSe:DETector:TRACe1?"]);
+  });
+  it("checks one named measurement and returns its parameters", async () => {
     fake.state.mode = "CHPower";
-    expect(json(await callTool(client, "get_measurement"))).toEqual({
+    expect(json(await callTool(client, "get_measurement", { measurement: "channel_power" }))).toEqual({
       measurement: "channel_power",
       parameters: { average: true, average_count: 10, average_control: "exponential", average_type: "power", integration_bandwidth_hz: 2e6 },
     });
     fake.state.mode = "OBWidth";
-    expect(json(await callTool(client, "get_measurement"))).toEqual({
+    expect(json(await callTool(client, "get_measurement", { measurement: "obw" }))).toEqual({
       measurement: "obw",
       parameters: { average: true, average_count: 10, average_control: "exponential", average_type: "power", percent: 0.99, xdb: -26 },
     });
     fake.state.mode = "TPOWer";
-    expect(json(await callTool(client, "get_measurement"))).toEqual({
+    expect(json(await callTool(client, "get_measurement", { measurement: "time_power" }))).toEqual({
       measurement: "time_power",
       parameters: { average: true, average_count: 10, average_control: "exponential", average_type: "power", left_limit_s: 0, right_limit_s: 0.01 },
     });
   });
-  it("is an error naming the problem when no known mode answers (another measurement or no reply)", async () => {
-    fake.state.mode = "sa";
-    fake.query.mockImplementation(async (cmd: string) => { throw new Error(`Query timeout after 1500ms for command: ${cmd}`); });
-    const res = await callTool(client, "get_measurement");
+  it("a named measurement that is not active is an error naming the silent query", async () => {
+    fake.state.mode = "OBWidth";
+    const res = await callTool(client, "get_measurement", { measurement: "channel_power" });
     expect(res.isError).toBe(true);
-    expect(getText(res)).toMatch(/could not determine/i);
+    expect(getText(res)).toMatch(/not active/);
+    expect(getText(res)).toContain(":SENSe:CHPower:AVERage:STATe?");
   });
   it("passes other failures (not connected) through instead of guessing a mode", async () => {
     fake.query.mockImplementation(async () => { throw new Error("Not connected to the spectrum analyzer. Use the 'connect' tool first."); });
     const res = await callTool(client, "get_measurement");
     expect(res.isError).toBe(true);
     expect(getText(res)).toContain("connect");
+  });
+  it("rejects an unknown measurement name", async () => {
+    expect((await callTool(client, "get_measurement", { measurement: "nope" })).isError).toBe(true);
   });
 });
 
@@ -413,6 +425,7 @@ describe("measure (one shot: configure, read, always restore)", () => {
     expect(res.isError).toBe(true);
     expect(getText(res)).toMatch(/exit_measurement/);
     expect(fake.calls).toEqual([]);
+    expect(fake.queries).toEqual([":SENSe:DETector:TRACe1?", ":SENSe:CHPower:AVERage:STATe?"]); // two queries, no scan
   });
   it("with the requested measurement already active it only reads (no mode change); parameters are restored", async () => {
     fake.state.mode = "CHPower";
