@@ -12,6 +12,7 @@ The text of a release's section is also used as its GitHub release notes.
 ## [Unreleased]
 
 ### Added
+- Claude Desktop one-click install: releases made after this change also attach `uni-t-uts-mcp-<version>.mcpb` (an MCP bundle: double-click it, then enter the analyzer address, port and transport in the settings dialog; the address is optional). It is built with `npm run build:mcpb`, checked in CI on Ubuntu, macOS and Windows, and not code-signed. Installing it in Claude Desktop itself has not been verified yet.
 - `npm run client-config -- --host <address>` prints (never writes) the Claude Code command and the MCP JSON for your OS and paths.
 - VXI-11 as a selectable transport (`UTS_TRANSPORT=raw|vxi11|auto`, default `raw`; `UTS_VXI11_DEVICE`,
   default `inst0`; an optional `transport` parameter on `connect`). `auto` uses VXI-11 when the

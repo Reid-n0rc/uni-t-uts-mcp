@@ -32,6 +32,7 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 - `src/vxi11/` – dependency-free ONC RPC/XDR client, portmapper and VXI-11 core-channel client (used by the VXI-11 transport)
 - `src/tools/` – one file per tool group, registered in `src/server.ts`
 - `tests/` – unit and mocked integration tests, a fake SCPI server, a transport contract suite (`transportContract.ts`), and captured instrument fixtures
+- `mcpb/manifest.json`, `scripts/build-mcpb.mjs` – the Claude Desktop MCP bundle (`.mcpb`): manifest and the Node-only build script (`npm run build:mcpb`)
 - `scripts/client-config.mjs` – the `npm run client-config` printer; also the single place that holds the install specs and the `NPM_PUBLISHED` switch
 - `docs/` – [tools-reference.md](docs/tools-reference.md), [verified-hardware.md](docs/verified-hardware.md), [programming-guide.md](docs/programming-guide.md), [references.md](docs/references.md)
 
@@ -62,7 +63,20 @@ On Windows, where `npx` is a `.cmd` file that clients cannot launch directly, pu
 claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz
 ```
 
-### Claude Desktop, Cursor, VS Code and other clients
+### Claude Desktop: download the .mcpb and double-click (available from the next release)
+
+The next release after v0.1.0 will attach `uni-t-uts-mcp-<version>.mcpb` (an MCP bundle, the Claude Desktop extension format) to its [GitHub release](https://github.com/Reid-n0rc/uni-t-uts-mcp/releases). v0.1.0 does not have it; until a release includes it, use the JSON configuration below or build the file yourself (`npm ci && npm run build && npm run build:mcpb`, which writes `dist/uni-t-uts-mcp-<version>.mcpb`).
+
+1. Download the `.mcpb` file.
+2. Double-click it (or drag it onto Claude Desktop, or use Settings > Extensions > Advanced settings > Install Extension).
+3. In the install dialog fill in the settings, then install:
+   - **Analyzer address** (optional): the analyzer's address, for example `192.168.1.100`. Leave it empty and tell the assistant "connect to the analyzer at 192.168.1.100" instead.
+   - **Port**: 5025 (raw SCPI); change it only if your analyzer differs.
+   - **Transport**: `raw` (default), `vxi11` or `auto`.
+
+The bundle contains the compiled server and its dependencies and uses the Node.js that comes with Claude Desktop, so nothing else needs installing (it needs Node 22 or newer). It is not code-signed, so Claude Desktop shows its usual unverified-extension notice. The bundle is built and checked in CI and started over stdio from an unpacked copy, but installing it in Claude Desktop itself has not been verified yet (issue #86 tracks the manual check).
+
+### Claude Desktop (JSON), Cursor, VS Code and other clients
 
 Add this `mcpServers` entry to the client's MCP configuration (Claude Desktop: `claude_desktop_config.json`; Cursor: `~/.cursor/mcp.json`; VS Code-style clients use the same entry, some under a `servers` key instead of `mcpServers`).
 
