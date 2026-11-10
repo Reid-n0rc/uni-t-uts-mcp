@@ -27,6 +27,17 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+  # The wiki is generated from the docs (issue #70): a docs change must not break the sync.
+  wiki-check:
+    name: wiki pages build and links resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node scripts/sync-wiki.mjs --check
+
   # Release smoke tests (issue #84): what would be published must contain only the intended
   # files, install cleanly from the packed tarball, and start as an MCP server.
   package-contents:
@@ -49,6 +60,31 @@ jobs:
             echo "::error::npm auto-corrected package.json; run 'npm pkg fix' and commit the result"
             exit 1
           fi
+
+  # Claude Desktop bundle (issue #86): build the .mcpb with the pinned official packer, validate its manifest,
+  # check exactly which files it holds, then unpack it into an empty folder and run it as a stdio MCP server.
+  mcpb-bundle:
+    name: mcpb bundle (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Build the bundle (the build validates the manifest and checks the file list)
+        run: node scripts/build-mcpb.mjs --out "$RUNNER_TEMP/mcpb"
+      - name: Bundle tests (contents, no secrets, runs from an empty folder over stdio)
+        run: npm run test:mcpb
 
   install-smoke:
     name: npm install smoke (${{ matrix.os }}, node ${{ matrix.node-version }})

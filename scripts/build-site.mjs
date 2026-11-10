@@ -16,12 +16,16 @@ export function buildSite({ root = resolve(here, ".."), outDir = join(root, "_si
   let template = readFileSync(join(siteDir, "index.html"), "utf8");
   if (!template.includes("<!--SOUNDTRACK_JS-->")) throw new Error("Template is missing the <!--SOUNDTRACK_JS--> placeholder");
   template = template.split("<!--SOUNDTRACK_JS-->").join(soundtrack);
+  const heroMarker = readFileSync(join(siteDir, "hero-marker.cjs"), "utf8");
+  if (/<\/script|<!--/i.test(heroMarker)) throw new Error("site/hero-marker.cjs must not contain a closing script tag or an HTML comment opener");
+  if (!template.includes("<!--HERO_MARKER_JS-->")) throw new Error("Template is missing the <!--HERO_MARKER_JS--> placeholder");
+  template = template.split("<!--HERO_MARKER_JS-->").join(heroMarker);
   const groups = parseToolsReference(readFileSync(join(root, "docs", "tools-reference.md"), "utf8"));
 
   mkdirSync(outDir, { recursive: true });
   // Any extra assets next to the template are copied as they are.
   for (const entry of readdirSync(siteDir)) {
-    if (entry === "index.html" || entry === "soundtrack.cjs") continue; // the soundtrack is inlined, not shipped
+    if (entry === "index.html" || entry === "soundtrack.cjs" || entry === "hero-marker.cjs") continue; // both scripts are inlined, not shipped
     cpSync(join(siteDir, entry), join(outDir, entry), { recursive: true });
   }
   writeFileSync(join(outDir, "index.html"), renderSite(template, groups, descriptions));

@@ -17,7 +17,12 @@
   "use strict";
 
   // ===================================================================== 1. composition (pure)
-  var MIN_BPM = 80, MAX_BPM = 110;
+  // Tempo: one documented default (DEFAULT_BPM) plus a small seeded variation, always inside
+  // MIN_BPM..MAX_BPM. The page can override it with ?bpm=<n> or #bpm=<n> (see parseBpm), clamped to
+  // OVERRIDE_MIN_BPM..OVERRIDE_MAX_BPM, so the tempo can be tuned by ear without changing code.
+  var MIN_BPM = 118, MAX_BPM = 132, DEFAULT_BPM = 124;
+  var OVERRIDE_MIN_BPM = 60, OVERRIDE_MAX_BPM = 180;
+  var DEFAULT_SEED = 1992;
   var STEPS_PER_BAR = 16; // sixteenth notes
   var BARS = 8;
   var MINOR = [0, 2, 3, 5, 7, 8, 10]; // natural minor
@@ -41,6 +46,38 @@
     };
   }
 
+  /**
+   * Read a tempo override from a location search string ("?bpm=128") and hash ("#bpm=128"). Returns a
+   * whole number clamped to OVERRIDE_MIN_BPM..OVERRIDE_MAX_BPM, or null when there is no usable value
+   * (missing, non-numeric, signs, exponents, hex and the like are all ignored). A valid query value wins
+   * over the hash; an invalid one falls through to the hash. Never throws. Only the tempo is read:
+   * this parameter does not enable, force or change anything else.
+   */
+  function parseBpm(search, hash) {
+    var sources = [search, hash];
+    for (var i = 0; i < sources.length; i++) {
+      var src = sources[i];
+      if (typeof src !== "string") continue;
+      var parts = src.replace(/^[?#]/, "").split("&");
+      for (var j = 0; j < parts.length; j++) {
+        var eq = parts[j].indexOf("=");
+        if (eq < 0 || parts[j].slice(0, eq) !== "bpm") continue;
+        var raw = parts[j].slice(eq + 1);
+        if (!/^[0-9]+(\.[0-9]+)?$/.test(raw)) continue;
+        var n = Number(raw);
+        if (!isFinite(n)) continue;
+        return Math.max(OVERRIDE_MIN_BPM, Math.min(OVERRIDE_MAX_BPM, Math.round(n)));
+      }
+    }
+    return null;
+  }
+
+  function clampBpm(n) {
+    n = Number(n);
+    if (!isFinite(n)) return null;
+    return Math.max(OVERRIDE_MIN_BPM, Math.min(OVERRIDE_MAX_BPM, Math.round(n)));
+  }
+
   function midiToHz(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
 
   /** MIDI note of a scale degree (may exceed 6: wraps into the next octave). */
@@ -53,9 +90,11 @@
    * stepsPerBar, stepSeconds, loopSeconds, events }. Each event: { part, step, time, dur, midi? },
    * sorted by time. The same seed always gives the same loop.
    */
-  function compose(seed) {
+  function compose(seed, bpmOverride) {
     var rng = mulberry32(seed);
-    var bpm = MIN_BPM + Math.floor(rng() * (MAX_BPM - MIN_BPM + 1));
+    var bpm = DEFAULT_BPM + Math.floor(rng() * 9) - 4; // 120..128, always inside MIN_BPM..MAX_BPM
+    var forced = clampBpm(bpmOverride);
+    if (bpmOverride !== undefined && bpmOverride !== null && forced !== null) bpm = forced; // the draw above is still consumed: the pattern does not change
     var rootMidi = 45 + Math.floor(rng() * 12);
     var scale = MINOR.map(function (i) { return (rootMidi + i) % 12; });
     var stepSeconds = 60 / bpm / 4;
@@ -73,23 +112,44 @@
       var chord = (bar < 4 ? progA : progB)[bar % 4];
       var triad = [chord, chord + 2, chord + 4];
 
-      // drums: four on the floor, snare on 2 and 4, off-beat hats
+      // drums: four on the floor, snare (clap) on 2 and 4, open hats on the off-beats
+      var fillBar = bar === BARS - 1;
       for (var q = 0; q < 4; q++) add("kick", base + q * 4, 2);
       add("snare", base + 4, 2); add("snare", base + 12, 2);
-      for (var h = 2; h < STEPS_PER_BAR; h += 4) add("hat", base + h, h === 14 && bar % 2 ? 1.5 : 0.4);
-      if (rng() < 0.5) add("hat", base + 15, 0.4);
-
-      // pad: the chord held for the bar, an octave up
-      for (var k = 0; k < 3; k++) add("pad", base, STEPS_PER_BAR * 0.98, degreeMidi(rootMidi, triad[k]) + 12);
-
-      // bass: driving eighths on the chord root, an octave below the key; never overlapping
-      var bassRoot = degreeMidi(rootMidi, chord) - 12;
-      for (var s = 0; s < STEPS_PER_BAR; s += 2) {
-        if (s % 4 !== 0 && rng() < 0.12) continue; // a rest now and then
-        add("bass", base + s, 1.6, bassRoot);
+      for (var h = 2; h < STEPS_PER_BAR; h += 4) {
+        if (fillBar && h >= 8) continue; // the snare roll takes the second half of the last bar
+        add("hat", base + h, 1.6);
+      }
+      if (!fillBar && rng() < 0.5) add("hat", base + 15, 0.4);
+      if (fillBar) {
+        // snare roll every 8 bars: tightening and getting louder into the next loop
+        var roll = [8, 10, 13, 14, 15];
+        for (var r = 0; r < roll.length; r++) {
+          var e2 = { part: "snare", step: base + roll[r], time: (base + roll[r]) * stepSeconds, dur: stepSeconds, fill: true, vel: 0.5 + 0.1 * r };
+          events.push(e2);
+        }
       }
 
-      // lead: a 16th-note arpeggio over the chord (tones 0..2 plus the octave), with rests
+      // pad: the chord held for the bar, an octave up; its filter opens and closes with the chords
+      var cutoffTo = 1000 + 300 * (bar % 4);
+      for (var k = 0; k < 3; k++) {
+        add("pad", base, STEPS_PER_BAR * 0.98, degreeMidi(rootMidi, triad[k]) + 12);
+        var padEv = events[events.length - 1];
+        padEv.cutoffFrom = 450; padEv.cutoffTo = cutoffTo;
+      }
+
+      // bass: galloping on the chord root, an octave below the key (an eighth then two sixteenths per
+      // beat); never overlapping
+      var bassRoot = degreeMidi(rootMidi, chord) - 12;
+      for (var b4 = 0; b4 < STEPS_PER_BAR; b4 += 4) {
+        var gallop = [[0, 1.7], [2, 0.8], [3, 0.8]];
+        for (var gi = 0; gi < gallop.length; gi++) {
+          if (gi > 0 && rng() < 0.12) continue; // a rest now and then
+          add("bass", base + b4 + gallop[gi][0], gallop[gi][1], bassRoot);
+        }
+      }
+
+      // lead: a gated 16th-note arpeggio over the chord (tones 0..2 plus the octave): short notes with rests
       var pattern = LEAD_PATTERNS[Math.floor(rng() * LEAD_PATTERNS.length)];
       var tones = [chord, chord + 2, chord + 4, chord + 7];
       var notes = [];
@@ -98,7 +158,7 @@
         if (notes[st] === null) continue;
         var last = bar === BARS - 1 && st === STEPS_PER_BAR - 1;
         var long = !last && st < STEPS_PER_BAR - 1 && notes[st + 1] === null && rng() < 0.4;
-        add("lead", base + st, long ? 1.9 : 0.9, degreeMidi(rootMidi, notes[st]));
+        add("lead", base + st, long ? 1.9 : 0.6, degreeMidi(rootMidi, notes[st]));
       }
     }
 
@@ -122,7 +182,7 @@
 
   function createEngine(Ctor, options) {
     options = options || {};
-    var song = compose(options.seed === undefined ? 1992 : options.seed);
+    var song = compose(options.seed === undefined ? DEFAULT_SEED : options.seed, options.bpm);
     var volume = clamp01(options.volume === undefined ? DEFAULT_VOLUME : options.volume);
     var ctx = null, master = null, analyser = null, bus = null, noise = null;
     var timer = null, idx = 0, loopStart = 0, started = false;
@@ -163,12 +223,17 @@
       if (wetVerb) node.connect(ctx._sends.verb);
     }
 
-    function tone(type, freq, t, dur, peak, attack, release, cutoff, wetDelay, wetVerb, detune) {
+    function tone(type, freq, t, dur, peak, attack, release, cutoff, wetDelay, wetVerb, detune, sweep) {
       var osc = ctx.createOscillator(), filter = ctx.createBiquadFilter(), g = ctx.createGain();
       osc.type = type; osc.frequency.value = freq;
       if (detune) osc.detune.value = detune;
       filter.type = "lowpass"; filter.frequency.value = cutoff;
       var end = t + dur;
+      if (sweep && sweep.cutoffTo) { // filter opens over the first half of the note and closes again
+        filter.frequency.setValueAtTime(sweep.cutoffFrom, t);
+        filter.frequency.linearRampToValueAtTime(sweep.cutoffTo, t + dur * 0.5);
+        filter.frequency.linearRampToValueAtTime(sweep.cutoffFrom, end);
+      }
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(peak, t + attack);
       g.gain.setValueAtTime(peak, Math.max(t + attack, end));
@@ -177,7 +242,7 @@
       osc.start(t); osc.stop(end + release + 0.05);
     }
 
-    function hit(kind, t, dur) {
+    function hit(kind, t, dur, hitVel) {
       var g = ctx.createGain();
       if (kind === "kick") {
         var o = ctx.createOscillator(); o.type = "sine";
@@ -190,7 +255,8 @@
       src.buffer = noise; f.type = "highpass";
       if (kind === "snare") {
         f.frequency.value = 1500;
-        g.gain.setValueAtTime(0.38, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        var v = hitVel || 1;
+        g.gain.setValueAtTime(0.38 * v, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
         var body = ctx.createOscillator(), bg = ctx.createGain(); body.type = "triangle"; body.frequency.value = 190;
         bg.gain.setValueAtTime(0.3, t); bg.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
         body.connect(bg); route(bg, false, true); body.start(t); body.stop(t + 0.12);
@@ -210,9 +276,9 @@
         tone("sawtooth", midiToHz(e.midi), t, dur, 0.13, 0.005, 0.08, 2600, true, true, -6);
         tone("square", midiToHz(e.midi), t, dur, 0.05, 0.005, 0.08, 1800, true, true, 7);
       } else if (e.part === "pad") {
-        tone("sawtooth", midiToHz(e.midi), t, dur, 0.06, 0.5, 0.6, 1100, false, true, -9);
-        tone("sawtooth", midiToHz(e.midi), t, dur, 0.06, 0.5, 0.6, 1100, false, true, 9);
-      } else hit(e.part, t, dur);
+        tone("sawtooth", midiToHz(e.midi), t, dur, 0.06, 0.5, 0.6, 1100, false, true, -9, e);
+        tone("sawtooth", midiToHz(e.midi), t, dur, 0.06, 0.5, 0.6, 1100, false, true, 9, e);
+      } else hit(e.part, t, dur, e.vel);
     }
 
     function tick() {
@@ -301,16 +367,22 @@
    * engagement score). Failures are swallowed, there are at most MAX_HINT_TRIES of them, and the prompt
    * stays up until audio really runs. We do nothing else to get around the policy.
    */
+  function readSearch(win, key) {
+    try { var v = win.location[key]; return typeof v === "string" ? v : ""; } catch (e) { return ""; }
+  }
+
   function init(env) {
     var win = env.win, doc = env.doc;
     var Ctor = getAudioContextCtor(win);
     var button = doc.getElementById("sound-toggle");
     var prompt = doc.getElementById("sound-prompt");
     var label = doc.getElementById("sound-state");
+    var tempo = parseBpm(readSearch(win, "search"), readSearch(win, "hash"));
     var state = "unsupported", wantPlay = false, engine = null, armed = false, hintTries = 0, inflight = null;
 
     var api = {
       binCount: BIN_COUNT,
+      bpm: tempo !== null ? tempo : compose(DEFAULT_SEED).bpm,
       state: function () { return state; },
       getSpectrum: function (buf) { return state === "playing" && engine ? engine.getSpectrum(buf) : false; },
     };
@@ -342,7 +414,7 @@
     function disarm() { if (armed) listeners(false); }
 
     function getEngine() {
-      if (!engine) engine = createEngine(Ctor, { onRunning: function () { if (wantPlay && !doc.hidden && state !== "playing") attempt(); } });
+      if (!engine) engine = createEngine(Ctor, { bpm: tempo === null ? undefined : tempo, onRunning: function () { if (wantPlay && !doc.hidden && state !== "playing") attempt(); } });
       return engine;
     }
 
@@ -405,8 +477,9 @@
   }
 
   return {
-    compose: compose, midiToHz: midiToHz, createEngine: createEngine, init: init,
+    compose: compose, parseBpm: parseBpm, midiToHz: midiToHz, createEngine: createEngine, init: init,
     getAudioContextCtor: getAudioContextCtor,
-    MIN_BPM: MIN_BPM, MAX_BPM: MAX_BPM, STEPS_PER_BAR: STEPS_PER_BAR, MUTE_KEY: MUTE_KEY,
+    MIN_BPM: MIN_BPM, MAX_BPM: MAX_BPM, DEFAULT_BPM: DEFAULT_BPM,
+    OVERRIDE_MIN_BPM: OVERRIDE_MIN_BPM, OVERRIDE_MAX_BPM: OVERRIDE_MAX_BPM, STEPS_PER_BAR: STEPS_PER_BAR, MUTE_KEY: MUTE_KEY,
   };
 });

@@ -12,7 +12,10 @@ The text of a release's section is also used as its GitHub release notes.
 ## [Unreleased]
 
 ### Added
-
+- Project site: the `marker.exe` readout now belongs to the animated trace. A marker flag rides the highest point of the spectrum, the readout window is anchored to it with a leader line (flipping and sliding to stay clear of the headline and the edges, and docked above the trace on phones), and its frequency and level follow the marker. With reduced motion the marker stays on a fixed peak.
+- Claude Desktop one-click install: releases made after this change also attach `uni-t-uts-mcp-<version>.mcpb` (an MCP bundle: double-click it, then enter the analyzer address, port and transport in the settings dialog; the address is optional). It is built with `npm run build:mcpb`, checked in CI on Ubuntu, macOS and Windows, and not code-signed. Installing it in Claude Desktop itself has not been verified yet.
+- The GitHub wiki is now generated from the repository (`scripts/sync-wiki.mjs`, `docs/wiki/`) and published automatically by `.github/workflows/wiki-sync.yml` after every change to `main`; CI checks that the pages build and every link resolves. The stale wiki content (install paths, concurrency, VXI-11, trace tools, limitations) was brought up to date.
+- `npm run client-config -- --host <address>` prints (never writes) the Claude Code command and the MCP JSON for your OS and paths.
 - VXI-11 as a selectable transport (`UTS_TRANSPORT=raw|vxi11|auto`; `UTS_VXI11_DEVICE`, default `inst0`;
   an optional `transport` parameter on `connect`). `auto` uses VXI-11 when the analyzer registers it with
   the portmapper on port 111 and falls back to raw with a logged reason. Over VXI-11 commands sent during
@@ -27,13 +30,12 @@ The text of a release's section is also used as its GitHub release notes.
   screenshot tool (#20) and the investigation in #42.
 
 ### Changed
-
 - The default transport is now `auto` (VXI-11 when the analyzer offers it, otherwise raw) instead of
   `raw`. Giving only a port (`UTS_PORT` or the `connect` parameter) without a transport choice still
   means raw. Set `UTS_TRANSPORT=raw` to keep the old behavior.
+- README, site and docs now lead with install forms that work today (release tarball, `github:` spec, pinned Docker image, from a clone); `npx -y uni-t-uts-mcp` is labelled coming soon until the package is on npm. A test keeps the install commands in step with the package version.
 
 ### Fixed
-
 - VXI-11: a query that got no reply (an unsupported query, a too short timeout) declared the link lost
   after the timeout plus 5 s and stalled the next write. The analyzer never answers such a read with an
   I/O timeout error; the transport now sends a fifth of the timeout as the I/O timeout, fails the read

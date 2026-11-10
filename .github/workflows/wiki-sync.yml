@@ -1,0 +1,67 @@
+name: Wiki sync
+
+# Builds the wiki pages from the repository (scripts/sync-wiki.mjs: docs/tools-reference.md,
+# docs/verified-hardware.md, package.json, docs/wiki/*.md and the issue tracker) and pushes them to
+# the wiki repository as an ordinary commit. Nothing is pushed when the pages did not change, and
+# history is never rewritten. Uses only the default GITHUB_TOKEN; no other credentials are used.
+#
+# Why the `issues` trigger is safe (issue #103): the repository is public, so issue titles, bodies and
+# labels are untrusted. This workflow therefore never reads the event payload: no expression in this
+# file uses it, nothing is passed to a shell or to the script as an input or argument, and the checkout
+# is the default branch (never an issue-controlled ref). The script reads the issue list itself through
+# the API, lists only issues by an owner, member or collaborator, and renders their titles and labels
+# as escaped, length-capped plain text with private-looking data redacted (see scripts/sync-wiki.mjs).
+# Permissions stay minimal: contents: write (the wiki push) and issues: read.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "README.md"
+      - "CHANGELOG.md"
+      - "package.json"
+      - "scripts/sync-wiki.mjs"
+      - "scripts/site-tools.mjs"
+      - ".github/workflows/wiki-sync.yml"
+  # The Roadmap page lists the issues, so it is rebuilt when they change too.
+  issues:
+    types: [opened, edited, closed, reopened, deleted, transferred]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+
+concurrency:
+  group: wiki-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: build and push the wiki
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki-repo
+      - name: Build the pages into the wiki checkout
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/sync-wiki.mjs --out wiki-repo
+      - name: Commit and push if anything changed
+        working-directory: wiki-repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The wiki is already up to date; nothing to push."
+            exit 0
+          fi
+          git commit -m "Sync wiki from ${GITHUB_SHA::7}"
+          git push
