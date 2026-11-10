@@ -67,6 +67,10 @@ From a clone, `npm ci && npm run build` works the same on every OS; then use `no
 
 Probe scripts take the host as an argument or from `UTS_IP`: `node scripts/probe-basics.mjs 192.168.1.100`.
 
+## Project site
+
+The project site is at https://reid-n0rc.github.io/uni-t-uts-mcp/ (source in `site/`). Its tool list is generated from the server's own tool definitions and `docs/tools-reference.md`, so it stays current. Preview it locally with `npm run site` and open `_site/index.html`; it is deployed by `.github/workflows/pages.yml` on every change to `main` that touches the site or the tools.
+
 ## Documentation
 
 Manual and reference links: [docs/references.md](docs/references.md).
