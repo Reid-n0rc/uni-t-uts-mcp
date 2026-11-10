@@ -4,13 +4,13 @@ import { join } from "node:path";
 import { NPM_PUBLISHED, tarballUrl, githubSpec, dockerImage } from "../../scripts/client-config.mjs";
 
 /**
- * Every install instruction in the README, site and docs must work today. The only form that does
- * not yet exist is `npx -y uni-t-uts-mcp` from the npm registry; it must be labelled "coming soon"
- * until NPM_PUBLISHED in scripts/client-config.mjs is flipped. No regular expressions are built
- * from variable text here.
+ * Every install instruction in the README, site and docs must work today. The package is live on
+ * npm (0.1.0), so `npx -y uni-t-uts-mcp` is the lead install form and must be present and unmarked:
+ * no "coming soon" or "not published" wording about npm may remain. No regular expressions are
+ * built from variable text here.
  */
 const root = new URL("../../", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version: string };
+const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { name: string; version: string };
 const V = pkg.version;
 const read = (p: string) => readFileSync(join(root, p), "utf8");
 
@@ -32,7 +32,7 @@ function jsonBlocks(md: string): { text: string; before: string }[] {
   return out;
 }
 
-const NPM_FORM = "npx -y uni-t-uts-mcp";
+const NPM_FORM = `npx -y ${pkg.name}`;
 /** True when `text` contains the bare npm-registry form (not followed by a longer package name). */
 function npmFormOffsets(text: string): number[] {
   const hits: number[] = [];
@@ -61,8 +61,8 @@ describe("install docs are truthful", () => {
           const flat = [s.command, ...args];
           if (flat.includes("npx") || s.command === "npx") {
             const spec = args[args.length - 1];
-            if (spec === "uni-t-uts-mcp") {
-              expect(NPM_PUBLISHED || /coming soon/i.test(b.before), `${f}: npm form must be marked coming soon`).toBe(true);
+            if (spec === pkg.name) {
+              expect(/coming soon/i.test(b.before), `${f}: npm form must not be marked coming soon`).toBe(false);
             } else {
               expect([tarballUrl(V), githubSpec(V)], `${f}: unknown npx spec ${spec}`).toContain(spec);
             }
@@ -121,18 +121,39 @@ describe("install docs are truthful", () => {
     }
   });
 
-  it("the npm-registry form is marked coming soon wherever it appears until it is published", () => {
-    if (NPM_PUBLISHED) return;
-    for (const f of textFiles) {
-      const text = read(f);
-      for (const at of npmFormOffsets(text)) {
-        const lineStart = text.lastIndexOf("\n", at);
-        let ctxStart = lineStart;
-        for (let k = 0; k < 6 && ctxStart > 0; k++) ctxStart = text.lastIndexOf("\n", ctxStart - 1);
-        const ctx = text.slice(Math.max(0, ctxStart), text.indexOf("\n", at) < 0 ? text.length : text.indexOf("\n", at));
-        expect(/coming soon/i.test(ctx), `${f}: bare npm form near "${text.slice(at, at + 40)}" must say coming soon`).toBe(true);
-      }
+  it("npm is switched on and the package name in the README command matches package.json", () => {
+    expect(NPM_PUBLISHED).toBe(true);
+    expect(pkg.name).toBe("uni-t-uts-mcp");
+    const readme = read("README.md");
+    expect(readme).toContain(`claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y ${pkg.name}\n`);
+    expect(readme).toContain(`claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y ${pkg.name}\n`);
+    expect(readme).toContain(`{ "mcpServers": { "uni-t-uts": { "command": "npx", "args": ["-y", "${pkg.name}"]`);
+    expect(readme).toContain(`"args": ["/c", "npx", "-y", "${pkg.name}"]`);
+    // the npm form comes first, ahead of the tarball, github: and Docker alternatives
+    const npmAt = readme.indexOf(`-- npx -y ${pkg.name}\n`);
+    expect(npmAt).toBeGreaterThan(-1);
+    for (const alt of [tarballUrl(V), githubSpec(V), dockerImage(V)]) expect(npmAt).toBeLessThan(readme.indexOf(alt));
+  });
+
+  it("no document still says the npm package is coming soon or not published", () => {
+    const stale = ["coming soon", "not published", "not been published", "after the first npm publish", "not on npm"];
+    const wikiDir = "docs/wiki";
+    const wikiFiles = readdirSync(join(root, wikiDir)).filter((f) => f.endsWith(".md")).map((f) => `${wikiDir}/${f}`);
+    for (const f of [...textFiles, ...wikiFiles]) {
+      const lines = read(f).split("\n");
+      lines.forEach((line, i) => {
+        const l = line.toLowerCase();
+        if (!l.includes("npm")) return;
+        for (const phrase of stale) expect(l.includes(phrase), `${f}:${i + 1} still says "${phrase}" next to npm`).toBe(false);
+      });
     }
+    // the npm form appears in README, the site and the wiki Getting Started page
+    for (const f of ["README.md", "site/index.html", "docs/wiki/Getting-Started.md"]) {
+      expect(npmFormOffsets(read(f)).length, `${f}: needs the npm install form`).toBeGreaterThan(0);
+    }
+    // the CHANGELOG [Unreleased] section does not call npm coming soon either
+    const unreleased = read("CHANGELOG.md").split("## [0.1.0]")[0].toLowerCase();
+    expect(unreleased).not.toContain("coming soon");
   });
 
   it("the site quick start leads with the working commands and stays self-contained", () => {
@@ -144,7 +165,9 @@ describe("install docs are truthful", () => {
     expect(site).not.toContain("Not on npm or Docker yet");
     const quick = site.slice(site.indexOf('id="quickstart"'));
     expect(quick.indexOf(tarballUrl(V))).toBeGreaterThan(-1);
-    if (!NPM_PUBLISHED) expect(quick.toLowerCase()).toContain("coming soon");
+    expect(quick).toContain(`claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y ${pkg.name}`);
+    expect(quick.toLowerCase()).not.toContain("coming soon");
+    expect(quick.indexOf(`-- npx -y ${pkg.name}`)).toBeLessThan(quick.indexOf(tarballUrl(V)));
     // no external requests: no script/link/img/iframe sources pointing at http(s)
     for (const tag of ['src="http', "src='http", '<link href="http', "url(http", "@import"]) expect(site).not.toContain(tag);
   });
@@ -153,5 +176,18 @@ describe("install docs are truthful", () => {
     const rel = read("docs/releasing.md");
     expect(rel).toContain("NPM_PUBLISHED");
     expect(rel).toContain("scripts/client-config.mjs");
+    expect(rel).not.toContain("Adding npm later");
+  });
+
+  it("docs/releasing.md documents that npm is live, trusted publishing and the asynchronous first publish", () => {
+    const rel = read("docs/releasing.md");
+    expect(rel).toContain("Trusted Publisher");
+    expect(rel).toContain("npm-publish.yml");
+    expect(rel).toContain("Reid-n0rc");
+    expect(rel).toContain("NPM_TRUSTED_PUBLISHING");
+    expect(rel).toContain("gh variable set NPM_TRUSTED_PUBLISHING --body true");
+    expect(rel).toContain("0.0.0-stage");
+    expect(rel).toContain("npm view");
+    expect(rel).not.toContain("is not on the npm registry");
   });
 });

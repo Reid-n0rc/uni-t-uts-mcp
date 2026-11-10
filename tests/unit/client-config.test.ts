@@ -94,6 +94,16 @@ describe("client config printer", () => {
     expect(main(["--host", "bad host"], io)).toBe(2);
     expect(main(["--bogus"], io)).toBe(2);
     expect(main(["--from", "nope"], io)).toBe(2);
-    if (!NPM_PUBLISHED) expect(main(["--from", "npm"], io)).toBe(2);
+  });
+
+  it("--from npm prints the bare npx form now that the package is published", () => {
+    expect(NPM_PUBLISHED).toBe(true);
+    const out: string[] = [];
+    const io = { out: (s: string) => out.push(s), err: () => {}, platform: "linux", entry: POSIX_ENTRY, version: V };
+    expect(main(["--host", HOST, "--from", "npm"], io)).toBe(0);
+    expect(out.join("\n")).toContain(`claude mcp add uni-t-uts -e UTS_IP=${HOST} -- npx -y uni-t-uts-mcp`);
+    const win: string[] = [];
+    expect(main(["--host", HOST, "--from", "npm"], { ...io, out: (s: string) => win.push(s), platform: "win32" })).toBe(0);
+    expect(win.join("\n")).toContain("cmd /c npx -y uni-t-uts-mcp");
   });
 });
