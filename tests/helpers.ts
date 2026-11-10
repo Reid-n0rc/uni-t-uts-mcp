@@ -36,8 +36,8 @@ export async function callTool(
 }
 
 /** Text of the first text content block; throws if there is none. */
-export function getText(result: Pick<ToolResult, "content">): string {
-  const content = result.content as Array<{ type: string; text?: string }>;
+export function getText(result: { content?: unknown }): string {
+  const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
   const block = content.find((c) => c.type === "text" && typeof c.text === "string");
   if (!block) throw new Error("Tool result has no text content");
   return block.text as string;
