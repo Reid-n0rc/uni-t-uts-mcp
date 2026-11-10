@@ -135,13 +135,17 @@ export function registerAcquisitionTools(server: McpServer): void {
       try {
         const timeoutMs = timeoutMsOf(timeout_s);
         if (timeoutMs instanceof Error) return errorResult(timeoutMs);
-        await applyCommands([":INITiate:CONTinuous OFF"]);
+        // Set before the send: a connection failure mid-send may already have switched the mode.
         sent = true;
+        await applyCommands([":INITiate:CONTinuous OFF"]);
         const { sweepTimeS } = await startSweep("immediate");
         const waited_ms = await finish(timeoutMs, [":INITiate:CONTinuous OFF", ":INITiate:IMMediate"]);
         return textResult(JSON.stringify({ completed: true, continuous: false, sweep_time_s: sweepTimeS, waited_ms }, null, 2));
       } catch (err) {
-        return failure(err, sent, sent ? " The instrument was left in single sweep mode; use set_acquisition continuous=true to resume normal sweeping." : "");
+        // "Not connected": the mode command never left, so there is nothing to undo.
+        const neverSent = err instanceof Error && /^Not connected/.test(err.message);
+        const maySwitched = sent && !neverSent;
+        return failure(err, maySwitched, maySwitched ? " The instrument may have been left in single sweep mode; use set_acquisition continuous=true to resume normal sweeping." : "");
       }
     }
   );

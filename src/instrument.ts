@@ -75,19 +75,32 @@ function isUndefinedHeader(error: string): boolean {
  */
 export async function applyCommands(commands: string[]): Promise<void> {
   const sent: string[] = [];
+  let inFlight: string | undefined;
   try {
     await connection.sendCommand("*CLS");
     for (const command of commands) {
+      inFlight = command;
       await connection.sendCommand(command);
       sent.push(command);
+      inFlight = undefined;
     }
     await checkInstrumentErrors(sent);
   } catch (err) {
-    if (sent.length === 0 || err instanceof InstrumentError) throw err;
+    if (err instanceof InstrumentError) throw err;
+    // Nothing was sent, or only *CLS: nothing can be applied.
+    if (sent.length === 0 && inFlight === undefined) throw err;
+    // Not connected at all: the first command never left.
+    if (sent.length === 0 && err instanceof Error && /^Not connected/.test(err.message)) throw err;
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(
-      `${message}. These commands were sent before the failure and may already be applied: ${sent.join("; ")}`
-    );
+    const parts = [message];
+    if (sent.length > 0) {
+      parts.push(`These commands were sent before the failure and may already be applied: ${sent.join("; ")}`);
+    }
+    // The command in flight can have been executed even though its *OPC? reply never arrived.
+    if (inFlight !== undefined) {
+      parts.push(`The command being sent when it failed (${inFlight}) may also have taken effect`);
+    }
+    throw new Error(parts.join(". "));
   }
 }
 

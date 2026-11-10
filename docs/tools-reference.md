@@ -140,7 +140,7 @@ Switches to single mode, runs one sweep and waits until it is complete, so the t
 
 ## Error handling (all tools)
 
-Tools never throw; failures are `isError` results. A malformed or empty reply names the command and quotes the reply; a timeout names the command; setters report instrument errors with their code and the commands sent, and say when settings may be partially applied (also when the readback after a successful send fails). `single_sweep` failures say when the instrument was left in single sweep mode. See AGENTS.md "Error handling standard".
+Tools never throw; failures are `isError` results. A malformed or empty reply names the command and quotes the reply; a timeout names the command; setters report instrument errors with their code and the commands sent, and say when settings may be partially applied (also when the readback after a successful send fails). `single_sweep` failures say when the instrument may have been left in single sweep mode. A dropped connection is reported as `Connection to the spectrum analyzer was lost (<reason>) while sending|querying <command>` and the next call says to use `connect` to reconnect; the command in flight when a setter fails is named as possibly applied. See AGENTS.md "Error handling standard".
 
 ## Environment variables
 

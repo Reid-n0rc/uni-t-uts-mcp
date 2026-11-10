@@ -80,7 +80,23 @@ describe("error messages", () => {
       .mockRejectedValueOnce(new Error("Write failed: EPIPE"));
     const err = await applyCommands([":A 1", ":B 2"]).catch((e) => e);
     expect(err.message).toContain("Write failed: EPIPE");
-    expect(err.message).toMatch(/may already be applied: :A 1$/);
+    expect(err.message).toMatch(/may already be applied: :A 1/);
+    // The command in flight when the connection failed may also have been executed (live finding, #63).
+    expect(err.message).toMatch(/:B 2.*may (also )?have taken effect/);
+  });
+
+  it("names the command in flight when the very first command fails mid-send (it may have taken effect)", async () => {
+    mockConnection.sendCommand
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("Connection to the spectrum analyzer was lost"));
+    const err = await applyCommands([":A 1"]).catch((e) => e);
+    expect(err.message).toMatch(/:A 1.*may (also )?have taken effect/);
+  });
+
+  it("does not blame the settings when *CLS itself fails", async () => {
+    mockConnection.sendCommand.mockRejectedValueOnce(new Error("Connection to the spectrum analyzer was lost"));
+    const err = await applyCommands([":A 1"]).catch((e) => e);
+    expect(err.message).toBe("Connection to the spectrum analyzer was lost");
   });
 
   it("does not claim anything was applied when nothing was sent", async () => {
