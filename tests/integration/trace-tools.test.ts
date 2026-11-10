@@ -307,6 +307,15 @@ describe("set_trace_math", () => {
     expect(json(res).warnings.join(" ")).toMatch(/cannot be read back/);
   });
 
+  it("reports the trace state afterwards and warns that math switches the trace on", async () => {
+    const res = await callTool(client, "set_trace_math", { trace: 1, operation: "power_sum", operand_a: 2, operand_b: 3 });
+    const out = json(res);
+    expect(out.trace_state).toEqual({ trace: 1, type: "write", update: true, display: true });
+    expect(out.warnings.join(" ")).toMatch(/switches the trace on/);
+    const off = json(await callTool(client, "set_trace_math", { trace: 4, operation: "off" }));
+    expect(off.warnings.join(" ")).not.toMatch(/switches the trace on/);
+  });
+
   it.each([
     ["log_difference", "LDIFference"], ["log_offset", "LOFFset"],
   ])("maps %s to %s and passes the offset", async (operation, raw) => {

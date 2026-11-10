@@ -179,7 +179,7 @@ export function registerTraceTools(server: McpServer): void {
     "set_trace_math",
     "Set trace math for a trace (:CALCulate:MATH): result trace <- operand_a (op) operand_b. Operations: off, power_difference, power_sum, " +
       "log_difference, log_offset; offset_db (-100..100) applies only to the two log operations. The instrument has no query for the math " +
-      "setting, so it cannot be read back or verified by this tool.",
+      "setting, so it cannot be read back (check the trace data). Enabling math switches the trace on (update and display); turning it off does not switch it off again.",
     {
       trace: TRACE.describe("Trace (1-6) the operation is applied to"),
       operation: z.enum(["off", "power_difference", "power_sum", "log_difference", "log_offset"]).describe("Math operation"),
@@ -200,9 +200,17 @@ export function registerTraceTools(server: McpServer): void {
         const b = operand_b ?? trace;
         const command = `:CALCulate:MATH TRACE${trace},${MATH_OPS[operation]},TRACE${a},TRACE${b},${formatNumber(offset_db ?? 0)}`;
         await applyCommands([command]);
+        // Verified live: enabling math on a trace switches that trace on (update and display), and "off" leaves it on.
+        const trace_state = await readBack(() => readTrace(trace));
         return textResult(JSON.stringify({
           sent: command,
-          warnings: ["The instrument has no query for trace math; the setting was accepted without error but cannot be read back."],
+          trace_state,
+          warnings: [
+            "The instrument has no query for trace math; the setting was accepted without error but cannot be read back (check the trace data).",
+            ...(operation !== "off" && (trace_state.update || trace_state.display)
+              ? [`Trace ${trace} is now ${trace_state.display ? "displayed" : "hidden"} and ${trace_state.update ? "updating" : "held"}: enabling math switches the trace on, and turning math off does not switch it off again (use set_trace).`]
+              : []),
+          ],
         }, null, 2));
       } catch (err) {
         return setterFailure(err, "get_trace");
