@@ -3,17 +3,20 @@
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
-adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before 1.0.0 the tool
-names, parameters and result shapes may still change between minor versions; see
-[docs/releasing.md](docs/releasing.md).
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before 1.0.0:
+new tools ship in minor releases (0.2.0, 0.3.0, ...); fixes, documentation-only and internal changes ship in patch
+releases (0.2.1); a breaking change to a tool name or parameter is announced under "Changed" here and also raises the
+minor version. See [docs/releasing.md](docs/releasing.md).
 
 The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-10
+
 ### Added
 - Project site: the `marker.exe` readout now belongs to the animated trace. A marker flag rides the highest point of the spectrum, the readout window is anchored to it with a leader line (flipping and sliding to stay clear of the headline and the edges, and docked above the trace on phones), and its frequency and level follow the marker. With reduced motion the marker stays on a fixed peak.
-- Claude Desktop one-click install: releases made after this change also attach `uni-t-uts-mcp-<version>.mcpb` (an MCP bundle: double-click it, then enter the analyzer address, port and transport in the settings dialog; the address is optional). It is built with `npm run build:mcpb`, checked in CI on Ubuntu, macOS and Windows, and not code-signed. Installing it in Claude Desktop itself has not been verified yet.
+- Claude Desktop one-click install: this release also attaches `uni-t-uts-mcp-0.2.0.mcpb` (an MCP bundle: double-click it, then enter the analyzer address, port and transport in the settings dialog; the address is optional). It is built with `npm run build:mcpb`, checked in CI on Ubuntu, macOS and Windows, and not code-signed. Installing it in Claude Desktop itself has not been verified yet.
 - The GitHub wiki is now generated from the repository (`scripts/sync-wiki.mjs`, `docs/wiki/`) and published automatically by `.github/workflows/wiki-sync.yml` after every change to `main`; CI checks that the pages build and every link resolves. The stale wiki content (install paths, concurrency, VXI-11, trace tools, limitations) was brought up to date.
 - `npm run client-config -- --host <address>` prints (never writes) the Claude Code command and the MCP JSON for your OS and paths.
 - VXI-11 as a selectable transport (`UTS_TRANSPORT=raw|vxi11|auto`; `UTS_VXI11_DEVICE`, default `inst0`;
@@ -29,18 +32,40 @@ The text of a release's section is also used as its GitHub release notes.
   TCP stops at 144,800 bytes. Readable today with `scpi_query` (`reply: "block"`); this unblocks the
   screenshot tool (#20) and the investigation in #42.
 
+- Project site: a generated synthwave soundtrack with autoplay and a mute button (`?bpm=` tunes the tempo), and social preview images and link-preview meta tags for sharing the site.
+
 ### Changed
 - The npm publish workflow supports npm trusted publishing (no token): set the repository variable `NPM_TRUSTED_PUBLISHING` to `true` after registering the workflow as a trusted publisher on npmjs.com; the `NPM_TOKEN` secret is only needed for a package's first publish.
 - The default transport is now `auto` (VXI-11 when the analyzer offers it, otherwise raw) instead of
   `raw`. Giving only a port (`UTS_PORT` or the `connect` parameter) without a transport choice still
   means raw. Set `UTS_TRANSPORT=raw` to keep the old behavior.
-- The package is live on npm: `npx -y uni-t-uts-mcp` (0.1.0, published from CI with provenance, identical to the release tarball) is now the first install command in the README, site and wiki, with the tarball, `github:` spec, Docker image and clone forms kept as alternatives. `npm run client-config -- --from npm` prints it. `docs/releasing.md` documents the trusted-publishing switch and that npm processes first publishes asynchronously. A test keeps the install commands in step with the package name and version.
+- The package is live on npm: `npx -y uni-t-uts-mcp` (published from CI with provenance, identical to the release tarball) is now the first install command in the README, site and wiki, with the tarball, `github:` spec, Docker image and clone forms kept as alternatives. `npm run client-config -- --from npm` prints it. `docs/releasing.md` documents the trusted-publishing switch and that npm processes first publishes asynchronously. A test keeps the install commands in step with the package name and version.
+- Documentation: the install instructions in the README, site and wiki are pinned to this release (tarball, `github:` tag and Docker tag), and the Claude Desktop bundle is described as attached to this release.
 
 ### Fixed
 - VXI-11: a query that got no reply (an unsupported query, a too short timeout) declared the link lost
   after the timeout plus 5 s and stalled the next write. The analyzer never answers such a read with an
   I/O timeout error; the transport now sends a fifth of the timeout as the I/O timeout, fails the read
   at the requested timeout plus 0.5 s and keeps the link.
+
+### Security
+- The wiki sync treats text taken from GitHub issues as untrusted: it is sanitized before it is written to the wiki pages.
+
+### Known limitations
+
+- Trace data download and the screenshot tool are not available yet; both are planned for the next minor release
+  (0.3.0, issues [#15](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/15) and
+  [#20](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/20)). Over VXI-11 the screenshot is not truncated, so
+  `scpi_query` with `reply: "block"` can already read it.
+- Markers and measurements are not implemented.
+- VXI-11 is verified on one analyzer model and firmware only (UTS3036B V1.04.0040); other UTS models are expected to
+  be similar but are untested. Raw TCP stops screenshots at 144,800 bytes
+  ([#42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)).
+- `start_sweep` with `wait=false` releases the instrument session before the sweep ends, so another tool call can run
+  while the analyzer is still sweeping and have its commands ignored; use `single_sweep` or `wait_for_sweep_complete`
+  when other calls may follow.
+- The Claude Desktop `.mcpb` bundle is built and checked in CI but has not been installed in Claude Desktop itself yet,
+  and it is not code-signed.
 
 ## [0.1.0] - 2026-11-10
 
@@ -122,5 +147,6 @@ latest published at the time) over LAN; see [docs/verified-hardware.md](docs/ver
 - Verified on one analyzer model and firmware (UTS3036B V1.04.0040); other UTS models are expected to be
   similar but are untested.
 
-[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v0.1.0

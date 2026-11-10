@@ -5,7 +5,7 @@ import { NPM_PUBLISHED, tarballUrl, githubSpec, dockerImage } from "../../script
 
 /**
  * Every install instruction in the README, site and docs must work today. The package is live on
- * npm (0.1.0), so `npx -y uni-t-uts-mcp` is the lead install form and must be present and unmarked:
+ * npm, so `npx -y uni-t-uts-mcp` is the lead install form and must be present and unmarked:
  * no "coming soon" or "not published" wording about npm may remain. No regular expressions are
  * built from variable text here.
  */
@@ -114,7 +114,7 @@ describe("install docs are truthful", () => {
         if (rest.startsWith(":")) {
           const normalized = rest.slice(1).replaceAll("<version>", V).replaceAll("<major>.<minor>", V.split(".").slice(0, 2).join("."));
           const tag = normalized.split(/[\s"'`,)<&]/)[0];
-          expect(["0.1.0", V, "latest", `${V.split(".").slice(0, 2).join(".")}`].includes(tag), `${f}: image tag ${tag}`).toBe(true);
+          expect([V, "latest", `${V.split(".").slice(0, 2).join(".")}`].includes(tag), `${f}: image tag ${tag}`).toBe(true);
         }
         from = i + 1;
       }
@@ -152,7 +152,7 @@ describe("install docs are truthful", () => {
       expect(npmFormOffsets(read(f)).length, `${f}: needs the npm install form`).toBeGreaterThan(0);
     }
     // the CHANGELOG [Unreleased] section does not call npm coming soon either
-    const unreleased = read("CHANGELOG.md").split("## [0.1.0]")[0].toLowerCase();
+    const unreleased = read("CHANGELOG.md").split("\n## [0")[0].toLowerCase();
     expect(unreleased).not.toContain("coming soon");
   });
 

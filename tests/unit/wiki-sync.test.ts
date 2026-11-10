@@ -360,8 +360,9 @@ describe("the real wiki built from this repository", () => {
 
   it("documents the install paths, the concurrency guarantee, VXI-11 and the trace tools truthfully", () => {
     const start = pages["Getting-Started.md"];
-    expect(start).toContain("uni-t-uts-mcp-0.1.0.tgz");
-    expect(start).toContain("github:Reid-n0rc/uni-t-uts-mcp#v0.1.0");
+    const version = JSON.parse(read("package.json")).version as string;
+    expect(start).toContain(`uni-t-uts-mcp-${version}.tgz`);
+    expect(start).toContain(`github:Reid-n0rc/uni-t-uts-mcp#v${version}`);
     expect(start).toContain("ghcr.io/reid-n0rc/uni-t-uts-mcp");
     expect(start).toContain("claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp");
     expect(start.toLowerCase()).not.toContain("coming soon");
