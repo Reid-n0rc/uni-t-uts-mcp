@@ -158,6 +158,30 @@
       "description": "Turn all markers off."
     },
     {
+      "name": "get_marker_function",
+      "description": "Read a marker's function (noise, band power, band density) and band span."
+    },
+    {
+      "name": "set_marker_function",
+      "description": "Set a marker's function (noise, band power, band density, off) and band span."
+    },
+    {
+      "name": "get_marker_ndb",
+      "description": "Read a marker's N-dB bandwidth setting and measured bandwidth."
+    },
+    {
+      "name": "set_marker_ndb",
+      "description": "Turn the N-dB bandwidth measurement on or off and set N."
+    },
+    {
+      "name": "get_frequency_counter",
+      "description": "Read the marker frequency counter state and gate time."
+    },
+    {
+      "name": "set_frequency_counter",
+      "description": "Turn the marker frequency counter on or off and set its gate time."
+    },
+    {
       "name": "get_peak_criteria",
       "description": "Read the peak search threshold and excursion."
     },

@@ -207,6 +207,18 @@ No parameters. Sends `:CALCulate:MARKer:AOFF` and reads every marker's mode to c
 
 Peak search criteria: `threshold_dbm` (a peak must be above it; -200 to 30) and `excursion_db` (a peak must rise this far above its valleys; 0 to 100), each with a `threshold_auto` / `excursion_auto` flag. In automatic mode the instrument computes the value from the trace and reports it. `get_peak_criteria` is read-only and takes no parameters. `set_peak_criteria` needs at least one of the four parameters; giving a value turns that criterion's automatic mode **off** (verified), `*_auto: true` switches it back on and cannot be combined with a value for the same criterion. Values outside the documented ranges are refused before anything is sent; the readback is compared and clamped values are `warnings`.
 
+### `get_marker_function` / `set_marker_function`
+
+A marker's function: `noise` (noise level per Hz at the marker), `band_power` (power in a band around the marker), `band_density` (power density in that band) or `off`. `get_marker_function` is read-only (`marker` 1-10, default 1) and returns `function` and `band_span_hz`. `set_marker_function` needs `marker` and at least one of `function` and `band_span_hz` (Hz, above 0); the span is sent first. The function's result is the marker's level: read it with `get_marker` (`y`). Values the instrument did not take are `warnings`.
+
+### `get_marker_ndb` / `set_marker_ndb`
+
+The N-dB bandwidth measurement of a marker: the width in Hz of the trace around the marker where it is within N dB of the marker level. `get_marker_ndb` (read-only) returns `enabled`, `ndb` (negative dB) and `bandwidth_hz` (`null` while off; the result query is only sent while on). `set_marker_ndb` takes `marker` and at least one of `enabled` and `ndb` (-140 to -0.01, checked before anything is sent); N is sent first. Readback differences are `warnings`.
+
+### `get_frequency_counter` / `set_frequency_counter`
+
+The marker frequency counter: `enabled` and `gate_time_s`. `get_frequency_counter` is read-only and takes no parameters. `set_frequency_counter` takes `enabled` and/or `gate_time_s` (1e-6 to 0.5 s, checked before anything is sent). Readback differences are `warnings`.
+
 ## Screenshot
 
 ### `screenshot`
