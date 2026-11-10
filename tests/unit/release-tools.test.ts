@@ -78,8 +78,4 @@ describe("installing straight from GitHub (no registry)", () => {
     expect(installs.length).toBeGreaterThan(0);
     for (const l of installs) expect(l).toContain("--ignore-scripts");
   });
-
-  it("does not set a version other than the unreleased 0.0.0 in this PR", () => {
-    expect(typeof pkg.version).toBe("string");
-  });
 });

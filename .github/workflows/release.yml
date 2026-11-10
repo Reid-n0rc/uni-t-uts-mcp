@@ -1,7 +1,9 @@
 name: GitHub release
 
-# Creates the GitHub release for a v* tag. The notes are the matching section of CHANGELOG.md;
-# if there is none the release falls back to GitHub's generated notes.
+# Creates the GitHub release for a v* tag with the packed npm tarball attached
+# (uni-t-uts-mcp-<version>.tgz) and the matching CHANGELOG.md section as notes
+# (GitHub's generated notes if there is none). This is the primary release channel
+# while the package is not published to npm; see docs/releasing.md.
 
 on:
   push:
@@ -9,7 +11,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write # create the release; nothing else
+  contents: write # create the release and upload the tarball; nothing else
 
 jobs:
   release:
@@ -20,6 +22,37 @@ jobs:
 
       - name: Check the tag matches package.json
         run: node scripts/release-tools.mjs check-tag "$GITHUB_REF_NAME"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Check the tarball contents
+        run: node scripts/check-pack.mjs
+
+      - name: Pack the tarball
+        run: |
+          mkdir -p "$RUNNER_TEMP/dist"
+          npm pack --silent --pack-destination "$RUNNER_TEMP/dist"
+          ls -l "$RUNNER_TEMP/dist"
+
+      - name: Smoke-test the tarball (install into an empty project, initialize + tools/list)
+        run: |
+          mkdir "$RUNNER_TEMP/project" && cd "$RUNNER_TEMP/project"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.tgz
+          node "$GITHUB_WORKSPACE/scripts/smoke-mcp.mjs" -- node_modules/.bin/uni-t-uts-mcp
 
       - name: Extract release notes from CHANGELOG.md
         id: notes
@@ -37,7 +70,8 @@ jobs:
           NOTES_FOUND: ${{ steps.notes.outputs.found }}
         run: |
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            echo "Release $GITHUB_REF_NAME already exists; leaving it unchanged"
+            echo "Release $GITHUB_REF_NAME already exists; uploading the tarball to it"
+            gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.tgz --repo "$GITHUB_REPOSITORY" --clobber
             exit 0
           fi
           args=(--repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --verify-tag)
@@ -48,4 +82,4 @@ jobs:
           else
             args+=(--generate-notes)
           fi
-          gh release create "$GITHUB_REF_NAME" "${args[@]}"
+          gh release create "$GITHUB_REF_NAME" "${args[@]}" "$RUNNER_TEMP"/dist/uni-t-uts-mcp-*.tgz

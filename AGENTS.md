@@ -20,7 +20,7 @@ Commands: `npm run build`, `npm test`, `npm run inspector`.
 - Commit as reid@malmoset.com (repo-local git config; check before committing).
 - Sign commits (already configured globally); signing is encouraged but not required of contributors.
 - Push issue branches and open PRs as described under Process. The maintainer has authorized merging green PRs into `main`. Do not tag, create releases, or bump versions without explicit go-ahead.
-- Do not bump version numbers unless asked.
+- Do not bump version numbers unless asked. Releases follow `docs/releasing.md` (GitHub release with tarball + GHCR image; npm is optional). User-visible changes add a line under `## [Unreleased]` in `CHANGELOG.md` in the same PR. Keep `package.json` free of npm auto-corrections (e.g. no `./` in `bin`); CI's `package contents`, install, git-install and docker smoke jobs guard the published package.
 - Never commit secrets, device IPs/serials, or `.mcp.json`.
 - Keep each task/issue small enough to finish in one context window; split larger work.
 - Every new tool needs an integration test with a mocked connection and a `### \`tool_name\`` section in `docs/tools-reference.md` (a test fails if a registered tool is undocumented).

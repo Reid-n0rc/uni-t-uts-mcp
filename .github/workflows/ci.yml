@@ -81,10 +81,31 @@ jobs:
         working-directory: ${{ runner.temp }}/smoke/project
         run: |
           npm init -y > /dev/null
-          npm install --no-audit --no-fund "../$(cat ../tarball.txt)"
+          npm install --no-audit --no-fund "file:../$(cat ../tarball.txt)"
       - name: Run the installed bin as a stdio MCP server (initialize, tools/list)
         working-directory: ${{ runner.temp }}/smoke/project
         run: node "$GITHUB_WORKSPACE/scripts/smoke-mcp.mjs" -- "node_modules/.bin/${{ matrix.bin }}"
+
+  git-install-smoke:
+    # Installing straight from a git checkout (what `npx github:Reid-n0rc/uni-t-uts-mcp#<tag>` does)
+    # must build the TypeScript through the `prepare` script. The github: spec itself can only be
+    # verified once a tag exists; a git+file URL of this checkout exercises the same npm code path.
+    name: git install smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install from a git URL into an empty project and run the bin
+        run: |
+          mkdir "$RUNNER_TEMP/project" && cd "$RUNNER_TEMP/project"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "git+file://$GITHUB_WORKSPACE#$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          node "$GITHUB_WORKSPACE/scripts/smoke-mcp.mjs" -- node_modules/.bin/uni-t-uts-mcp
 
   docker-smoke:
     name: docker image smoke

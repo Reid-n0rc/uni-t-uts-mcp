@@ -56,7 +56,9 @@ it under the `0.1.0` heading. The text of a release's section is also used as it
 
 - Linux, macOS and Windows with Node.js 22 or newer; CI builds and tests on all three with
   Node 22 and 24, plus a Docker image built from the `Dockerfile`.
-- Tag-triggered publishing workflows for npm (with provenance) and the GHCR Docker image.
+- Tag-triggered release workflows: a GitHub release with the packed tarball attached, the GHCR Docker image,
+  and an optional npm publish with provenance that is skipped until an npm token is configured.
+- Installable straight from a git tag (`npx -y github:Reid-n0rc/uni-t-uts-mcp#<tag>`): the `prepare` script builds it.
 
 ### Documentation, site and wiki
 

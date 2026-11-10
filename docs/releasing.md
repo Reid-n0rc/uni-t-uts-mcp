@@ -1,8 +1,34 @@
 # Releasing
 
-How releases of `uni-t-uts-mcp` are made. Tagging, publishing and creating releases are
-maintainer decisions; contributors and agents prepare changes but do not bump versions, tag or release
-without the maintainer's explicit go-ahead (see [AGENTS.md](../AGENTS.md)).
+How releases of `uni-t-uts-mcp` are made. Tagging and creating releases are maintainer decisions;
+contributors and agents prepare changes but do not bump versions, tag or release without the
+maintainer's explicit go-ahead (see [AGENTS.md](../AGENTS.md)).
+
+**Release channels.** There is no npm account yet, so a release is:
+
+1. a **GitHub release** for the tag `v<version>` with the packed tarball `uni-t-uts-mcp-<version>.tgz` attached
+   and the changelog section as notes, and
+2. a **Docker image** `ghcr.io/reid-n0rc/uni-t-uts-mcp:<version>` on GHCR.
+
+npm publishing is wired up but optional (it skips while the `NPM_TOKEN` secret is absent); see
+"Adding npm later".
+
+## How users install a release
+
+```sh
+# From the release tarball (npx downloads and runs it):
+npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v<version>/uni-t-uts-mcp-<version>.tgz
+
+# Straight from the git tag (npm clones the repository and builds it through the `prepare` script, which needs git):
+npx -y github:Reid-n0rc/uni-t-uts-mcp#v<version>
+
+# Docker:
+docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:<version>
+```
+
+In an MCP client configuration use `"command": "npx"` with `"args": ["-y", "<one of the specs above>"]`
+(on Windows clients that cannot launch `npx` directly: `cmd /c npx -y ...`). Newer npm versions may ask to allow the
+install script of a git dependency; the tarball URL has no install scripts and is the most robust choice.
 
 ## Version policy
 
@@ -12,9 +38,9 @@ without the maintainer's explicit go-ahead (see [AGENTS.md](../AGENTS.md)).
   called out under "Changed" or "Removed" in the changelog. 1.0.0 is cut when the tool set and its
   results are considered stable.
 - The version lives only in `package.json` (`src/server.ts` reads it at runtime). The git tag is `v<version>`,
-  for example `v0.1.0`. Pre-release tags use a hyphen (`v0.2.0-rc.1`): they are published to npm as that exact
-  version, create a GitHub pre-release and do not move the Docker `latest` tag.
-- Published versions are immutable on npm. Fix forward with a new patch release instead of re-using a number.
+  for example `v0.1.0`. Pre-release tags use a hyphen (`v0.2.0-rc.1`): they create a GitHub pre-release and do not move the Docker
+  `latest` tag.
+- Fix forward with a new patch release instead of re-using a version number (an npm version, once published, is immutable).
 
 ## Changelog
 
@@ -32,8 +58,9 @@ package is caught before a tag exists:
 
 | Job | What it checks | Local equivalent |
 |-----|----------------|------------------|
-| `package contents` | `npm pack --dry-run --json` lists only `build/**/*.js`, `build/**/*.d.ts`, `README.md`, `LICENSE`, `package.json` (no tests, docs, scripts, sources, source maps, `node_modules`); `npm publish --dry-run` makes no `package.json` auto-corrections (for example a dropped `bin`) | `npm run build && node scripts/check-pack.mjs` |
-| `npm install smoke` | packs the tarball, installs it into an empty project on Ubuntu (Node 22 and 24), macOS and Windows, starts the installed `bin` over stdio, sends `initialize` and `tools/list`, and asserts the server name and that the tool count equals the number registered in the repo's build (never hard-coded) | see below |
+| `package contents` | `npm pack --dry-run --json` lists only `build/**/*.js`, `build/**/*.d.ts`, `README.md`, `LICENSE`, `package.json` (no tests, docs, scripts, sources, source maps, `node_modules`); `npm publish --dry-run` makes no `package.json` auto-corrections (for example a dropped `bin`, which a `./` prefix in `bin` caused) | `npm run build && node scripts/check-pack.mjs` |
+| `npm install smoke` | packs the tarball, installs it (`file:` spec) into an empty project on Ubuntu (Node 22 and 24), macOS and Windows, starts the installed `bin` over stdio, sends `initialize` and `tools/list`, and asserts the server name and that the tool count equals the number registered in the repo's build (never hard-coded) | see below |
+| `git install smoke` | installs a `git+file://` URL of the checkout into an empty project (the code path of `npx github:...`, which builds through `prepare`), runs the bin over stdio and repeats the checks. The `github:` spec itself can only be verified once a tag exists | see below |
 | `docker image smoke` | builds the image (no push), checks the `org.opencontainers.image.source` label, runs it through `docker run -i` and repeats the same checks | `docker build -t uni-t-uts-mcp:ci . && node scripts/smoke-mcp.mjs -- docker run -i --rm uni-t-uts-mcp:ci` |
 
 Local run of the install smoke test (POSIX shell, from the repo root after `npm run build`):
@@ -47,34 +74,15 @@ unit-tested in `tests/unit/release-scripts.test.ts`.
 
 ## Maintainer-only setup (once)
 
-These need the maintainer's npm and GitHub accounts; agents cannot do them.
+Only what needs the maintainer's GitHub account; agents cannot do these.
 
-1. **npm account and package name.** Confirm `uni-t-uts-mcp` is still free on npmjs.com (`npm view uni-t-uts-mcp`
-   must report 404 before the first publish) and that the account has two-factor authentication enabled.
-2. **First publish authentication.** Trusted publishing can only be configured for a package that already exists
-   on npm, so the very first publish needs a token. Choose one:
-   - **Option A (recommended): granular token as a repository secret.** On npmjs.com create a *granular access
-     token* (Access Tokens > Generate New Token > Granular): permission *Read and write* for packages,
-     scope *All packages* (a package that does not exist yet cannot be selected individually), short expiry
-     (for example 7 days), and bypass of 2FA enabled because CI has no one-time code. In the GitHub repository:
-     Settings > Secrets and variables > Actions > New repository secret, name **`NPM_TOKEN`**. `npm-publish.yml`
-     uses it automatically when present and still publishes with `--provenance`.
-   - **Option B: publish the first version by hand** from a trusted machine
-     (`npm login`, then `npm publish --access public` from a clean checkout of the tag; provenance is not
-     available outside CI), then skip to trusted publishing. Prefer option A so the first version also carries
-     provenance.
-3. **Switch to trusted publishing after the first publish (recommended).** On npmjs.com open the package >
-   Settings > Trusted Publisher > GitHub Actions and enter: organization/user `Reid-n0rc`, repository
-   `uni-t-uts-mcp`, workflow filename `npm-publish.yml` (no environment). Then delete the `NPM_TOKEN` secret and
-   revoke the token. From then on publishes need no secret: `npm-publish.yml` has `id-token: write`, and its
-   trusted-publishing step is used whenever `NPM_TOKEN` is not set. Optionally set the package's publishing
-   access to "Require two-factor authentication and disallow tokens".
-4. **GHCR visibility.** The image is `ghcr.io/reid-n0rc/uni-t-uts-mcp` (lower case). It carries the
+1. **GHCR visibility.** The image is `ghcr.io/reid-n0rc/uni-t-uts-mcp` (lower case). It carries the
    `org.opencontainers.image.source` label, so the package is linked to this public repository and inherits its
-   visibility. After the first push, check Packages > `uni-t-uts-mcp` > Package settings: visibility must be
-   Public (change it there if it is not) and "Manage Actions access" should list this repository with Write role.
-5. Repository settings: Actions enabled; workflow permissions may stay at the default read-only (each workflow
-   requests what it needs).
+   visibility. After the first push open the repository's Packages > `uni-t-uts-mcp` > Package settings: visibility
+   must be Public (change it there if it is not) and "Manage Actions access" should list this repository with the
+   Write role.
+2. Repository settings: Actions enabled; workflow permissions may stay at the default read-only (each workflow
+   requests what it needs; `release.yml` asks for `contents: write`, `docker-publish.yml` for `packages: write`).
 
 ## Release steps
 
@@ -84,21 +92,20 @@ These need the maintainer's npm and GitHub accounts; agents cannot do them.
    `## [<version>] - <YYYY-MM-DD>`, add a fresh empty `## [Unreleased]` above it, and update the compare links at the
    bottom of the changelog. Flip any docs that say "after the first release" to the real instructions. Open the PR,
    wait for every check (including the smoke jobs), merge.
-3. **Dry run on the merge commit**: `git switch main && git pull`, `npm ci && npm run build && node scripts/check-pack.mjs
-   && npm publish --dry-run`.
+3. **Dry run on the merge commit**: `git switch main && git pull`, `npm ci && npm run build && node scripts/check-pack.mjs`.
 4. **Tag** the merge commit (the tag must equal `v` + the `package.json` version, otherwise the workflows stop with a
    clear error): `git tag -s v<version> -m "v<version>" && git push origin v<version>` (use `git tag -a` if you do
    not sign tags).
-5. **Watch** the three workflows that the tag triggers (Actions tab, or `gh run watch`).
-6. **Verify** the published artifacts from a clean folder (next section).
+5. **Watch** the workflows that the tag triggers (Actions tab, or `gh run watch`).
+6. **Verify** the published artifacts from a clean folder (below).
 
 ## What a `v*` tag triggers
 
 | Workflow | Result |
 |----------|--------|
-| `npm-publish.yml` | checks the tag equals `v<package.json version>`, builds, re-checks the tarball contents, runs `npm publish --provenance --access public` (with `NPM_TOKEN` if the secret exists, otherwise trusted publishing) |
+| `release.yml` | checks the tag equals `v<package.json version>`, builds, tests, checks and smoke-tests the tarball, creates the GitHub release with the matching CHANGELOG section as notes (generated notes if there is none; hyphenated tags are marked pre-release) and attaches `uni-t-uts-mcp-<version>.tgz`; needs only `contents: write` |
 | `docker-publish.yml` | checks the tag, builds `linux/amd64` and `linux/arm64`, pushes `ghcr.io/reid-n0rc/uni-t-uts-mcp` tagged `<version>`, `<major>.<minor>` and (not for pre-releases) `latest`, with OCI labels including `org.opencontainers.image.source` |
-| `release.yml` | creates the GitHub release for the tag with the matching CHANGELOG section as notes (generated notes if there is none; hyphenated tags are marked pre-release); needs only `contents: write` |
+| `npm-publish.yml` | with no `NPM_TOKEN` secret: succeeds with a notice and publishes nothing. With the secret: checks the tag, builds, re-checks the tarball and runs `npm publish --provenance --access public` |
 
 Nothing is published by pull requests or pushes to `main`. All workflow action versions are pinned to a major
 version tag and bumped by Dependabot.
@@ -109,39 +116,56 @@ From an empty folder, ideally on a machine that has never run the project:
 
 ```sh
 mkdir /tmp/verify && cd /tmp/verify
-npm view uni-t-uts-mcp version dist-tags          # shows the new version as latest
-npx -y uni-t-uts-mcp@<version>                    # prints "uni-t-uts-mcp server running on stdio" on stderr; Ctrl-C to stop
+gh release view v<version> --repo Reid-n0rc/uni-t-uts-mcp      # notes present, tarball attached
+npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v<version>/uni-t-uts-mcp-<version>.tgz
+npx -y github:Reid-n0rc/uni-t-uts-mcp#v<version>
 docker pull ghcr.io/reid-n0rc/uni-t-uts-mcp:<version>
-docker run -i --rm ghcr.io/reid-n0rc/uni-t-uts-mcp:<version>   # same startup line; Ctrl-C to stop
+docker run -i --rm ghcr.io/reid-n0rc/uni-t-uts-mcp:<version>
 ```
 
-For a protocol-level check use the smoke script from a checkout of the tag:
-`node scripts/smoke-mcp.mjs -- npx -y uni-t-uts-mcp@<version>` and
-`node scripts/smoke-mcp.mjs -- docker run -i --rm ghcr.io/reid-n0rc/uni-t-uts-mcp:<version>`
-(on Windows use `npx.cmd`). Also confirm: the npm page shows the provenance badge; the GitHub release exists with
-the changelog notes; `docker pull ghcr.io/reid-n0rc/uni-t-uts-mcp:latest` works without logging in (public
+Each server start prints `uni-t-uts-mcp server running on stdio` on stderr (Ctrl-C to stop). For a protocol-level
+check use the smoke script from a checkout of the tag, for example
+`node scripts/smoke-mcp.mjs -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v<version>/uni-t-uts-mcp-<version>.tgz`
+and `node scripts/smoke-mcp.mjs -- docker run -i --rm ghcr.io/reid-n0rc/uni-t-uts-mcp:<version>` (on Windows use
+`npx.cmd`). Also confirm `docker pull ghcr.io/reid-n0rc/uni-t-uts-mcp:latest` works without logging in (public
 visibility). Then update the README, site and wiki install sections from "after the first release" to the real
 instructions.
 
 ## Rolling back or deprecating a bad release
 
-npm versions cannot be replaced; unpublishing is possible only within a short window and is discouraged.
+1. **GitHub release and tag**: edit the notes with a warning (`gh release edit v<bad> --notes "..."`) or, when nothing
+   should use it, delete it: `gh release delete v<bad> --yes --cleanup-tag` (or
+   `git push --delete origin v<bad> && git tag -d v<bad>`). Never re-push a tag of the same name for different
+   content; `npx github:...#<tag>` users and caches would get inconsistent results.
+2. **Fix forward**: release the next patch version through the normal steps.
+3. **Docker (GHCR)**: GHCR has no "deprecated" flag. Mark a bad image by re-pointing `latest` and `<major>.<minor>`
+   to the good image (re-run the Docker workflow for the good tag: Actions > Publish Docker image > Re-run), and
+   either delete the bad version (Packages > `uni-t-uts-mcp` > Package versions > Delete, which also removes every tag
+   pointing at it) or leave it and state in the GitHub release notes that it is withdrawn.
+4. **If npm was in use** (see below): `npm deprecate uni-t-uts-mcp@<bad> "Broken: use <good> instead"` (needs publish
+   rights; a range such as `uni-t-uts-mcp@"<0.1.1"` works; undo with an empty message), and
+   `npm dist-tag add uni-t-uts-mcp@<good> latest` to move `latest`. `npm unpublish` is only for leaked secrets or
+   malware and only within npm's unpublish window.
 
-1. **Deprecate** the bad version so installs warn and point to the fix:
-   `npm deprecate uni-t-uts-mcp@<bad> "Broken: use <good> instead"` (needs publish rights; repeat for a range such
-   as `uni-t-uts-mcp@"<0.1.1"`). Undo with an empty message.
-2. **Fix forward**: release the next patch version through the normal steps. If the bad version holds the `latest`
-   tag, the new publish moves it. To repoint without a new version: `npm dist-tag add uni-t-uts-mcp@<good> latest`.
-3. **GitHub release and tag**: mark the release as a draft or edit its notes with a warning
-   (`gh release edit v<bad> --notes "..."`). Delete only when nothing consumed it: `gh release delete v<bad> --yes`
-   and `git push --delete origin v<bad> && git tag -d v<bad>`. Deleting a tag does not unpublish the npm version,
-   and a tag of the same name must not be re-pushed for different content.
-4. **Docker**: re-point `latest` and the minor tag to the good image by re-running the Docker workflow for the good
-   tag (Actions > Publish Docker image > Re-run), or delete the bad version in Packages > `uni-t-uts-mcp` >
-   Package versions (and the same for any tag that points at it).
-5. **Unpublish** (`npm unpublish uni-t-uts-mcp@<bad>`) only for leaked secrets or malware and only within npm's
-   unpublish window; contact npm support afterwards if it is refused.
+If a workflow fails half-way (for example the release exists but the Docker push failed), fix the cause and re-run only
+the failed workflow from the Actions tab; `release.yml` uploads the tarball to an existing release instead of failing.
 
-If a publish workflow fails half-way (for example npm succeeded and Docker failed), fix the cause and re-run only the
-failed workflow from the Actions tab; npm refuses to republish an existing version, so never delete and re-create the
-tag for that.
+## Adding npm later
+
+Optional; nothing above depends on it.
+
+1. Create a free account on npmjs.com, enable two-factor authentication, and confirm the name is free
+   (`npm view uni-t-uts-mcp` must report 404).
+2. **First publish needs a token** (trusted publishing can only be configured for a package that already exists). Create
+   a *granular access token* (Access Tokens > Generate New Token > Granular): permission *Read and write*, packages
+   scope *All packages* (a not-yet-existing package cannot be selected individually), short expiry (for example 7
+   days), 2FA bypass enabled because CI has no one-time code. In the GitHub repository: Settings > Secrets and
+   variables > Actions > New repository secret, name **`NPM_TOKEN`**. From then on the next `v*` tag publishes with
+   `npm publish --provenance --access public` (the workflow already has `id-token: write`). Alternatively publish
+   the first version by hand (`npm login`, `npm publish --access public`; no provenance outside CI).
+3. **Then switch to trusted publishing**: on npmjs.com open the package > Settings > Trusted Publisher > GitHub Actions
+   and enter organization/user `Reid-n0rc`, repository `uni-t-uts-mcp`, workflow filename `npm-publish.yml`
+   (no environment). Delete the `NPM_TOKEN` secret and revoke the token, and edit `npm-publish.yml` so its steps
+   run without the `HAS_NPM_TOKEN` condition (trusted publishing needs no secret). Optionally set the package to
+   "Require two-factor authentication and disallow tokens".
+4. Afterwards add `npx -y uni-t-uts-mcp` to the install docs and verify it from a clean folder.
