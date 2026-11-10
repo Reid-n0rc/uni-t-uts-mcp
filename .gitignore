@@ -3,5 +3,4 @@ build/
 *.tsbuildinfo
 .mcp.json
 .claude/
-CLAUDE.md
 .DS_Store
