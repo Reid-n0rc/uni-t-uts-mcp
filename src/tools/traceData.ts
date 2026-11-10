@@ -117,13 +117,13 @@ export function registerTraceDataTools(server: McpServer): void {
     "Read the amplitude values of one trace (1-6, default the selected trace) with the computed frequency axis, the power unit, the trace type and " +
       "summary statistics (min, max, mean, peak level and peak frequency). The axis is linear from :FREQuency:STARt? to :FREQuency:STOP? over " +
       ":SENSe:SWEep:POINts? points (zero span has no frequency axis: a time axis from 0 to the sweep time is returned and the result says so). " +
-      "`format` is real32 (default, binary, exact to float precision, about 4 KB) or ascii (about 14 KB) or real64; the instrument's data format is switched for the read and always put " +
+      "`format` is ascii (default: about 14 KB, 7 significant digits, no state change, fastest on the unit), real32 (binary, about 4 KB, the same 7 digits) or real64 (binary, about 8 KB, full double precision); for a binary format the instrument's data format is switched for the read and always put " +
       "back. `fresh` runs one single sweep first so the data is a complete, current sweep (continuous mode is switched back on afterwards); without it " +
       "the values are whatever the trace currently holds, which in continuous mode can be mid-sweep. `max_points` (>= 2) reduces the response by peak-preserving " +
       "min/max decimation and the result says so with the original count; the statistics always use the full trace. `include_axis` (default true) adds the per-point axis.",
     {
       trace: z.number().int().min(1).max(6).optional().describe("Trace 1-6; default the selected trace (:TRACe:SELect?)"),
-      format: z.enum(["ascii", "real32", "real64"]).optional().describe("Transfer format (default real32). The instrument's :FORMat is restored afterwards"),
+      format: z.enum(["ascii", "real32", "real64"]).optional().describe("Transfer format (default ascii; real32/real64 switch the instrument's :FORMat for the read and restore it)"),
       fresh: z.boolean().optional().describe("Run a single sweep first and read the finished trace; restores continuous mode if it was on (default false)"),
       max_points: z.number().int().min(2).optional().describe("Return at most this many points using peak-preserving min/max decimation (default: all points)"),
       include_axis: z.boolean().optional().describe("Include the per-point frequency (or time) axis (default true)"),
@@ -131,7 +131,7 @@ export function registerTraceDataTools(server: McpServer): void {
     { readOnlyHint: true },
     async (args) => {
       const fresh = args.fresh ?? false;
-      const format: DataFormat = args.format ?? "real32";
+      const format: DataFormat = args.format ?? "ascii";
       let continuousWas = false;
       let modeTouched = false;
       let freshInfo: Fresh | undefined;
