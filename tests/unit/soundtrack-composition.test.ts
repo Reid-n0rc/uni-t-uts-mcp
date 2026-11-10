@@ -91,7 +91,7 @@ describe("soundtrack composition (pure)", () => {
         if (bar === c.bars - 1 && off >= 8) continue; // the fill bar leaves room for the snare roll
         const h = hats.find((e) => e.step === bar * 16 + off);
         expect(h, `open hat bar ${bar} step ${off}`).toBeDefined();
-        expect(h!.dur).toBeGreaterThan(1);
+        expect(h!.dur).toBeGreaterThan(c.stepSeconds);
       }
     }
   });
