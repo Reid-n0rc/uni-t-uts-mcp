@@ -19,7 +19,9 @@ async function main(): Promise<void> {
   console.error("uni-t-uts-mcp server running on stdio");
 
   // Fire-and-forget so a slow or absent analyzer never blocks MCP startup.
-  void autoConnectFromEnv(process.env, connection, console.error);
+  autoConnectFromEnv(process.env, connection, console.error).catch((err) => {
+    console.error("Auto-connect failed unexpectedly:", err);
+  });
 }
 
 main().catch((error) => {

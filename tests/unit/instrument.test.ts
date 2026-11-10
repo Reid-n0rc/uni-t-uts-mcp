@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { applyCommands, InstrumentError } from "../../src/instrument.js";
+import { applyCommands, InstrumentError, queryBool, queryNumber, readBack, ReplyError } from "../../src/instrument.js";
 
 const mockConnection = vi.hoisted(() => ({
   sendCommand: vi.fn(async (_cmd: string) => {}),
@@ -63,5 +63,53 @@ describe("applyCommands", () => {
       expect(err).toBeInstanceOf(InstrumentError);
       expect(err.errors).toEqual(['-131,"Invalid suffix"']);
     });
+  });
+});
+
+describe("error messages", () => {
+  it("names the commands that were sent in an InstrumentError", async () => {
+    mockConnection.query.mockResolvedValueOnce('-131,"Invalid suffix"').mockResolvedValueOnce('0,"No error"');
+    const err = await applyCommands([":A 1", ":B 2"]).catch((e) => e);
+    expect(err.message).toContain(":A 1; :B 2");
+  });
+
+  it("says which commands may already be applied when a later send fails", async () => {
+    mockConnection.sendCommand
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("Write failed: EPIPE"));
+    const err = await applyCommands([":A 1", ":B 2"]).catch((e) => e);
+    expect(err.message).toContain("Write failed: EPIPE");
+    expect(err.message).toMatch(/may already be applied: :A 1$/);
+  });
+
+  it("does not claim anything was applied when nothing was sent", async () => {
+    mockConnection.sendCommand.mockRejectedValueOnce(new Error("Not connected"));
+    const err = await applyCommands([":A 1"]).catch((e) => e);
+    expect(err.message).toBe("Not connected");
+  });
+
+  it("says the commands may be applied when the error queue cannot be read", async () => {
+    mockConnection.query.mockRejectedValueOnce(new Error("Connection closed"));
+    const err = await applyCommands([":A 1"]).catch((e) => e);
+    expect(err.message).toMatch(/Connection closed.*may already be applied: :A 1/);
+  });
+});
+
+describe("strict query helpers", () => {
+  it("queryNumber/queryBool name the command and quote the raw reply on a malformed reply", async () => {
+    mockConnection.query.mockResolvedValueOnce("abc");
+    const err = await queryNumber(":FREQuency:CENTer?").catch((e) => e);
+    expect(err).toBeInstanceOf(ReplyError);
+    expect(err.message).toContain(":FREQuency:CENTer?");
+    expect(err.message).toContain('"abc"');
+    mockConnection.query.mockResolvedValueOnce("");
+    await expect(queryBool(":X:AUTO?")).rejects.toThrow(/:X:AUTO\?/);
+  });
+
+  it("readBack wraps failures so they do not look like a failure to set", async () => {
+    await expect(readBack(async () => { throw new Error("Query timeout for command: :A?"); })).rejects.toThrow(
+      /reading them back failed: Query timeout for command: :A\?.*already be applied/
+    );
   });
 });

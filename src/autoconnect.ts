@@ -7,8 +7,16 @@ import { isValidHost, portFromEnv } from "./target.js";
 export async function autoConnectFromEnv(
   env: Record<string, string | undefined>,
   conn: { connect(host: string, port: number): Promise<string> },
-  log: (...args: unknown[]) => void
+  rawLog: (...args: unknown[]) => void
 ): Promise<boolean> {
+  // The caller does not await this: a throwing logger (for example a closed stderr) must not become an unhandled rejection.
+  const log = (...args: unknown[]) => {
+    try {
+      rawLog(...args);
+    } catch {
+      /* nothing more can be done */
+    }
+  };
   const host = env.UTS_IP;
   if (!host) return false;
 

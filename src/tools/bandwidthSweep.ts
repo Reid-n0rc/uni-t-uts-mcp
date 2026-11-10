@@ -1,9 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { connection } from "../connection.js";
-import { InstrumentError, applyCommands } from "../instrument.js";
-import { formatNumber, onOff, parseBool, parseNumber } from "../scpi.js";
-import { errorResult, textResult } from "./util.js";
+import { applyCommands, queryBool, queryNumber, queryParsed, readBack } from "../instrument.js";
+import { formatNumber, onOff } from "../scpi.js";
+import { errorResult, setterFailure, textResult } from "./util.js";
 
 // Commands: docs/programming-guide.md section 2 (bandwidth, sweep, detector; ambiguities 11, 17).
 // Verified on the UTS3036B (docs/verified-hardware.md): every setter clamps silently (and RBW/VBW snap
@@ -26,19 +25,13 @@ function pick<T extends string>(reply: string, table: Record<T, string>, what: s
   throw new Error(`Unexpected ${what} ${JSON.stringify(reply)}`);
 }
 
-async function num(cmd: string): Promise<number> {
-  return parseNumber(await connection.query(cmd));
-}
-async function bool(cmd: string): Promise<boolean> {
-  return parseBool(await connection.query(cmd));
-}
+const num = queryNumber;
+const bool = queryBool;
+/** Query an enumerated setting and map the reply through `table`; anything else is an error naming the command. */
+const choice = <T extends string>(cmd: string, table: Record<T, string>, what: string) =>
+  queryParsed(cmd, (reply) => pick(reply, table, what));
 
-function failure(err: unknown, getter: string) {
-  if (err instanceof InstrumentError) {
-    return errorResult(`${err.message}. Settings may be partially applied; use ${getter} to check.`);
-  }
-  return errorResult(err);
-}
+const failure = setterFailure;
 
 const hasAny = (a: object) => Object.values(a).some((v) => v !== undefined);
 
@@ -54,7 +47,7 @@ async function readBandwidth() {
     vbw_hz: await num(`${B}:VIDeo?`),
     vbw_auto: await bool(`${B}:VIDeo:AUTO?`),
     vbw_rbw_ratio: await num(`${B}:VIDeo:RATio?`),
-    filter_shape: pick(await connection.query(`${B}:SHAPe?`), SHAPES, "filter shape"),
+    filter_shape: await choice(`${B}:SHAPe?`, SHAPES, "filter shape"),
   };
 }
 
@@ -78,11 +71,11 @@ async function readSweep() {
   return {
     sweep_time_s: await num(`${S}:TIME?`),
     sweep_time_auto: await bool(`${S}:TIME:AUTO?`),
-    sweep_time_rule: pick(await connection.query(`${S}:TIME:AUTO:RULes?`), RULES, "sweep time rule"),
-    sweep_type: pick(await connection.query(`${S}:TYPE?`), SWEEP_TYPES, "sweep type"),
+    sweep_time_rule: await choice(`${S}:TIME:AUTO:RULes?`, RULES, "sweep time rule"),
+    sweep_type: await choice(`${S}:TYPE?`, SWEEP_TYPES, "sweep type"),
     sweep_type_auto: await bool(`${S}:TYPE:AUTO?`),
     sweep_points: await num(`${S}:POINts?`),
-    trigger_source: pick(await connection.query(`${T}:SOURce?`), TRIGGERS, "trigger source"),
+    trigger_source: await choice(`${T}:SOURce?`, TRIGGERS, "trigger source"),
     trigger_video_level_dbm: await num(`${T}:VIDeo:LEVel?`),
   };
 }
@@ -105,7 +98,7 @@ type DetectorName = keyof typeof DETECTORS;
 
 async function readDetector(trace: number) {
   // Per-trace form (ambiguity 11): :DETector[:FUNCtion] is for measurements, not for spectrum traces.
-  const detector = pick(await connection.query(`:SENSe:DETector:TRACe${trace}?`), DETECTORS, "detector");
+  const detector = await choice(`:SENSe:DETector:TRACe${trace}?`, DETECTORS, "detector");
   const auto = await bool(`:SENSe:DETector:TRACe${trace}:AUTO?`);
   return { trace, detector, auto };
 }
@@ -152,7 +145,7 @@ export function registerBandwidthSweepTools(server: McpServer): void {
         if (args.vbw_auto !== undefined) commands.push(`${B}:VIDeo:AUTO ${onOff(args.vbw_auto)}`);
         await applyCommands(commands);
 
-        const state = await readBandwidth();
+        const state = await readBack(readBandwidth);
         const warnings: string[] = [];
         const checks: Array<[string, number | undefined, number, string]> = [
           ["rbw_hz", args.rbw_hz, state.rbw_hz, "Hz"],
@@ -166,6 +159,14 @@ export function registerBandwidthSweepTools(server: McpServer): void {
         }
         if (args.filter_shape !== undefined && args.filter_shape !== state.filter_shape) {
           warnings.push(`filter_shape adjusted by the instrument: requested ${args.filter_shape}, now ${state.filter_shape}`);
+        }
+        for (const [name, requested, actual] of [
+          ["rbw_auto", args.rbw_auto, state.rbw_auto],
+          ["vbw_auto", args.vbw_auto, state.vbw_auto],
+        ] as const) {
+          if (requested !== undefined && requested !== actual) {
+            warnings.push(`${name} adjusted by the instrument: requested ${requested}, now ${actual}`);
+          }
         }
         return textResult(JSON.stringify({ state, warnings }, null, 2));
       } catch (err) {
@@ -218,7 +219,7 @@ export function registerBandwidthSweepTools(server: McpServer): void {
         if (args.sweep_time_s !== undefined) commands.push(`${S}:TIME ${formatNumber(args.sweep_time_s)}`);
         await applyCommands(commands);
 
-        const state = await readSweep();
+        const state = await readBack(() => readSweep());
         const warnings: string[] = [];
         const checks: Array<[string, number | undefined, number, string]> = [
           ["sweep_points", args.sweep_points, state.sweep_points, ""],
@@ -234,6 +235,8 @@ export function registerBandwidthSweepTools(server: McpServer): void {
           ["sweep_type", args.sweep_type, state.sweep_type],
           ["sweep_time_rule", args.sweep_time_rule, state.sweep_time_rule],
           ["trigger_source", args.trigger_source, state.trigger_source],
+          ["sweep_time_auto", args.sweep_time_auto, state.sweep_time_auto],
+          ["sweep_type_auto", args.sweep_type_auto, state.sweep_type_auto],
         ] as const) {
           if (requested !== undefined && requested !== actual) {
             warnings.push(`${name} adjusted by the instrument: requested ${requested}, now ${actual}`);
@@ -280,7 +283,7 @@ export function registerBandwidthSweepTools(server: McpServer): void {
         if (auto !== undefined) commands.push(`:SENSe:DETector:TRACe${trace}:AUTO ${onOff(auto)}`);
         await applyCommands(commands);
 
-        const state = await readDetector(trace);
+        const state = await readBack(() => readDetector(trace));
         const warnings: string[] = [];
         if (detector !== undefined && (state.detector as DetectorName) !== detector) {
           warnings.push(`detector adjusted by the instrument: requested ${detector}, now ${state.detector}`);

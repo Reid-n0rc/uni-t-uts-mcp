@@ -36,3 +36,15 @@ Commands: `npm run build`, `npm test`, `npm run inspector`.
 - **Incremental commits.** One logical change per commit (tests, implementation, docs may be separate commits), each building and passing on its own, so a person can audit the history.
 - **Issue → work → PR.** Every PR must be tied to an issue: open the issue first, do the work on branch `issue-<n>-<slug>` from `main`, then open one PR with `Closes #<n>`. No PR without an issue. Each issue gets its own new branch, and its work reaches `main` only by merging that PR; never commit or push issue work directly to `main`.
 - **Privacy.** Never put device serial numbers or real IP addresses in the repo, issues, or PRs.
+
+## Error handling standard
+
+Required for every tool that talks to the instrument. `tests/integration/tool-contract.test.ts` enforces it: it runs every registered tool against the fake connection in `tests/toolContract.ts` under not-connected, timeout, write failure, garbage/empty reply, instrument error and part-way failure modes. **A new tool must be added to the `CONTRACT` table in `tests/toolContract.ts` (kind, valid args, invalid args, args that must produce a warning) or that test fails.** Add canned replies for any new query to `QUERY_REPLIES` there.
+
+1. **Tools never throw.** Every handler wraps everything in try/catch and returns `errorResult(...)` (isError, actionable message: what failed, which command, what to do next). No unhandled promise rejections, including fire-and-forget calls (use `.catch`).
+2. **Setters:** validate input first (nothing is sent if invalid), then `applyCommands` (`*CLS`, each command synced with `*OPC?`, `:SYSTem:ERRor?` checked), then read the state back through `readBack(...)` and report every requested value, flag or enum the instrument did not take as a `warnings` entry (this unit clamps silently; check auto flags too). Failures go through `setterFailure(err, "get_x")`: instrument errors carry their code and text and say the settings may be partially applied.
+3. **Getters:** parse every reply with `queryNumber` / `queryBool` / `queryParsed` (`src/instrument.ts`); a malformed or empty reply is a `ReplyError` naming the command and quoting the reply. A timeout names the command. A getter that fails part-way returns an error, never partial data.
+4. **Multi-step operations** that change temporary state use try/finally to restore it; if restoring fails, say so. If a tool deliberately leaves state changed (e.g. `single_sweep` leaves single mode), failures say so.
+5. **Connection problems** (not connected, closed, timeout, write failure) each have a distinct message; not-connected tells the user to call `connect`.
+6. **Hardware behavior** (clamp vs error vs ignored) is documented per tool in `docs/verified-hardware.md`.
+7. **Every tool has failure-mode tests**, not only happy paths (the contract test covers the common modes; add tool-specific ones next to the tool's tests).
