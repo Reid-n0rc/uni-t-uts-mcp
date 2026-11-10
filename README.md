@@ -4,7 +4,7 @@
 
 A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for controlling UNI-T UTS series spectrum analyzers (UTS1000B/T, UTS3000B) over SCPI.
 
-> **Status:** under active development. The tools below work and are verified on a UNI-T UTS3036B (firmware V1.04.0040) over LAN; see [docs/verified-hardware.md](docs/verified-hardware.md). Measurements are not implemented yet; progress is tracked in the [roadmap issue](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/1). See [Install](#install) for setup.
+> **Status:** under active development. The tools below work and are verified on a UNI-T UTS3036B (firmware V1.04.0040) over LAN; see [docs/verified-hardware.md](docs/verified-hardware.md). Limit lines and the tracking generator are not implemented yet; progress is tracked in the [roadmap issue](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/1). See [Install](#install) for setup.
 
 ## Tools available
 
@@ -47,7 +47,7 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 
 ## Install
 
-Everything in this section works today (v0.2.0, also on npm). You need Node.js 22 or newer (or Docker). Use your analyzer's address in place of `192.168.1.100`.
+Everything in this section works today (v0.3.0, also on npm). You need Node.js 22 or newer (or Docker). Use your analyzer's address in place of `192.168.1.100`.
 
 `UTS_IP` is optional. Set it to `auto` (or ask the assistant to connect with host `auto`) to find the analyzer on your local subnet without knowing its address; this works when exactly one analyzer answers and is unauthenticated, so check the model and address it reports. If you leave it out, tell the assistant "connect to the analyzer at 192.168.1.100" and it will use the `connect` tool.
 
@@ -60,13 +60,13 @@ Pick one; each registers the server under the name `uni-t-uts`.
 claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp
 
 # From the release tarball (same files as npm, fetched from GitHub: no build step, no install scripts)
-claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.2.0/uni-t-uts-mcp-0.2.0.tgz
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.3.0/uni-t-uts-mcp-0.3.0.tgz
 
 # From the git tag (npm clones the repository and builds it; needs git)
-claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y github:Reid-n0rc/uni-t-uts-mcp#v0.2.0
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y github:Reid-n0rc/uni-t-uts-mcp#v0.3.0
 
 # Docker (Linux image, amd64 and arm64)
-claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:0.2.0
+claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:0.3.0
 ```
 
 On Windows, where `npx` is a `.cmd` file that clients cannot launch directly, put `cmd /c` in front of it:
@@ -75,12 +75,12 @@ On Windows, where `npx` is a `.cmd` file that clients cannot launch directly, pu
 claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y uni-t-uts-mcp
 
 # or from the release tarball
-claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.2.0/uni-t-uts-mcp-0.2.0.tgz
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.3.0/uni-t-uts-mcp-0.3.0.tgz
 ```
 
 ### Claude Desktop: download the .mcpb and double-click
 
-The bundle `uni-t-uts-mcp-0.2.0.mcpb` (an MCP bundle, the Claude Desktop extension format) is attached to the [v0.2.0 GitHub release](https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v0.2.0). You can also build the file yourself (`npm ci && npm run build && npm run build:mcpb`, which writes `dist/uni-t-uts-mcp-<version>.mcpb`). Installing it in Claude Desktop itself has not been verified yet.
+The bundle `uni-t-uts-mcp-0.3.0.mcpb` (an MCP bundle, the Claude Desktop extension format) is attached to the [v0.3.0 GitHub release](https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v0.3.0). You can also build the file yourself (`npm ci && npm run build && npm run build:mcpb`, which writes `dist/uni-t-uts-mcp-<version>.mcpb`). Installing it in Claude Desktop itself has not been verified yet.
 
 1. Download the `.mcpb` file.
 2. Double-click it (or drag it onto Claude Desktop, or use Settings > Extensions > Advanced settings > Install Extension).
@@ -104,7 +104,7 @@ macOS / Linux:
 Or from the release tarball:
 
 ```json
-{ "mcpServers": { "uni-t-uts": { "command": "npx", "args": ["-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.2.0/uni-t-uts-mcp-0.2.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
+{ "mcpServers": { "uni-t-uts": { "command": "npx", "args": ["-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.3.0/uni-t-uts-mcp-0.3.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
 ```
 
 Windows:
@@ -116,13 +116,13 @@ Windows:
 Or from the release tarball:
 
 ```json
-{ "mcpServers": { "uni-t-uts": { "command": "cmd", "args": ["/c", "npx", "-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.2.0/uni-t-uts-mcp-0.2.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
+{ "mcpServers": { "uni-t-uts": { "command": "cmd", "args": ["/c", "npx", "-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.3.0/uni-t-uts-mcp-0.3.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
 ```
 
 Docker (any OS with Docker):
 
 ```json
-{ "mcpServers": { "uni-t-uts": { "command": "docker", "args": ["run", "-i", "--rm", "-e", "UTS_IP=192.168.1.100", "ghcr.io/reid-n0rc/uni-t-uts-mcp:0.2.0"] } } }
+{ "mcpServers": { "uni-t-uts": { "command": "docker", "args": ["run", "-i", "--rm", "-e", "UTS_IP=192.168.1.100", "ghcr.io/reid-n0rc/uni-t-uts-mcp:0.3.0"] } } }
 ```
 
 The `github:` spec works in the same place as the package name or tarball URL (replace the last argument).

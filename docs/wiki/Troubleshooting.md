@@ -69,7 +69,7 @@ Errors are returned with their code, text and the commands that were sent, and s
 
 ## Not available yet
 
-- **Markers, measurements:** not implemented yet; see the [Roadmap](Roadmap).
+- **Limit lines, tracking generator:** not implemented yet; see the [Roadmap](Roadmap).
 - **Screenshot:** the analyzer stops a screen image after 144,800 bytes over raw TCP but delivers all of it over VXI-11 ([issue #42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)). The `screenshot` tool therefore needs VXI-11: over raw TCP it refuses with an error telling you to reconnect with `transport: "vxi11"` (or `auto`).
 
 ## Still stuck?
