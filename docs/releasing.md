@@ -4,7 +4,7 @@ How releases of `uni-t-uts-mcp` are made. Tagging and creating releases are main
 contributors and agents prepare changes but do not bump versions, tag or release without the
 maintainer's explicit go-ahead (see [AGENTS.md](../AGENTS.md)).
 
-**Release channels.** There is no npm account yet, so a release is:
+**Release channels.** The package is not on the npm registry yet (the first publish is pending), so a release is:
 
 1. a **GitHub release** for the tag `v<version>` with the packed tarball `uni-t-uts-mcp-<version>.tgz` attached
    and the changelog section as notes, and
@@ -168,4 +168,17 @@ Optional; nothing above depends on it.
    (no environment). Delete the `NPM_TOKEN` secret and revoke the token, and edit `npm-publish.yml` so its steps
    run without the `HAS_NPM_TOKEN` condition (trusted publishing needs no secret). Optionally set the package to
    "Require two-factor authentication and disallow tokens".
-4. Afterwards add `npx -y uni-t-uts-mcp` to the install docs and verify it from a clean folder.
+4. Once the "coming soon" npm form is real, verify `npx -y uni-t-uts-mcp` from a clean folder, then flip the install docs (next section).
+
+## Flipping the install docs when npm goes live
+
+Until the package exists on npm, the bare `npx -y uni-t-uts-mcp` form is labelled "coming soon" everywhere and
+`npm run client-config -- --from npm` refuses. `tests/unit/install-docs.test.ts` fails if an unlabelled bare npm form
+appears while the switch is off, and if the labels remain once it is on. To flip:
+
+1. `scripts/client-config.mjs`: set `NPM_PUBLISHED = true`.
+2. `README.md`: in "Install", rename the section "From the npm registry (coming soon, after the first npm publish)"
+   to a normal heading, delete the "has not been published" sentence, and move the npm one-liner and JSON to the top.
+3. `site/index.html`: in the quick start, remove the "coming soon" badge on the npm option.
+4. `CHANGELOG.md`: add a line under Unreleased.
+5. Run `npm test`, then verify the npm form from a clean folder.
