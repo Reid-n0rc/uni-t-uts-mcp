@@ -271,13 +271,13 @@ Safety notes: `*RST`, `:SYSTem:DEFault`, `:SYSTem:LOCK`, `:KEY:*:LOCK`, LAN sett
 
 ## 11. Ambiguities and items to verify on hardware
 
-1. **Raw TCP port and terminator**: manuals only show VISA `TCPIP0::<ip>::inst0::INSTR`; raw port 5025 must be assumed (verified once per verified-hardware.md). Whether a trailing `\r\n` is tolerated is unstated.
-2. **Error queue**: no `:SYSTem:ERRor?` or `:STATus` in either manual. Probe it; if absent, detect failures only via timeouts/empty replies.
-3. **`*CLS`, `*ESR?`, `*STB?`, `*TRG`**: only in 1K manual; confirm they exist on the UTS3000B firmware.
+1. **Raw TCP port and terminator**: **Verified on UTS3036B V1.04.0040 (P1):** raw TCP port 5025 works; `\n`, `\r\n`, `\r` and even no terminator all produced a reply. Replies end with a newline. Use `\n` for commands.
+2. **Error queue**: **Verified (P1):** `:SYSTem:ERRor?` works and returned `0,"No error"`. `:SYSTem:ERRor:NEXT?`, `:STATus:OPERation:CONDition?`, `:STATus:QUEStionable:CONDition?` and `:SYSTem:VERSion?` gave no reply (unsupported). Unsupported queries produce **no reply and no error text**, so callers must use timeouts. Whether an unknown command is pushed to the error queue is not yet tested.
+3. **`*CLS`, `*ESR?`, `*STB?`, `*TRG`**: **Verified (P1):** `*OPC?`, `*ESR?`, `*STB?`, `*ESE?`, `*SRE?` reply (`1`, `0`, `0`, `0`, `0` at idle) and `*CLS` is accepted. `*TRG`, `*SAV`, `*RCL` not probed.
 4. **Trace data**: `:TRACe[:DATA]?` and `:FORMat[:TRACe][:DATA]` are absent from the 3K manual and present in 1K. Confirm on hardware, including the ASCII separator, trailing newline, whether point count equals `:SWEep:POINts?`, the unit under non-dBm `:UNIT:POWer`, and whether trace n must be selected first.
 5. **Binary block header**: 3K p.4 says `#<N><len>`, 1K p.5 says `#9<9-digit len>`. Parse generically. `REAL32`/`REAL64` byte order and whether the block length counts bytes or values are unstated; the manual calls them "integer" but cites IEEE 754 floats. `:FORMat?` returns `ASC8` while the setter is `ASCll`; check the actual token.
 6. **Single-sweep start**: `:INITiate:IMMediate/RESTart/STOP/PAUSe/RESume` are documented only in the EMI section; verify they work in SA mode. `:INITiate:CONTinuous` text in 3K labels both states "1|ON" (typo); 0 = single is confirmed only by 1K p.69.
-7. **Sweep completion**: whether `*OPC?` blocks until a single sweep finishes; behavior of `*OPC?` during continuous sweep; behavior when sweep time is auto.
+7. **Sweep completion**: whether `*OPC?` blocks until a single sweep finishes; behavior when sweep time is auto. **P1:** during continuous sweep `*OPC?` returned `1` within ~14 ms (single-sweep behavior is still untested; see T4).
 8. **Clear trace / reset averaging**: no dedicated command. Test whether re-sending `:TRACe<n>:TYPE MAXHold` or `AVERage`, or `:INITiate:RESTart`, restarts hold/average. `:AVERage:COUNt` appears global, not per-trace, and no "average count reached" query exists.
 9. **Appendix example inconsistency**: p.179 example uses `:trace1:mode write` and `:key:default`, neither defined in the command list (list defines `:TRACe<n>:TYPE`). Use `TYPE`; test `:KEY:Default`.
 10. **`:CALCulate:MARKer<n>:Y?` semantics**: returns the marker-function result when a function (NOISe/BPOWer/BDENsity) is on. For DELTa mode, whether `X?`/`Y?` return absolute or relative values is unstated. Marker auto-on when `MAXimum` is sent while MODE=OFF is unstated. Query of `:CALCulate:MARKer:FCOunt` result is not documented.
@@ -285,7 +285,7 @@ Safety notes: `*RST`, `:SYSTem:DEFault`, `:SYSTem:LOCK`, `:KEY:*:LOCK`, LAN sett
 12. **Zoom commands**: `:FREQuency:ZOOM:IN` text says it "expands the sweep bandwidth", `ZOOM:OUT` says it "reduces" it; direction ambiguous. Avoid; set span explicitly.
 13. **Limits and ranges not given**: reference level range, `SOURce:POWer` range, frequency offset range, attenuation step (only "integer 0-51"), whether out-of-range values clamp or error, whether bare numbers are accepted vs. needing unit suffix (examples use both).
 14. **Screenshot**: `:DISPlay:ZBmp?` payload is "compressed" with unspecified algorithm and framing; test it against `:DISPlay:DATA?` and `:SYSTem:PICture:FORMat`.
-15. **`*IDN?`**: manual says the version is dot-separated but shows commas; hardware returns manufacturer string `UNI-TREND` (per verified-hardware.md), not the manual's `UNI-T Technologies`.
+15. **`*IDN?`**: **Verified (P1):** comma-separated `UNI-TREND,UTS3036B,<serial>,V1.04.0040`; manufacturer string is `UNI-TREND`, not the manual's `UNI-T Technologies`.
 16. **Typos in boolean descriptions** (several `1|ON` listed twice in place of `0|OFF`; `*OPC?` "1 = unfinished"; `:SYSTem:LOCK?` "0 = unlocked / 1 = unlocked"). Assume 1 = on/true/finished.
 17. **Peak-table / marker-table contents** and **limit-line pass/fail** have no documented read-back.
 18. **Parameter coupling**: setting `SPAN`, `STARt`, `STOP`, `CENTer` interact; setting RBW/VBW/sweep time with AUTO on may be overridden. Re-query after set.
@@ -299,3 +299,7 @@ Safety notes: `*RST`, `:SYSTem:DEFault`, `:SYSTem:LOCK`, `:KEY:*:LOCK`, LAN sett
 - Uses `#9`+9-digit block header (3K manual: single-digit length-of-length).
 - Both manuals share the `:CALCulate:MARKer`, `:SENSe:FREQuency/BANDwidth/SWEep/DETector`, `:TRACe<n>:TYPE`, `:UNIT:POWer`, `:DISPlay:WINDow:TRACe:Y` families unchanged in syntax.
 - Neither manual documents a LAN raw-socket port or an error queue.
+
+## Verified query replies (P1, UTS3036B V1.04.0040)
+
+`:INITiate:CONTinuous?` -> `1`; `:SWEep:POINts?` -> `1001`; `:SWEep:TIME?` -> `2.647500e-03 ` (note trailing space); `:FORMat?` -> `ASC8` (so `:FORMat` exists on the 3000B). Raw probe output: `tests/fixtures/p1-basics-probe.txt`.
