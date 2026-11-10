@@ -9,7 +9,8 @@ MCP server (TypeScript, stdio) for UNI-T UTS series spectrum analyzers (UTS1000B
 - `src/index.ts` – server entry, registers tool groups
 - `src/connection.ts` – SCPI connection singleton: serialized queue, query timeouts, hold-off after a timed-out query, `*OPC?` command pacing, `msSinceQueryTimeout`, `expectSilence`
 - `src/transports/` – the wire under `UtsConnection`. `transport.ts` defines the internal `Transport` interface (open/close/isOpen/onLost, `write` a line, `readLine`/`readBlock` with a timeout, `discardInput`) and its capability flags; `raw.ts` is raw SCPI over TCP (framing, CRLF, `#` block assembly, late-terminator swallowing). Wire differences are expressed as capability flags (`syncsCommands`, `dropsInputDuringSweep`, `holdOffAfterTimeout`, read via `connection.capabilities`), never as transport-name checks in tools. A new transport (VXI-11, parent #64) implements `Transport` and passes `tests/transportContract.ts` by calling `runTransportContract` with its own factory and fake instrument
-- `src/tools/*.ts` – one file per tool group, each exporting `register<Group>Tools(server)`
+- `src/sessionLock.ts`, `connection.runExclusive` – the per-connection FIFO exclusive-session lock; transport independent. Tools are serialized per instrument (see "Concurrency" below)
+- `src/tools/*.ts` – one file per tool group, each exporting `register<Group>Tools(server)`; every tool is registered with `defineTool(server, name, description, shape, annotations, handler, options?)` from `src/tools/util.ts`
 - `tests/unit/`, `tests/integration/` – vitest; integration tests mock `src/connection.js`
 - `docs/` – `references.md` (manuals and links), `verified-hardware.md` (what was tested on), tools reference, programming-guide notes, manual testing guide
 
@@ -38,6 +39,16 @@ Commands: `npm run build`, `npm test`, `npm run inspector`.
 - **Incremental commits.** One logical change per commit (tests, implementation, docs may be separate commits), each building and passing on its own, so a person can audit the history.
 - **Issue → work → PR.** Every PR must be tied to an issue: open the issue first, do the work on branch `issue-<n>-<slug>` from `main`, then open one PR with `Closes #<n>`. No PR without an issue. Each issue gets its own new branch, and its work reaches `main` only by merging that PR; never commit or push issue work directly to `main`.
 - **Privacy.** Never put device serial numbers or real IP addresses in the repo, issues, or PRs.
+
+## Concurrency (required for every tool)
+
+MCP clients may issue parallel tool calls, and the analyzer has one command stream, one global error queue and ignores commands during a single sweep. So **each tool's whole operation is one exclusive session**:
+
+- **Register every tool with `defineTool`** (`src/tools/util.ts`), never `server.tool()`/`registerTool()`. `defineTool` runs the handler inside `connection.runExclusive` (FIFO, nested helper calls join the session through AsyncLocalStorage, so helpers like `applyCommands` never deadlock), turns a busy timeout or any thrown error into an `isError` result, and `createServer()` makes `server.tool`/`registerTool` throw, so a bypass fails at startup and in the tests (`tests/integration/tool-contract.test.ts` also scans `src/tools` and checks every instrument operation ran inside a session).
+- Put pure input validation (no instrument access) in the `validate` option of `defineTool` so an invalid call is refused without waiting for a long sweep. `exclusive: false` is only for `disconnect`.
+- Do not hold the session across user-visible waiting that is not needed, and do not start work that outlives the handler (fire-and-forget calls would escape the lock). A tool that starts a sweep must also wait for it inside the same handler.
+- Tests: add the tool to the `CONTRACT` table; the contract test then also runs it in parallel mode (three copies at once and all tools at once, failures attributed to the owning call). Tests that mock `src/connection.js` with a hand-made object must provide `runExclusive: (fn) => fn()`.
+- The wait limit is `UTS_BUSY_TIMEOUT_S` (default 120 s). Wiki pages that describe tool behavior or error handling should state the guarantee (issue #70).
 
 ## Error handling standard
 
