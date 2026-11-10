@@ -62,7 +62,7 @@ describe("social preview meta tags (issue #111)", () => {
   it("adds no http:// URL and no external request to the head", () => {
     const withoutSvgNamespace = head.split("http://www.w3.org/2000/svg").join("");
     expect(withoutSvgNamespace).not.toContain("http://");
-    for (const tag of head.match(/<(link|script|img)\b[^>]*>/g) ?? []) {
+    for (const tag of head.match(/<(link|script|img)\b[^>]*>/gi) ?? []) {
       const url = tag.includes('href="') ? tag.split('href="')[1] : tag.includes('src="') ? tag.split('src="')[1] : "";
       if (tag.includes('rel="canonical"')) continue;
       expect(url.startsWith("https://") || url.startsWith("http://"), tag).toBe(false);
