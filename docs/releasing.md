@@ -181,17 +181,18 @@ the failed workflow from the Actions tab; `release.yml` uploads the tarball to a
 
 `uni-t-uts-mcp` is on npm: 0.1.0 was published once from CI (the `v0.1.0` tag workflow `npm-publish.yml`, with SLSA
 provenance), and its `dist.shasum` is identical to the GitHub release tarball. Every later `v*` tag publishes the same
-way (`npm publish --provenance --access public`; the workflow already has `id-token: write`).
+way (`npm publish --provenance --access public`; the workflow already has `id-token: write`) once trusted publishing is set up.
 
-- **Token (current).** The workflow authenticates with the repository secret `NPM_TOKEN` through `NODE_AUTH_TOKEN` and
-  skips with a notice while the secret is absent. Use a short-lived granular token (permission *Read and write*, 2FA
-  bypass enabled because CI has no one-time code) and replace it before it expires.
-- **Switch to trusted publishing (recommended).** On npmjs.com open the package > Settings > Trusted Publisher >
-  GitHub Actions and enter organization/user `Reid-n0rc`, repository `uni-t-uts-mcp`, workflow filename
-  `npm-publish.yml`, and leave the environment empty. Then confirm it with the next release: the publish step works
-  through OIDC with no token. After that succeeds, delete the `NPM_TOKEN` secret and revoke the token on npmjs.com,
-  remove the `NODE_AUTH_TOKEN` line and the `HAS_NPM_TOKEN` conditions from `npm-publish.yml` (the workflow then
-  relies on OIDC alone), and optionally set the package to "Require two-factor authentication and disallow tokens".
+- **Authentication: trusted publishing.** The maintainer revoked the npm token and the `NPM_TOKEN` secret is deleted, so
+  publishing relies on npm trusted publishing (OIDC, no token, no `NODE_AUTH_TOKEN`). `npm-publish.yml` publishes when
+  either the secret `NPM_TOKEN` exists or the repository variable `NPM_TRUSTED_PUBLISHING` is `true`. One-time setup:
+  1. On npmjs.com open the package `uni-t-uts-mcp` > Settings > Trusted Publisher > GitHub Actions and enter
+     user/organization `Reid-n0rc`, repository `uni-t-uts-mcp`, workflow filename `npm-publish.yml`, and leave the
+     environment empty.
+  2. Run `gh variable set NPM_TRUSTED_PUBLISHING --body true` (in the repository).
+  3. No `NPM_TOKEN` secret is needed any more.
+  4. The next `v*` tag publishes with provenance.
+  Optionally set the package to "Require two-factor authentication and disallow tokens".
 - **Publishing is asynchronous.** npm now processes first publishes in the background: the CLI may print "Your package
   is being processed" and the registry may show a placeholder version `0.0.0-stage` for a few minutes. Verification must
   therefore poll `npm view uni-t-uts-mcp version` until the new version appears (for example once every 15 seconds for

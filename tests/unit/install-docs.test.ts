@@ -184,7 +184,8 @@ describe("install docs are truthful", () => {
     expect(rel).toContain("Trusted Publisher");
     expect(rel).toContain("npm-publish.yml");
     expect(rel).toContain("Reid-n0rc");
-    expect(rel).toContain("NODE_AUTH_TOKEN");
+    expect(rel).toContain("NPM_TRUSTED_PUBLISHING");
+    expect(rel).toContain("gh variable set NPM_TRUSTED_PUBLISHING --body true");
     expect(rel).toContain("0.0.0-stage");
     expect(rel).toContain("npm view");
     expect(rel).not.toContain("is not on the npm registry");

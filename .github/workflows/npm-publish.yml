@@ -1,8 +1,8 @@
 name: Publish to npm
 
-# The project is released as a GitHub release (with the packed tarball) plus a
-# GHCR Docker image (release.yml, docker-publish.yml) and on npm (this workflow). It skips cleanly
-# (green run, notice) while the repository secret NPM_TOKEN is not set.
+# OPTIONAL. The project is currently released as a GitHub release (with the packed tarball) plus a
+# GHCR Docker image (release.yml, docker-publish.yml); there is no npm account yet, so this workflow
+# skips cleanly (green run, notice) while the repository secret NPM_TOKEN is not set.
 #
 # Runs only for version tags (v*). The tag must equal v<package.json version>; see docs/releasing.md.
 # Once a token exists it publishes with provenance. Authentication, either of:
@@ -11,7 +11,7 @@ name: Publish to npm
 #     on an existing package;
 #   - npm trusted publishing (OIDC, no secret) once the package exists and this workflow is
 #     registered as a trusted publisher on npmjs.com. Then this workflow must be changed to drop the
-#     skip condition (see docs/releasing.md, "npm publishing").
+#     skip condition (see docs/releasing.md, "Adding npm later").
 
 on:
   push:
@@ -31,7 +31,7 @@ jobs:
     steps:
       - name: Skip when no npm token is configured
         if: env.HAS_NPM_TOKEN != 'true'
-        run: echo "::notice::NPM_TOKEN is not set, so nothing is published to npm for $GITHUB_REF_NAME (GitHub release and Docker image are handled by other workflows). See docs/releasing.md, 'npm publishing'."
+        run: echo "::notice::NPM_TOKEN is not set, so nothing is published to npm for $GITHUB_REF_NAME (GitHub release and Docker image are handled by other workflows). See docs/releasing.md, 'Adding npm later'."
 
       - name: Checkout
         if: env.HAS_NPM_TOKEN == 'true'
