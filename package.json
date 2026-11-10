@@ -55,7 +55,8 @@
     "build:mcpb": "node scripts/build-mcpb.mjs",
     "test": "vitest run",
     "test:mcpb": "vitest run tests/unit/mcpb-bundle.test.ts",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
@@ -63,6 +64,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^5.1.0",
     "typescript": "^5.7.0",
     "vitest": "^5.1.0"
   },

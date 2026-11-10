@@ -12,6 +12,9 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+- Test coverage: `npm run test:coverage` (vitest v8, `coverage/lcov.info`), uploaded to Codecov from one CI job (Ubuntu, Node 24) when the `CODECOV_TOKEN` secret is set; informational only (`codecov.yml`); README badge.
+
 ### Security
 - All GitHub Actions in the workflows are pinned to full commit SHAs (Dependabot keeps them updated) and a unit test rejects unpinned ones; the repository now requires SHA pinning.
 
