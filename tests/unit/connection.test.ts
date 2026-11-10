@@ -390,3 +390,16 @@ describe("command validation", () => {
     expect(server!.received.length).toBe(before);
   });
 });
+
+describe("query with expectSilence (polling a busy instrument)", () => {
+  it("does not hold off the next job or record a query timeout when it times out", async () => {
+    await setup((line, s) => {
+      if (line === "Q?") s.write("ok\r\n");
+    }, undefined, { recoveryMs: 1000 });
+    await expect(conn.query("*OPC?", 50, { expectSilence: true })).rejects.toThrow(/timeout/i);
+    expect(conn.msSinceQueryTimeout()).toBe(Infinity);
+    const t0 = Date.now();
+    expect(await conn.query("Q?")).toBe("ok");
+    expect(Date.now() - t0).toBeLessThan(500);
+  });
+});
