@@ -31,6 +31,8 @@ export function smokeTest({ command, args = [], expectedTools, expectedName = EX
   return new Promise((resolvePromise, reject) => {
     // Windows .cmd shims (npm bins, npx) can only be started through a shell.
     const useShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(command);
+    // cmd.exe reads "node_modules/.bin/x.cmd" as the command "node_modules" plus a switch, so use backslashes.
+    if (useShell) command = command.replace(/\//g, "\\");
     const quote = (s) => (useShell && /[\s"]/.test(s) ? `"${s}"` : s);
     const child = spawn(quote(command), args.map(quote), { stdio: ["pipe", "pipe", "pipe"], shell: useShell });
     let buf = "";
