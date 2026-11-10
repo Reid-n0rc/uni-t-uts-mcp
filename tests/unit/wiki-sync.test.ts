@@ -38,9 +38,9 @@ const sample: WikiSources = {
 };
 
 const issues: WikiIssue[] = [
-  { number: 20, title: "Later thing", state: "open", labels: ["needs-hardware"] },
-  { number: 3, title: "First thing", state: "closed", labels: [] },
-  { number: 10, title: "Open early", state: "open", labels: [] },
+  { number: 20, title: "Later thing", state: "open", labels: ["needs-hardware"], authorAssociation: "OWNER" },
+  { number: 3, title: "First thing", state: "closed", labels: [], authorAssociation: "OWNER" },
+  { number: 10, title: "Open early", state: "open", labels: [], authorAssociation: "COLLABORATOR" },
 ];
 
 describe("buildWikiPages", () => {
@@ -106,16 +106,138 @@ describe("buildWikiPages", () => {
   });
 });
 
+const ISSUE_PREFIX = (n: number) => `- [#${n}](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/${n}) `;
+const roadmapFor = (list: WikiIssue[], warnings?: string[]) => buildWikiPages(sample, { issues: list, warnings })["Roadmap.md"];
+const adversarial = (title: string, labels: string[] = []): WikiIssue => ({ number: 77, title, state: "open", labels, authorAssociation: "OWNER" });
+/** The text after the intended issue link, with every backslash escape removed. */
+const bodyOf = (roadmap: string): { line: string; plain: string; rendered: string } => {
+  const line = roadmap.split("\n").filter((l) => l.startsWith(ISSUE_PREFIX(77)))[0];
+  expect(line, "the issue line is present").toBeDefined();
+  const text = line.slice(ISSUE_PREFIX(77).length);
+  // plain: escape pairs removed (what markdown could still act on); rendered: escapes resolved (what a reader sees)
+  return { line, plain: text.replace(/\\[\s\S]/g, ""), rendered: text.replace(/\\([\s\S])/g, "$1") };
+};
+
+describe("untrusted issue text (issue #103)", () => {
+  const titles = [
+    "[click me](http://evil.example/x) now",
+    "![img](http://evil.example/a.png)",
+    "<script>alert(1)</script> <img src=x onerror=y>",
+    "[x](javascript:alert(1))",
+    "`code` and ``double`` ticks",
+    "a | b | c\n|---|---|\n| x | y |",
+    "line one\nline two\r\n# Heading\n- list item",
+    "# Heading title",
+    "> quote *bold* _italic_ ~~strike~~",
+    "ping @someuser and @org/team",
+    "see #1 and GH-2 and #123",
+    "visit https://evil.example/phish or www.evil.example or ftp://x.example",
+    "&lt;b&gt; &amp; &#60;",
+    "RTL \u202Eevil\u202C and \u2066iso\u2069 and zero\u200Bwidth\u200D\uFEFFjoin",
+    "emoji \u{1F600} survives",
+    "\u0000\u0007\u001b[31mcontrol\u007f",
+    "full\uFF3B\uFF3Dwidth\uFF08\uFF09 brackets",
+  ];
+  it("renders every adversarial title as one plain-text line with no live markdown, HTML, URL, mention or control character", () => {
+    for (const title of titles) {
+      const { line, plain, rendered } = bodyOf(roadmapFor([adversarial(title)]));
+      expect(line, title).not.toContain("\n");
+      expect(line, title).not.toContain("\r");
+      expect(line, title).not.toMatch(/[\p{Cc}\p{Cf}\u2028\u2029]/u);
+      // after removing backslash escapes nothing markdown-active may remain
+      expect(plain, title).not.toMatch(/[`*_[\]()!#|~<>&@]/);
+      expect(rendered, title).not.toContain("://");
+      expect(rendered.toLowerCase(), title).not.toContain("www.");
+      expect(rendered, title).not.toContain("@");
+      // the only link on the line is the intended one
+      expect(line.match(/\]\(/g)?.length ?? 0, title).toBe(1);
+      expect(line.startsWith(ISSUE_PREFIX(77)), title).toBe(true);
+    }
+  });
+  it("keeps the readable words and the emoji", () => {
+    expect(bodyOf(roadmapFor([adversarial("emoji \u{1F600} survives")])).plain).toContain("emoji \u{1F600} survives");
+    expect(bodyOf(roadmapFor([adversarial("[click me](http://evil.example/x) now")])).plain).toContain("click me");
+  });
+  it("caps long titles with an ellipsis", () => {
+    const { plain } = bodyOf(roadmapFor([adversarial("word ".repeat(500))]));
+    expect(plain.length).toBeLessThanOrEqual(121);
+    expect(plain.endsWith("\u2026")).toBe(true);
+    const short = bodyOf(roadmapFor([adversarial("Short title")])).plain;
+    expect(short).toBe("Short title");
+  });
+  it("escapes the same way inside labels and caps them", () => {
+    const { line } = bodyOf(roadmapFor([adversarial("T", ["[bad](http://evil.example)", "@someone", "<b>x</b>", "ok-label", "y".repeat(300)])]));
+    expect(line).toContain("ok-label");
+    // the label list sits inside the intended _( ... )_ emphasis wrapper
+    const inner = line.slice(ISSUE_PREFIX(77).length).replace(/^T _\(/, "").replace(/\)_$/, "");
+    expect(inner.replace(/\\[\s\S]/g, "")).not.toMatch(/[`*_[\]()!#|~<>&@]/);
+    expect(inner.replace(/\\([\s\S])/g, "$1")).not.toContain("://");
+    expect(line.length).toBeLessThan(400);
+  });
+  it("lists only issues by an owner, member or collaborator and shows the skipped count as a number only", () => {
+    const list: WikiIssue[] = [
+      { number: 1, title: "Owner issue", state: "open", labels: [], authorAssociation: "OWNER" },
+      { number: 2, title: "Member issue", state: "open", labels: [], authorAssociation: "MEMBER" },
+      { number: 3, title: "Collaborator issue", state: "closed", labels: [], authorAssociation: "COLLABORATOR" },
+      { number: 4, title: "Stranger SPAM title", state: "open", labels: [], authorAssociation: "NONE" },
+      { number: 5, title: "First timer SPAM title", state: "closed", labels: [], authorAssociation: "FIRST_TIME_CONTRIBUTOR" },
+      { number: 6, title: "Contributor SPAM title", state: "open", labels: [], authorAssociation: "CONTRIBUTOR" },
+      { number: 7, title: "No association SPAM title", state: "open", labels: [] },
+    ];
+    const roadmap = roadmapFor(list);
+    for (const t of ["Owner issue", "Member issue", "Collaborator issue"]) expect(roadmap).toContain(t);
+    expect(roadmap).not.toContain("SPAM");
+    expect(roadmap).not.toContain("issues/4)");
+    expect(roadmap).toContain("Open issues (2)");
+    expect(roadmap).toContain("Completed issues (1)");
+    expect(roadmap).toContain("4 issues from other authors are not listed");
+  });
+  it("parseIssues keeps author_association for the filter", () => {
+    expect(parseIssues([{ number: 9, title: "t", state: "open", labels: [], author_association: "MEMBER" }])[0].authorAssociation).toBe("MEMBER");
+  });
+  it("an IP-like or email-like title does not fail --check, is redacted and never reaches the page", () => {
+    const warnings: string[] = [];
+    const list = [adversarial("Cannot reach 10.0.0.1 or 8.8.8.8:5025"), { ...adversarial("mail reid@example.com please"), number: 78 }];
+    const pages = buildWikiPages(sample, { issues: list, warnings });
+    const roadmap = pages["Roadmap.md"];
+    expect(roadmap).not.toContain("10.0.0.1");
+    expect(roadmap).not.toContain("8.8.8.8");
+    expect(roadmap).not.toContain("example.com");
+    expect(roadmap).toContain("redacted");
+    expect(findPrivateData(roadmap)).toEqual([]);
+    expect(checkPages(pages)).toEqual([]);
+    expect(warnings.length).toBeGreaterThan(0);
+  });
+  it("hides an IP address obfuscated with invisible characters", () => {
+    const roadmap = roadmapFor([adversarial("host 10.0.\u200B0.1 down")]);
+    expect(findPrivateData(roadmap)).toEqual([]);
+    expect(roadmap).not.toContain("10.0.0.1");
+  });
+  it("still fails for private data in repository-sourced pages", () => {
+    const pages = buildWikiPages({ ...sample, wiki: { ...sample.wiki, "Getting-Started": "# Getting Started\n\nUse 10.1.2.3 here. [Home](Home)\n" } }, { issues });
+    expect(checkPages(pages).some((p) => p.includes("10.1.2.3"))).toBe(true);
+  });
+  it("the sync workflow never uses event payload text and documents why issue triggers are safe", () => {
+    const wf = read(".github/workflows/wiki-sync.yml");
+    expect(wf).not.toContain("github.event.");
+    expect(wf).not.toContain("github.head_ref");
+    expect(wf).toMatch(/untrusted/i);
+    expect(wf).toContain("issues: read");
+    expect(wf).toContain("contents: write");
+    expect(wf).not.toMatch(/inputs\./);
+  });
+});
+
 describe("parseIssues", () => {
   it("keeps issues, drops pull requests, maps state and label names", () => {
     const parsed = parseIssues([
-      { number: 1, title: "Epic", state: "open", labels: [{ name: "epic" }, "plain"] },
-      { number: 2, title: "A PR", state: "closed", pull_request: {}, labels: [] },
+      { number: 1, title: "Epic", state: "open", labels: [{ name: "epic" }, "plain"], author_association: "OWNER" },
+      { number: 2, title: "A PR", state: "closed", pull_request: {}, labels: [], author_association: "OWNER" },
       { number: 3, title: "Done", state: "closed", labels: [] },
     ]);
     expect(parsed).toEqual([
-      { number: 1, title: "Epic", state: "open", labels: ["epic", "plain"] },
-      { number: 3, title: "Done", state: "closed", labels: [] },
+      { number: 1, title: "Epic", state: "open", labels: ["epic", "plain"], authorAssociation: "OWNER" },
+      { number: 3, title: "Done", state: "closed", labels: [], authorAssociation: "NONE" },
     ]);
   });
   it("rejects data that is not a list of issues", () => {
@@ -275,7 +397,7 @@ describe("scripts/sync-wiki.mjs command line", () => {
   it("builds into --out using --issues-file, and --check passes on this repository", () => {
     const dir = mkdtempSync(join(tmpdir(), "wiki-cli-"));
     const issuesFile = join(dir, "issues.json");
-    writeFileSync(issuesFile, JSON.stringify([{ number: 7, title: "Sample issue", state: "open", labels: [] }]));
+    writeFileSync(issuesFile, JSON.stringify([{ number: 7, title: "Sample issue", state: "open", labels: [], author_association: "OWNER" }]));
     const out = join(dir, "out");
     execFileSync(process.execPath, [join(ROOT, "scripts", "sync-wiki.mjs"), "--out", out, "--issues-file", issuesFile], { cwd: ROOT, stdio: "pipe" });
     expect(readFileSync(join(out, "Roadmap.md"), "utf8")).toContain("Sample issue");
