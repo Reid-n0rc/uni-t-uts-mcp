@@ -191,7 +191,6 @@ describe("set_bandwidth", () => {
     expect(json(res).state.vbw_hz).toBe(1e5);
   });
   it("reports instrument errors", async () => {
-    fake.sendCommand.mockImplementationOnce(async () => {}); // *CLS
     const original = fake.sendCommand.getMockImplementation()!;
     fake.sendCommand.mockImplementation(async (cmd: string) => {
       await original(cmd);
@@ -271,7 +270,7 @@ describe("set_sweep", () => {
     expect(fake.calls[fake.calls.length - 1]).toBe(`${S}:TIME 1`);
     expect(fake.calls[0]).toBe(`${S}:POINts 2001`);
   });
-  it("warns on clamping and mentions the trace length for points", async () => {
+  it("warns on clamping", async () => {
     const res = await callTool(client, "set_sweep", { sweep_time_s: 1e6, trigger_video_level_dbm: 500 });
     const w = json(res).warnings.join(" ");
     expect(w).toMatch(/sweep_time_s/);

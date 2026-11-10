@@ -4,6 +4,7 @@ import { registerConnectionTools } from "./tools/connection.js";
 import { registerScpiTools } from "./tools/scpi.js";
 import { registerFrequencyTools } from "./tools/frequency.js";
 import { registerAmplitudeTools } from "./tools/amplitude.js";
+import { registerBandwidthSweepTools } from "./tools/bandwidthSweep.js";
 
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
 
@@ -14,5 +15,6 @@ export function createServer(): McpServer {
   registerScpiTools(server);
   registerFrequencyTools(server);
   registerAmplitudeTools(server);
+  registerBandwidthSweepTools(server);
   return server;
 }
