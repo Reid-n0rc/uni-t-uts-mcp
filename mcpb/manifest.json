@@ -199,11 +199,11 @@
     },
     {
       "name": "configure_measurement",
-      "description": "Enter channel power, time-domain power or OBW and set its parameters."
+      "description": "Enter a measurement (channel power, time-domain power, OBW, ACPR, TOI, C/N or harmonics) and set its parameters."
     },
     {
       "name": "read_measurement",
-      "description": "Read the result of the active channel power, time-domain power or OBW measurement."
+      "description": "Read the result of the active measurement (channel power, time-domain power, OBW, ACPR, TOI, C/N or harmonics)."
     },
     {
       "name": "exit_measurement",
@@ -211,7 +211,7 @@
     },
     {
       "name": "measure",
-      "description": "One-shot channel power, time-domain power or OBW measurement that restores the analyzer afterwards."
+      "description": "One-shot measurement (channel power, time-domain power, OBW, ACPR, TOI, C/N or harmonics) that restores the analyzer afterwards."
     }
   ],
   "tools_generated": false,
