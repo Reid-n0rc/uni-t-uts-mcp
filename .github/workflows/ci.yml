@@ -26,3 +26,104 @@ jobs:
       - run: npm run build
       - run: npm run typecheck
       - run: npm test
+
+  # Release smoke tests (issue #84): what would be published must contain only the intended
+  # files, install cleanly from the packed tarball, and start as an MCP server.
+  package-contents:
+    name: package contents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Tarball contains only build js/d.ts, README, LICENSE and package.json
+        run: node scripts/check-pack.mjs
+      - name: npm publish --dry-run is clean (no package.json auto-corrections, such as a dropped bin)
+        run: |
+          npm publish --dry-run --ignore-scripts 2>&1 | tee publish-dry-run.log
+          if grep -q "auto-corrected" publish-dry-run.log; then
+            echo "::error::npm auto-corrected package.json; run 'npm pkg fix' and commit the result"
+            exit 1
+          fi
+
+  install-smoke:
+    name: npm install smoke (${{ matrix.os }}, node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, node-version: 22, bin: uni-t-uts-mcp }
+          - { os: ubuntu-latest, node-version: 24, bin: uni-t-uts-mcp }
+          - { os: macos-latest, node-version: 24, bin: uni-t-uts-mcp }
+          - { os: windows-latest, node-version: 24, bin: uni-t-uts-mcp.cmd }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Pack the tarball
+        run: |
+          mkdir -p "$RUNNER_TEMP/smoke/project"
+          npm pack --silent --pack-destination "$RUNNER_TEMP/smoke" | tail -n 1 > "$RUNNER_TEMP/smoke/tarball.txt"
+          cat "$RUNNER_TEMP/smoke/tarball.txt"
+      - name: Install the tarball into an empty project
+        working-directory: ${{ runner.temp }}/smoke/project
+        run: |
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "file:../$(cat ../tarball.txt)"
+      - name: Run the installed bin as a stdio MCP server (initialize, tools/list)
+        working-directory: ${{ runner.temp }}/smoke/project
+        run: node "$GITHUB_WORKSPACE/scripts/smoke-mcp.mjs" -- "node_modules/.bin/${{ matrix.bin }}"
+
+  git-install-smoke:
+    # Installing straight from a git checkout (what `npx github:Reid-n0rc/uni-t-uts-mcp#<tag>` does)
+    # must build the TypeScript through the `prepare` script. The github: spec itself can only be
+    # verified once a tag exists; a git+file URL of this checkout exercises the same npm code path.
+    name: git install smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install from a git URL into an empty project and run the bin
+        run: |
+          mkdir "$RUNNER_TEMP/project" && cd "$RUNNER_TEMP/project"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "git+file://$GITHUB_WORKSPACE#$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          node "$GITHUB_WORKSPACE/scripts/smoke-mcp.mjs" -- node_modules/.bin/uni-t-uts-mcp
+
+  docker-smoke:
+    name: docker image smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Build the image (no push)
+        run: docker build --tag uni-t-uts-mcp:ci .
+      - name: Image links back to the repository (package inherits its visibility)
+        run: |
+          src=$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.source" }}' uni-t-uts-mcp:ci)
+          echo "org.opencontainers.image.source=$src"
+          test "$src" = "https://github.com/${{ github.repository }}"
+      - name: Run the image as a stdio MCP server (initialize, tools/list)
+        run: node scripts/smoke-mcp.mjs -- docker run -i --rm uni-t-uts-mcp:ci

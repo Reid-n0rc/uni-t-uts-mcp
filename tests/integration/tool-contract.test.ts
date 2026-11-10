@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { createServer } from "../../src/server.js";
 import { callTool, getText, type ToolResult } from "../helpers.js";
 import { APPLICABLE, CONTRACT, fake, type ContractEntry, type Mode } from "../toolContract.js";
+import { readdirSync, readFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
@@ -32,6 +33,10 @@ afterAll(async () => {
   await cleanup();
 });
 beforeEach(() => fake.reset());
+afterEach(() => {
+  // Every operation of every test must have run inside an exclusive session (defineTool).
+  expect(fake.violations, "instrument operations outside an exclusive session: a tool bypasses defineTool()").toEqual([]);
+});
 
 const entries = Object.entries(CONTRACT) as Array<[string, ContractEntry]>;
 
@@ -160,4 +165,91 @@ describe.each(entries)("%s", (name, entry) => {
       }
     });
   }
+});
+
+// ---------- concurrency (issue #66) ----------
+
+describe("every tool is an exclusive instrument session", () => {
+  it("registers tools only through defineTool (no server.tool()/registerTool() in src/tools)", () => {
+    const dir = new URL("../../src/tools/", import.meta.url);
+    for (const file of readdirSync(dir)) {
+      if (!file.endsWith(".ts") || file === "util.ts") continue;
+      const source = readFileSync(new URL(file, dir), "utf8");
+      expect(source, `${file} must register tools with defineTool(server, ...) from ./util.js`).not.toMatch(
+        /\bserver\s*\.\s*(tool|registerTool)\s*\(/
+      );
+    }
+  });
+
+  it("makes server.tool() and server.registerTool() throw on the real server, so a bypass fails at startup", () => {
+    const server = createServer() as unknown as Record<string, (...a: unknown[]) => unknown>;
+    expect(() => server.tool("x", {}, async () => ({ content: [] }))).toThrow(/defineTool/);
+    expect(() => server.registerTool("x", {}, async () => ({ content: [] }))).toThrow(/defineTool/);
+  });
+
+  it("runs the instrument operations of every tool inside a session (see the afterEach check)", async () => {
+    for (const [name, entry] of entries) {
+      fake.reset();
+      await callTool(client, name, entry.args);
+      expect(fake.violations, name).toEqual([]);
+    }
+  });
+});
+
+describe("parallel mode", () => {
+  const instrumentTools = entries.filter(([, e]) => e.kind !== "connect" && e.kind !== "disconnect");
+
+  /** Session ids in the order operations ran; a session id that comes back after another one means interleaving. */
+  function expectContiguous(): number[] {
+    const order: number[] = [];
+    for (const id of fake.opSessions) if (order[order.length - 1] !== id) order.push(id);
+    expect(new Set(order).size, `sessions interleaved: ${fake.ops.join(" | ")}`).toBe(order.length);
+    expect(order).not.toContain(0);
+    return order;
+  }
+
+  describe.each(entries)("%s", (name, entry) => {
+    it("three parallel calls run one after another: each has exactly the single-call command sequence", async () => {
+      fake.reset();
+      const single = await callTool(client, name, entry.args);
+      expect(single.isError, getText(single)).toBeFalsy();
+      const baseline = [...fake.ops];
+
+      fake.reset();
+      fake.yieldOps = true;
+      const results = await Promise.all([1, 2, 3].map(() => callTool(client, name, entry.args)));
+      for (const r of results) expect(r.isError, getText(r)).toBeFalsy();
+      const order = expectContiguous();
+      expect(order).toHaveLength(baseline.length === 0 ? 0 : 3);
+      for (const id of order) {
+        expect(fake.ops.filter((_, i) => fake.opSessions[i] === id)).toEqual(baseline);
+      }
+    });
+  });
+
+  it("all tools at once: every call succeeds and no two tools' operations interleave", async () => {
+    fake.reset();
+    fake.yieldOps = true;
+    const results = await Promise.all(instrumentTools.map(([name, e]) => callTool(client, name, e.args)));
+    results.forEach((r, i) => expect(r.isError, `${instrumentTools[i][0]}: ${getText(r)}`).toBeFalsy());
+    expectContiguous();
+  });
+
+  it("a failure is attributed to the call that owns the failing operation, and to no other", async () => {
+    const tools = instrumentTools.filter(([name]) => name !== "wait_for_sweep_complete");
+    fake.reset();
+    fake.yieldOps = true;
+    await Promise.all(tools.map(([name, e]) => callTool(client, name, e.args)));
+    const total = fake.ops.length;
+    for (const failAt of [0, 1, 5, Math.floor(total / 3), Math.floor(total / 2), total - 2, total - 1]) {
+      fake.reset("partial", failAt);
+      fake.yieldOps = true;
+      const results = await Promise.all(tools.map(([name, e]) => callTool(client, name, e.args)));
+      const owner = fake.sessionLabels.get(fake.opSessions[failAt]);
+      const failed = tools.map(([name], i) => [name, results[i]] as const).filter(([, r]) => r.isError);
+      expect(failed.map(([n]) => n), `failing operation #${failAt} (${fake.ops[failAt]}) belongs to ${owner}`).toEqual([owner]);
+      expect(getText(failed[0][1])).toContain(fake.failed[0]);
+      expectContiguous();
+    }
+  });
 });

@@ -3,13 +3,29 @@ import { z } from "zod";
 import { connection } from "../connection.js";
 import { applyCommands } from "../instrument.js";
 import { DangerousCommandError, analyzeLine, assertAllowed } from "../scpi.js";
-import { errorResult, setterFailure, textResult } from "./util.js";
+import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 
 /** Largest block payload (bytes) returned inline, as base64. */
 const MAX_BLOCK_BYTES = 65536;
 
+/** Input checks for scpi_query that need no instrument (run before waiting for the instrument). */
+function queryProblem({ command }: { command: string }): string | undefined {
+  const analysis = analyzeLine(command);
+  if (!analysis.ok) return `Refusing to send: ${analysis.reason}`;
+  if (analysis.statements === 0 || analysis.queries !== analysis.statements) {
+    return "scpi_query only accepts queries (every statement must end in '?'). Use scpi_command for commands.";
+  }
+  if (analysis.statements > 1) {
+    // On the UTS3036B a ';'-joined query line is answered with only one reply, which
+    // would leave the other to be misread as the answer to the next query.
+    return "scpi_query accepts one query per call; send each query separately.";
+  }
+  return undefined;
+}
+
 export function registerScpiTools(server: McpServer): void {
-  server.tool(
+  defineTool(
+    server,
     "scpi_query",
     "Send one raw SCPI query (it must end in '?') to the analyzer and return the reply. " +
       "Escape hatch for commands without a dedicated tool. Use reply='block' for IEEE 488.2 '#' binary block replies " +
@@ -31,21 +47,6 @@ export function registerScpiTools(server: McpServer): void {
     { readOnlyHint: true },
     async ({ command, timeout_ms, reply }) => {
       try {
-        const analysis = analyzeLine(command);
-        if (!analysis.ok) {
-          return errorResult(`Refusing to send: ${analysis.reason}`);
-        }
-        if (analysis.statements === 0 || analysis.queries !== analysis.statements) {
-          return errorResult(
-            "scpi_query only accepts queries (every statement must end in '?'). Use scpi_command for commands."
-          );
-        }
-        if (analysis.statements > 1) {
-          // On the UTS3036B a ';'-joined query line is answered with only one reply, which
-          // would leave the other to be misread as the answer to the next query.
-          return errorResult("scpi_query accepts one query per call; send each query separately.");
-        }
-
         if (reply === "block") {
           const data = await connection.queryBinary(command, timeout_ms).catch((err) => {
             throw new Error(`${err instanceof Error ? err.message : String(err)} (command: ${command})`);
@@ -59,10 +60,12 @@ export function registerScpiTools(server: McpServer): void {
       } catch (err) {
         return errorResult(err);
       }
-    }
+    },
+    { validate: queryProblem }
   );
 
-  server.tool(
+  defineTool(
+    server,
     "scpi_command",
     "Send a raw SCPI command (no reply expected) to the analyzer. Escape hatch for commands without a dedicated tool. " +
       "Commands that reset the instrument, change network settings, lock the panel or write files are refused " +

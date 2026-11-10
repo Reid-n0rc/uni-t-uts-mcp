@@ -18,12 +18,15 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for co
 
 Parameters and behavior: [docs/tools-reference.md](docs/tools-reference.md). Set `UTS_IP` (and optionally `UTS_PORT`, default 5025) to connect automatically at startup.
 
+**Parallel tool calls are safe.** The instrument has a single command stream, so the server runs tool calls one at a time per instrument, first in first out: each tool's whole command sequence is atomic, results and errors are never mixed up between calls, and a long operation such as `single_sweep` makes other calls wait (they fail with `Instrument busy` after `UTS_BUSY_TIMEOUT_S` seconds, default 120). Details: [Concurrency](docs/tools-reference.md#concurrency-all-tools).
+
 ## Project layout
 
 Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp): TypeScript, stdio transport, vitest tests, npm and Docker publishing via tag-triggered GitHub Actions.
 
 - `src/connection.ts` – serialized SCPI queue with timeouts, `*OPC?`-synced commands and hold-off after unsupported queries, on top of a pluggable transport
 - `src/transports/` – the `Transport` interface with capability flags, and the raw SCPI over TCP transport (`raw.ts`)
+- `src/sessionLock.ts` – the FIFO exclusive-session lock behind `connection.runExclusive`; every tool is registered through `defineTool` (`src/tools/util.ts`), which runs it inside a session
 - `src/blocks.ts`, `src/scpi.ts` – binary block parser; SCPI helpers and the safety denylist
 - `src/instrument.ts`, `src/errors.ts`, `src/acquisition.ts` – applying settings with error-queue checks, sweep synchronization
 - `src/vxi11/` – dependency-free ONC RPC/XDR client, portmapper and VXI-11 core-channel client (foundation for the VXI-11 transport, not yet wired in)
@@ -71,7 +74,7 @@ Probe scripts take the host as an argument or from `UTS_IP`: `node scripts/probe
 
 ## Project site
 
-The project site is at https://reid-n0rc.github.io/uni-t-uts-mcp/ (source in `site/`). Its tool list is generated from the server's own tool definitions and `docs/tools-reference.md`, so it stays current. Preview it locally with `npm run site` and open `_site/index.html`; it is deployed by `.github/workflows/pages.yml` on every change to `main` that touches the site or the tools.
+The project site is at https://reid-n0rc.github.io/uni-t-uts-mcp/ (source in `site/`). Its "Built for real hardware" section explains, benefit first, how the server copes with the analyzer's timing quirks. Its tool list is generated from the server's own tool definitions and `docs/tools-reference.md`, so it stays current. Preview it locally with `npm run site` and open `_site/index.html`; it is deployed by `.github/workflows/pages.yml` on every change to `main` that touches the site or the tools.
 
 ## Documentation
 

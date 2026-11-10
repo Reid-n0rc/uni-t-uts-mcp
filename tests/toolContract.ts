@@ -9,6 +9,9 @@
  * The standard being enforced is in AGENTS.md, "Error handling standard".
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
+import { SessionLock } from "../src/sessionLock.js";
+
 export type Kind = "getter" | "setter" | "rawQuery" | "rawCommand" | "connect" | "disconnect";
 export type Mode =
   | "notConnected" // every call fails with the not-connected error
@@ -195,8 +198,19 @@ export const fake = {
   failed: [] as string[],
   connectCalls: 0,
   errorDelivered: false,
+  /** Session id (see runExclusive) of each entry in `ops`; 0 = the operation ran outside any session. */
+  opSessions: [] as number[],
+  /** Label (tool name) of each session id. */
+  sessionLabels: new Map<number, string>(),
+  /** Operations that reached the instrument outside an exclusive session (a tool bypassed defineTool). */
+  violations: [] as string[],
+  /** Yield to the event loop inside every operation, so overlapping sessions would visibly interleave. */
+  yieldOps: false,
   reset(mode: Mode | "ok" = "ok", failAt = -1) {
-    Object.assign(fake, { mode, failAt, ops: [], sent: [], bad: [], failed: [], connectCalls: 0, errorDelivered: false });
+    Object.assign(fake, {
+      mode, failAt, ops: [], sent: [], bad: [], failed: [], connectCalls: 0, errorDelivered: false,
+      opSessions: [], sessionLabels: new Map(), violations: [], yieldOps: false,
+    });
   },
   /** Operations that reached the instrument layer (anything at all). */
   get opCount() {
@@ -204,7 +218,16 @@ export const fake = {
   },
 };
 
-function enter(label: string, cmd: string): number {
+const lock = new SessionLock();
+const sessionIds = new AsyncLocalStorage<number>();
+let sessionCounter = 0;
+const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+async function enter(label: string, cmd: string): Promise<number> {
+  if (fake.yieldOps) await tick();
+  const session = sessionIds.getStore() ?? 0;
+  if (session === 0) fake.violations.push(`${label} ${cmd}`);
+  fake.opSessions.push(session);
   fake.ops.push(`${label} ${cmd}`);
   const index = fake.ops.length - 1;
   if (fake.mode === "notConnected") throw new Error(NOT_CONNECTED);
@@ -216,6 +239,15 @@ function enter(label: string, cmd: string): number {
 }
 
 export const fakeConnection = {
+  /** Same lock as the real connection (src/sessionLock.ts); tags every operation with its session. */
+  runExclusive<T>(fn: () => Promise<T> | T, options?: { label?: string }): Promise<T> {
+    if (lock.inSession()) return lock.run(fn, options);
+    return lock.run(() => {
+      const id = ++sessionCounter;
+      fake.sessionLabels.set(id, options?.label ?? "?");
+      return sessionIds.run(id, fn);
+    }, options);
+  },
   isConnected: () => fake.mode !== "notConnected",
   getConnectionInfo: () => "192.168.1.100:5025",
   msSinceQueryTimeout: () => Infinity,
@@ -227,7 +259,7 @@ export const fakeConnection = {
     return defaultReply("*IDN?");
   },
   async query(cmd: string, timeoutMs = 5000, _options?: unknown): Promise<string> {
-    enter("query", cmd);
+    await enter("query", cmd);
     if (fake.mode === "timeout") {
       fake.failed.push(cmd);
       throw new Error(`Query timeout after ${timeoutMs}ms for command: ${cmd}`);
@@ -252,7 +284,7 @@ export const fakeConnection = {
     return defaultReply(cmd);
   },
   async queryBinary(cmd: string, timeoutMs = 30000): Promise<Buffer> {
-    enter("binary", cmd);
+    await enter("binary", cmd);
     if (fake.mode === "timeout") {
       fake.failed.push(cmd);
       throw new Error(`Binary query timeout after ${timeoutMs}ms for command: ${cmd}`);
@@ -260,7 +292,7 @@ export const fakeConnection = {
     return Buffer.from([0, 1, 2, 3]);
   },
   async sendCommand(cmd: string, _options?: unknown): Promise<void> {
-    enter("command", cmd);
+    await enter("command", cmd);
     if (cmd === "*CLS") return;
     if (fake.mode === "writeFailure") {
       fake.failed.push(cmd);

@@ -8,6 +8,7 @@ const mockConnection = vi.hoisted(() => ({
     cmd === "*IDN?" ? "UNI-TREND,UTS0000X,<serial>,V0.0.0" : cmd === ":SYSTem:ERRor?" ? '0,"No error"' : "1"
   ),
   msSinceQueryTimeout: () => Infinity,
+  runExclusive: (fn: () => unknown) => fn(),
   queryBinary: vi.fn(async (_cmd: string, _timeout?: number) => Buffer.from([0, 1, 2, 255])),
   sendCommand: vi.fn(async (_cmd: string) => {}),
 }));

@@ -112,6 +112,15 @@ Run through the built server over stdio against the real analyzer (plus a local 
 - Cosmetic fix: a warning for a unitless setting read `requested 1e-7 , now 0.00001` (stray space); it now reads `requested 1e-7, now 0.00001`.
 - Restored afterwards: 10 MHz-3.6 GHz (center 1.805 GHz), continuous sweep, sweep time auto 2.6475 ms, 0 dBm, 10 dB/div, LOG, offset 0, DBM, auto attenuation (10 dB), preamp off, 50 ohm, RBW/VBW auto 3 MHz, 1001 points, detectors NORMal with auto, trigger IMMediate, `*ESE`/`*SRE` 0; `:SYSTem:ERRor?` returned `0,"No error"`.
 
+## Concurrency (2026-11-10, issue #66, firmware V1.04.0040)
+
+Parallel tool calls through the built server over stdio (one MCP client firing `Promise.all`), against the real analyzer. The lock is in the server, so what was checked is that the instrument's behavior does not get in the way: nothing was lost to the instrument ignoring commands during a sweep, and no error was misattributed.
+
+- **Batch of 12 parallel calls** (`set_frequency` 1 GHz/100 MHz, `set_amplitude` -10 dBm, `get_frequency`, `get_amplitude`, two `scpi_query`, a `scpi_command` the instrument rejects (`:FREQuency:CENTer 1 XX`), `single_sweep`, more getters, a second `set_frequency`), then the same batch in reverse order: every call returned the correct, uncorrupted result with no warnings; each getter showed the values of the setter that came before it in the queue (calls run in arrival order); the rejected command was the only failure, reported with its own `-224` and `-131` errors and the command it sent; no other call saw them. `:SYSTem:ERRor?` afterwards: `0,"No error"`.
+- **Busy limit:** with `UTS_BUSY_TIMEOUT_S=0.2` and a 1.5 s manual sweep time, `single_sweep` completed normally and a `get_frequency` fired 100 ms after it failed with `Instrument busy: waited 0.2 s for another tool call (single_sweep) ...`; the next `get_frequency` worked.
+- A sweep started with `start_sweep` `wait=false` returns, and so releases the lock, while the instrument is still sweeping: a call made then is lost to the instrument (documented in the tools reference).
+- Restored afterwards: 10 MHz-3.6 GHz, continuous sweep, sweep time auto, 0 dBm, 10 dB/div, LOG, offset 0, DBM, auto attenuation (10 dB), preamp off, 50 ohm, RBW/VBW auto, 1001 points, detectors and traces 1-6 as found (all seven getters compared equal before and after); `:SYSTem:ERRor?` clean.
+
 ## Trace configuration (2026-11-10, issue #14, firmware V1.04.0040)
 
 Probed with raw SCPI, then through the built server (`get_trace`, `set_trace`, `restart_trace`, `set_trace_math`). Originals recorded first (trace 1-6 type WRITe, update/display 1,1,1,0,0,0, selected trace 1, average count 100, average type LOG) and restored afterwards; `:SYSTem:ERRor?` ended clean.

@@ -20,6 +20,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Check the tag matches package.json
+        run: node scripts/release-tools.mjs check-tag "$GITHUB_REF_NAME"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
 
@@ -41,7 +44,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
 
       - name: Build and push
         uses: docker/build-push-action@v7
