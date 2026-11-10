@@ -137,8 +137,19 @@ Only what needs the maintainer's GitHub account; agents cannot do these.
 | `docker-publish.yml` | checks the tag, builds `linux/amd64` and `linux/arm64`, pushes `ghcr.io/reid-n0rc/uni-t-uts-mcp` tagged `<version>`, `<major>.<minor>` and (not for pre-releases) `latest`, with OCI labels including `org.opencontainers.image.source` |
 | `npm-publish.yml` | with no `NPM_TOKEN` secret: succeeds with a notice and publishes nothing. With the secret: checks the tag, builds, re-checks the tarball and runs `npm publish --provenance --access public` |
 
-Nothing is published by pull requests or pushes to `main`. All workflow action versions are pinned to a major
-version tag and bumped by Dependabot.
+Nothing is published by pull requests or pushes to `main`. Every workflow action is pinned to a full
+40-character commit SHA with the version as a trailing comment (`uses: actions/checkout@<sha> # v7`), and Dependabot's
+`github-actions` ecosystem bumps both the SHA and the comment. `tests/unit/workflow-pinning.test.ts` fails on any unpinned
+`uses:` (local `./` and `docker://` references are exempt).
+
+### Actions policy (repository settings)
+
+The Actions settings are reproducible with `gh api`: allowed actions are **selected** (GitHub-owned `actions/*` and `github/*`
+plus `docker/*`; verified-creator actions off), fork pull request workflows need approval for all outside contributors, the
+default `GITHUB_TOKEN` is read-only and Actions cannot approve pull requests. `sha_pinning_required` is turned on
+(`gh api -X PUT repos/Reid-n0rc/uni-t-uts-mcp/actions/permissions -F enabled=true -f allowed_actions=selected -F sha_pinning_required=true`),
+so any workflow that uses a tag instead of a SHA fails to start. Roll back with `-F sha_pinning_required=false`. The tag-triggered
+workflows (release, docker, npm) are only exercised by a real tag: watch the runs of the next release.
 
 ## Verify a release
 
