@@ -74,11 +74,18 @@ describe("scpi_query", () => {
     async (command) => {
       const res = await callTool(client, "scpi_query", { command });
       expect(res.isError).toBe(true);
-      expect(getText(res)).toMatch(/scpi_command|query/i);
+      expect(getText(res)).toMatch(/scpi_command|query|refusing/i);
       expect(mockConnection.query).not.toHaveBeenCalled();
       expect(mockConnection.queryBinary).not.toHaveBeenCalled();
     }
   );
+
+  it("accepts only one query per call (the UTS3036B answers just one of several joined queries)", async () => {
+    const res = await callTool(client, "scpi_query", { command: ":FREQ:CENT?;:FREQ:SPAN?" });
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toMatch(/one query/i);
+    expect(mockConnection.query).not.toHaveBeenCalled();
+  });
 
   it("returns connection errors as error results", async () => {
     mockConnection.query.mockRejectedValueOnce(new Error("Query timeout after 5000ms for command: X?"));
