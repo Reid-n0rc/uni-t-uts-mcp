@@ -82,41 +82,114 @@ function nodeMatches(node: string, longForm: string): boolean {
   return name === longForm || (name.length >= 3 && longForm.startsWith(name));
 }
 
-/** Split on ';' outside double or single quotes. */
-function splitCommands(line: string): string[] {
-  const parts: string[] = [];
+interface Statement {
+  text: string;
+  /** True when this statement begins a new program message (after CR/LF): the path resets. */
+  newMessage: boolean;
+}
+
+type SplitResult = { statements: Statement[] } | { error: string };
+
+const NON_ASCII = /[^\u0000-\u007f]/;
+const CONTROL_CHARS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+
+/**
+ * Split a command line into statements. `;` separates commands within a
+ * program message; CR and LF (and CRLF) end a program message, because the
+ * instrument accepts them as terminators. Quoted strings and `#<N><len>`
+ * definite-length blocks are skipped as data. Anything ambiguous (control
+ * characters, unterminated quotes, malformed blocks) is an error so callers
+ * fail closed.
+ */
+function splitStatements(line: string): SplitResult {
+  // Block lengths are counted in bytes by the instrument but in UTF-16 units here,
+  // so non-ASCII text could make the two parsers disagree. Fail closed.
+  if (NON_ASCII.test(line)) return { error: "command contains non-ASCII characters" };
+  if (CONTROL_CHARS.test(line)) return { error: "command contains control characters" };
+
+  const statements: Statement[] = [];
   let current = "";
-  let quote: string | null = null;
-  for (const ch of line) {
-    if (quote) {
-      if (ch === quote) quote = null;
-      current += ch;
-    } else if (ch === '"' || ch === "'") {
-      quote = ch;
-      current += ch;
-    } else if (ch === ";") {
-      parts.push(current);
-      current = "";
+  let newMessage = true;
+  let seenHeaderEnd = false; // past the header (first whitespace) of the current statement
+  let i = 0;
+
+  const flush = () => {
+    const text = current.trim();
+    if (text.length > 0) {
+      statements.push({ text, newMessage });
+      newMessage = false;
+    }
+    current = "";
+    seenHeaderEnd = false;
+  };
+
+  while (i < line.length) {
+    const ch = line[i];
+
+    if (ch === '"' || ch === "'") {
+      const close = line.indexOf(ch, i + 1);
+      if (close < 0) return { error: "command contains an unterminated quoted string" };
+      current += line.slice(i, close + 1);
+      i = close + 1;
+      continue;
+    }
+
+    if (ch === "#" && seenHeaderEnd && /[ \t,]/.test(line[i - 1] ?? "")) {
+      const digitCount = Number(line[i + 1]);
+      if (!(digitCount >= 1 && digitCount <= 9)) {
+        return { error: "command contains a malformed # block header" };
+      }
+      const lengthText = line.slice(i + 2, i + 2 + digitCount);
+      if (lengthText.length !== digitCount || !/^[0-9]+$/.test(lengthText)) {
+        return { error: "command contains a malformed # block length" };
+      }
+      const end = i + 2 + digitCount + parseInt(lengthText, 10);
+      if (end > line.length) return { error: "command contains a truncated # block" };
+      current += line.slice(i, end);
+      i = end;
+      continue;
+    }
+
+    if (ch === ";") {
+      flush();
+    } else if (ch === "\r" || ch === "\n") {
+      // Only CRLF and LF are treated as terminators; a lone CR is ambiguous, so fail closed.
+      if (ch === "\r" && line[i + 1] !== "\n") {
+        return { error: "command contains a lone CR (use LF or CRLF)" };
+      }
+      flush();
+      newMessage = true;
     } else {
+      if (/[ \t]/.test(ch) && current.trim().length > 0) seenHeaderEnd = true;
       current += ch;
     }
+    i++;
   }
-  parts.push(current);
-  return parts.map((p) => p.trim()).filter((p) => p.length > 0);
+  flush();
+  return { statements };
 }
+
+/** Common (`*`) commands that need confirmation. *SAV overwrites saved state like :MMEMory:STORe. */
+const BLOCKED_COMMON = new Map<string, string>([
+  ["*RST", "*RST resets the instrument to factory defaults"],
+  ["*SAV", "*SAV writes (and may overwrite) a saved instrument state"],
+]);
 
 /** Check a command line (possibly several `;`-separated commands). */
 export function checkCommand(line: string): CommandCheck {
+  const split = splitStatements(line);
+  if ("error" in split) return blocked(split.error);
+
   let previousPath: string[] = [];
 
-  for (const segment of splitCommands(line)) {
+  for (const { text: segment, newMessage } of split.statements) {
+    if (newMessage) previousPath = [];
     const header = segment.split(/\s/, 1)[0];
     const isQuery = header.endsWith("?");
 
     if (header.startsWith("*")) {
-      if (header.toUpperCase() === "*RST") {
-        return blocked("*RST resets the instrument to factory defaults");
-      }
+      const why = BLOCKED_COMMON.get(header.toUpperCase());
+      if (why) return blocked(why);
       continue;
     }
 

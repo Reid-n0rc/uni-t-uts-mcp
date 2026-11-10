@@ -143,3 +143,89 @@ describe("assertAllowed", () => {
     expect(() => assertAllowed("*IDN?")).not.toThrow();
   });
 });
+
+describe("checkCommand hardening (#31)", () => {
+  it.each([
+    ":FREQ:CENT 1 GHz\n:SYST:DEF",
+    ":FREQ:CENT 1 GHz\r*RST",
+    ":FREQ:CENT 1 GHz\r\n:SYST:COMM:LAN:IPAD 1.2.3.4",
+    "*IDN?\nSYST:DEF",
+  ])("blocks a denylisted command after an embedded terminator: %j", (cmd) => {
+    expect(checkCommand(cmd).allowed).toBe(false);
+  });
+
+  it("a newline starts a new program message (path resets)", () => {
+    // After a newline, "IPAD ..." has no parent path, so it is not a LAN setter.
+    expect(checkCommand(":SYST:COMM:LAN:DHCP?\nIPAD 1.2.3.4").allowed).toBe(true);
+    // ...whereas after ';' it is relative to the previous path.
+    expect(checkCommand(":SYST:COMM:LAN:DHCP?;IPAD 1.2.3.4").allowed).toBe(false);
+  });
+
+  it("allows a harmless trailing newline", () => {
+    expect(checkCommand("*IDN?\n").allowed).toBe(true);
+    expect(checkCommand(":FREQ:CENT?\r\n").allowed).toBe(true);
+  });
+
+  it.each(["\u0000", "\u001b", "\u007f"])("blocks control character %j", (ch) => {
+    expect(checkCommand(`:FREQ:CENT?${ch}`).allowed).toBe(false);
+  });
+
+  it.each(["*SAV 1", "*sav 2", "*SAV"])("blocks %s", (cmd) => {
+    expect(checkCommand(cmd).allowed).toBe(false);
+  });
+
+  it("does not block unrelated common commands", () => {
+    for (const cmd of ["*RCL 1", "*IDN?", "*OPC?", "*CLS", "*ESR?"]) {
+      expect(checkCommand(cmd).allowed).toBe(true);
+    }
+  });
+
+  it.each([':MMEMory:CATalog? "abc', ":MMEMory:CATalog? 'abc", ':FOO "a";*RST "'])(
+    "fails closed on an unterminated quote: %s",
+    (cmd) => {
+      expect(checkCommand(cmd).allowed).toBe(false);
+    }
+  );
+
+  it("skips # blocks by declared length (content with ; quotes and newlines is data)", () => {
+    // 9 bytes of data: a;"b'\nc*R  (contains ; quote apostrophe newline)
+    const data = "a;\"b'\nc*R";
+    expect(data.length).toBe(9);
+    expect(checkCommand(`:FOO:DATA #19${data}`).allowed).toBe(true);
+  });
+
+  it("still catches a denylisted command that follows a # block", () => {
+    const data = "a;b";
+    expect(checkCommand(`:FOO:DATA #13${data};*RST`).allowed).toBe(false);
+    expect(checkCommand(`:FOO:DATA #13${data}\n:SYST:DEF`).allowed).toBe(false);
+  });
+
+  it("fails closed on a malformed or truncated # block", () => {
+    expect(checkCommand(":FOO:DATA #1").allowed).toBe(false);
+    expect(checkCommand(":FOO:DATA #3ab").allowed).toBe(false);
+    expect(checkCommand(":FOO:DATA #2xx12").allowed).toBe(false);
+    expect(checkCommand(":FOO:DATA #5001000123").allowed).toBe(false);
+  });
+
+  it("fails closed on non-ASCII input (block lengths are counted in bytes)", () => {
+    // "é" is 1 UTF-16 unit but 2 UTF-8 bytes: a #<len> block could be misjudged.
+    expect(checkCommand(":FOO:DATA #12é;*RST").allowed).toBe(false);
+    expect(checkCommand(":DISP:TEXT \"café\"").allowed).toBe(false);
+    expect(checkCommand(":FREQ:CENT? \u2028").allowed).toBe(false);
+  });
+
+  it("blocks Unicode whitespace that could fake a header end or # block", () => {
+    expect(checkCommand(":FOO\u00a0#13a;b;*RST").allowed).toBe(false);
+    expect(checkCommand(":FOO\u0085:SYST:DEF").allowed).toBe(false);
+  });
+
+  it("fails closed on a lone CR (the instrument may not treat it as a terminator)", () => {
+    expect(checkCommand(":SYST:COMM:LAN:DHCP?\rIPAD 1.2.3.4").allowed).toBe(false);
+    expect(checkCommand(":FREQ:CENT?\r").allowed).toBe(false);
+  });
+
+  it("still accepts CRLF and LF terminators", () => {
+    expect(checkCommand(":FREQ:CENT?\r\n").allowed).toBe(true);
+    expect(checkCommand(":FREQ:CENT?\n").allowed).toBe(true);
+  });
+});
