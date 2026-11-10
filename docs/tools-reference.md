@@ -141,7 +141,7 @@ Command syntax: [programming-guide.md](programming-guide.md) sections 2 and 9. V
 
 ### `single_sweep`
 
-Switches to single mode, runs one sweep and waits until it is complete, so the trace can be read. Optional `timeout_s` (default sweep time + 10 s; a timeout returns an error result). Leaves the instrument in single mode.
+Switches to single mode, runs one sweep and waits until it is complete, so the trace can be read. Optional `timeout_s` (default sweep time + 10 s; a timeout returns an error result). Leaves the instrument in single mode. Over the raw transport it stays silent for the sweep time and polls `*OPC?` (the instrument ignores input while sweeping); over VXI-11 (which queues commands) it writes `*OPC?` once and does one blocking read that returns when the sweep ends.
 
 ### `start_sweep` / `wait_for_sweep_complete`
 
