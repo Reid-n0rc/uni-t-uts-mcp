@@ -27,6 +27,17 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+  # The wiki is generated from the docs (issue #70): a docs change must not break the sync.
+  wiki-check:
+    name: wiki pages build and links resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node scripts/sync-wiki.mjs --check
+
   # Release smoke tests (issue #84): what would be published must contain only the intended
   # files, install cleanly from the packed tarball, and start as an MCP server.
   package-contents:
