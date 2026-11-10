@@ -67,7 +67,6 @@ Errors are returned with their code, text and the commands that were sent, and s
 
 - **Screenshots:** the analyzer stops sending screenshot data after 144,800 bytes over LAN ([issue #42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)).
 - **Trace data, markers, measurements:** not implemented yet (the trace tools configure traces but do not read their data); see the [Roadmap](Roadmap).
-- **npm registry install:** not published yet; install from the release tarball, the git tag or Docker (see [Getting Started](Getting-Started)).
 - **Screenshot:** the analyzer stops a screen image after 144,800 bytes over raw TCP but delivers all of it over VXI-11 ([issue #42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)); the screenshot tool is not built yet.
 
 ## Still stuck?
