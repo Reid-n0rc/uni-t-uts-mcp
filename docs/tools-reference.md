@@ -149,7 +149,7 @@ Switches to single mode, runs one sweep and waits until it is complete, so the t
 
 ## Trace
 
-Command syntax: [programming-guide.md](programming-guide.md) section 3 (ambiguities 8 and 9). Trace *data* is not read by these tools. Behavior verified on the UTS3036B: see [verified-hardware.md](verified-hardware.md). Traces are numbered 1-6 on the UTS3036B; the tools use the per-trace forms `:TRACe<n>:...`.
+Command syntax: [programming-guide.md](programming-guide.md) section 3 (ambiguities 8 and 9). Trace *data* is read by `get_trace_data` (below). Behavior verified on the UTS3036B: see [verified-hardware.md](verified-hardware.md). Traces are numbered 1-6 on the UTS3036B; the tools use the per-trace forms `:TRACe<n>:...`.
 
 ### `get_trace`
 
@@ -166,6 +166,19 @@ Restarts max hold, min hold or averaging. The instrument has no clear-trace comm
 ### `set_trace_math`
 
 Sends `:CALCulate:MATH TRACE<n>,<op>,TRACE<a>,TRACE<b>,<offset>`. `trace` (1-6), `operation` (`off`, `power_difference`, `power_sum`, `log_difference`, `log_offset`), `operand_a` and `operand_b` (1-6; required unless `off`), `offset_db` (-100..100, only for the two log operations, default 0). The setting cannot be read back (no query), so the result carries `trace_state` (the trace's type/update/display) and a warning; verify through the trace data. Enabling math switches the trace on (update and display true) and `off` does not switch it off again, so restore that with `set_trace`.
+
+### `get_trace_data`
+
+Read-only. Reads the amplitude values of one trace with the computed axis. Parameters (all optional): `trace` (1-6, default the selected trace from `:TRACe:SELect?`; anything else is rejected before anything is sent), `format` (`ascii` default, `real32`, `real64`), `fresh` (default false), `max_points` (integer >= 2), `include_axis` (default true).
+
+Returns compact JSON: `trace`, `trace_type` (`write`, `average`, `max_hold`, `min_hold`), `trace_updating`, `trace_displayed`, `unit` (`dBm`, `dBmV`, `dBuV`, `V`, `W` from `:UNIT:POWer?`), `format`, `points` (`:SENSe:SWEep:POINts?`), `axis`, `summary`, `decimation`, `warnings`, `values` and, with `include_axis`, `frequencies_hz` (or `times_s` in zero span).
+
+- **Axis.** `axis.kind` is `frequency` with `start_hz`, `stop_hz`, `span_hz`, `step_hz`; the point axis is linear, `f_i = start + i*(stop-start)/(points-1)` (one point sits at the start). In **zero span** (start equals stop) there is no frequency axis: `axis.kind` is `time` with `zero_span: true`, `center_hz` and `sweep_time_s`, `times_s` runs from 0 to the sweep time, the summary has `peak_time_s` instead of `peak_frequency_hz`, and a warning says so.
+- **Summary** covers the full trace even when the response is decimated: `points`, `finite_points`, `non_finite_points`, `min`, `max`, `mean` (plain mean of the values in the trace's unit, so a mean of dBm values is a log average), `peak_index`, `peak_level` and `peak_frequency_hz`. Non-finite values (NaN or infinity) are returned as `null`, left out of the statistics and reported in `warnings`.
+- **Format.** `ascii` is the default: no state change, about 14 KB, 7 significant digits, and the fastest read on the unit. `real32` is a `#4` block of big-endian IEEE 754 floats (about 4 KB) with the same 7 digits as ASCII (REAL32 and ASCII gave identical values on hardware); `real64` (about 8 KB) is the full double. For the binary formats the instrument's `:FORMat` is set for the read and put back in a `finally` (as `ASCii`, the setter form, although the query answers `ASC8`; if something else had set REAL32 or REAL64 before, that format is restored). If the restore fails the error says "Could not restore the data format" and names the command to send with `scpi_command`; a read error and a restore error are both reported.
+- **`fresh`.** Runs one single sweep first (the same method as `single_sweep`, valid on both transports) so the values are a complete, current sweep, reads, and switches continuous mode back on if it was on (`fresh.continuous_restored`). If that restore fails the error says so and points to `set_acquisition`. Without `fresh` the values are whatever the trace holds now, which in continuous mode can be a sweep in progress, and a frozen (view/hold) or hidden trace is reported in `warnings`.
+- **`max_points`.** When the trace has more points, peak-preserving min/max decimation is applied: the trace is cut into `floor(max_points/2)` equal buckets and the minimum and maximum of each are kept in order, so the global peak and minimum are always in the result. `decimation` says `decimated: true`, `original_points`, `returned_points` and the method; `indices` gives each returned point's index in the full trace; `warnings` repeats it. Nothing is decimated silently.
+- **Errors.** A malformed, empty, short or long reply is an error that names the command and quotes the start of the reply (or of the block); a value count different from `:SENSe:SWEep:POINts?` is an error naming both counts; a timeout names the command.
 
 ## Error handling (all tools)
 

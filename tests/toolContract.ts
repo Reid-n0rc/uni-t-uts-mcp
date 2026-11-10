@@ -151,6 +151,11 @@ export const CONTRACT: Record<string, ContractEntry> = {
     args: { trace: 2 },
     invalid: [{ trace: 0 }, { trace: 7 }],
   },
+  get_trace_data: {
+    kind: "getter",
+    args: { format: "ascii" },
+    invalid: [{ trace: 0 }, { trace: 7 }, { max_points: 1 }, { format: "hex" }, { max_points: 2.5 }],
+  },
   set_trace_math: {
     kind: "rawCommand",
     args: { trace: 1, operation: "power_sum", operand_a: 2, operand_b: 3 },
@@ -175,6 +180,8 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/^:TRACe:SELect\?$/, "1"],
   [/AVERage:TYPE\?$/, "LOG"],
   [/(:AUTO|:STATe|:CONTinuous)\?$/, "1"],
+  [/^:FORMat\?$/, "ASC8"],
+  [/^:TRACe:DATA\? TRACE\d$/, Array.from({ length: 1000 }, (_, i) => (-80 + (i % 7)).toFixed(3)).join(",")],
   [/\?$/, "1000"],
 ];
 

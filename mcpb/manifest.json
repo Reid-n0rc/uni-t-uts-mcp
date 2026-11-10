@@ -128,6 +128,10 @@
     {
       "name": "set_trace_math",
       "description": "Set trace math: a result trace from two operand traces."
+    },
+    {
+      "name": "get_trace_data",
+      "description": "Read a trace's amplitude values with the frequency axis, unit and summary statistics."
     }
   ],
   "tools_generated": false,
