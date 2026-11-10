@@ -1,17 +1,18 @@
 name: Publish to npm
 
-# OPTIONAL. The project is currently released as a GitHub release (with the packed tarball) plus a
-# GHCR Docker image (release.yml, docker-publish.yml); there is no npm account yet, so this workflow
-# skips cleanly (green run, notice) while the repository secret NPM_TOKEN is not set.
+# OPTIONAL. The project is released as a GitHub release (with the packed tarball, release.yml), a
+# GHCR Docker image (docker-publish.yml) and, when enabled here, an npm package. This workflow skips
+# cleanly (green run, notice) unless one of these is configured:
+#   - repository VARIABLE NPM_TRUSTED_PUBLISHING = true: publish through npm trusted publishing
+#     (OIDC, no token). Needs the package to exist on npm and this workflow registered as a trusted
+#     publisher on npmjs.com (user/org Reid-n0rc, repository uni-t-uts-mcp, workflow npm-publish.yml,
+#     environment empty). See docs/releasing.md.
+#   - repository secret NPM_TOKEN (granular publish token): needed only for the very first publish of
+#     a package that does not exist on npm yet, because trusted publishing can only be configured on
+#     an existing package. Delete the secret once trusted publishing works.
 #
-# Runs only for version tags (v*). The tag must equal v<package.json version>; see docs/releasing.md.
-# Once a token exists it publishes with provenance. Authentication, either of:
-#   - repository secret NPM_TOKEN (granular publish token): needed for the very first publish of
-#     a package that does not exist on npm yet, because trusted publishing can only be configured
-#     on an existing package;
-#   - npm trusted publishing (OIDC, no secret) once the package exists and this workflow is
-#     registered as a trusted publisher on npmjs.com. Then this workflow must be changed to drop the
-#     skip condition (see docs/releasing.md, "Adding npm later").
+# Runs only for version tags (v*). The tag must equal v<package.json version>. Both ways publish
+# with provenance.
 
 on:
   push:
@@ -25,48 +26,53 @@ jobs:
       contents: read
       id-token: write # provenance attestation and trusted publishing
     env:
-      # Empty when the secret is not configured; used only to choose the publish step below.
+      # Used only to choose the steps below; the secret itself is passed to the token publish step only.
       HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+      TRUSTED_PUBLISHING: ${{ vars.NPM_TRUSTED_PUBLISHING == 'true' }}
 
     steps:
-      - name: Skip when no npm token is configured
-        if: env.HAS_NPM_TOKEN != 'true'
-        run: echo "::notice::NPM_TOKEN is not set, so nothing is published to npm for $GITHUB_REF_NAME (GitHub release and Docker image are handled by other workflows). See docs/releasing.md, 'Adding npm later'."
+      - name: Skip when npm publishing is not configured
+        if: env.HAS_NPM_TOKEN != 'true' && env.TRUSTED_PUBLISHING != 'true'
+        run: echo "::notice::Neither the NPM_TOKEN secret nor the NPM_TRUSTED_PUBLISHING variable is set, so nothing is published to npm for $GITHUB_REF_NAME (the GitHub release and Docker image are handled by other workflows). See docs/releasing.md."
 
       - name: Checkout
-        if: env.HAS_NPM_TOKEN == 'true'
+        if: env.HAS_NPM_TOKEN == 'true' || env.TRUSTED_PUBLISHING == 'true'
         uses: actions/checkout@v7
 
       - name: Check the tag matches package.json
-        if: env.HAS_NPM_TOKEN == 'true'
+        if: env.HAS_NPM_TOKEN == 'true' || env.TRUSTED_PUBLISHING == 'true'
         run: node scripts/release-tools.mjs check-tag "$GITHUB_REF_NAME"
 
       - name: Set up Node.js
-        if: env.HAS_NPM_TOKEN == 'true'
+        if: env.HAS_NPM_TOKEN == 'true' || env.TRUSTED_PUBLISHING == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
       - name: Update npm
-        if: env.HAS_NPM_TOKEN == 'true'
+        if: env.HAS_NPM_TOKEN == 'true' || env.TRUSTED_PUBLISHING == 'true'
         # Trusted publishing needs npm 11.5.1 or newer.
         run: npm install -g npm@11
 
       - name: Install dependencies
-        if: env.HAS_NPM_TOKEN == 'true'
+        if: env.HAS_NPM_TOKEN == 'true' || env.TRUSTED_PUBLISHING == 'true'
         run: npm ci
 
       - name: Build
-        if: env.HAS_NPM_TOKEN == 'true'
+        if: env.HAS_NPM_TOKEN == 'true' || env.TRUSTED_PUBLISHING == 'true'
         run: npm run build
 
       - name: Check the tarball contents
-        if: env.HAS_NPM_TOKEN == 'true'
+        if: env.HAS_NPM_TOKEN == 'true' || env.TRUSTED_PUBLISHING == 'true'
         run: node scripts/check-pack.mjs
 
-      - name: Publish
+      - name: Publish (token)
         if: env.HAS_NPM_TOKEN == 'true'
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish (trusted publishing, no token)
+        if: env.HAS_NPM_TOKEN != 'true' && env.TRUSTED_PUBLISHING == 'true'
+        run: npm publish --provenance --access public

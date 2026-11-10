@@ -30,6 +30,7 @@ The text of a release's section is also used as its GitHub release notes.
   screenshot tool (#20) and the investigation in #42.
 
 ### Changed
+- The npm publish workflow supports npm trusted publishing (no token): set the repository variable `NPM_TRUSTED_PUBLISHING` to `true` after registering the workflow as a trusted publisher on npmjs.com; the `NPM_TOKEN` secret is only needed for a package's first publish.
 - The default transport is now `auto` (VXI-11 when the analyzer offers it, otherwise raw) instead of
   `raw`. Giving only a port (`UTS_PORT` or the `connect` parameter) without a transport choice still
   means raw. Set `UTS_TRANSPORT=raw` to keep the old behavior.
