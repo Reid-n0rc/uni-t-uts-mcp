@@ -13,6 +13,8 @@ The text of a release's section is also used as its GitHub release notes.
 ## [Unreleased]
 
 ### Added
+
+- VXI-11 interrupt channel client (`Vxi11Client.enableSrq`/`waitForSrq`/`disableSrq`, bounded `IntrServer` for `device_intr_srq`), tested against a fake instrument. Live test on the UTS3036B (#128): the interrupt channel is accepted but the analyzer never connects back and its status byte never changes, so no tool uses it; documented in verified-hardware.md.
 - Test coverage: `npm run test:coverage` (vitest v8, `coverage/lcov.info`), uploaded to Codecov from one CI job (Ubuntu, Node 24) when the `CODECOV_TOKEN` secret is set; informational only (`codecov.yml`); README badge.
 
 ### Security
