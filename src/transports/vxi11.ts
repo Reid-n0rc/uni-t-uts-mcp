@@ -4,6 +4,7 @@ import {
   Vxi11ClosedError,
   Vxi11DeviceError,
   Vxi11IoTimeoutError,
+  Vxi11RpcTimeoutError,
   Vxi11TransportError,
 } from "../vxi11/client.js";
 import { DEFAULT_VXI11_DEVICE, isValidDeviceName } from "./select.js";
@@ -38,8 +39,15 @@ export const VXI11_CAPABILITIES: TransportCapabilities = {
 const WRITE_TIMEOUT_MS = 5000;
 /** Upper bound for what one reply may be (the largest real reply is a 144,800 byte screenshot). */
 const MAX_REPLY_BYTES = 8 * 1024 * 1024;
-/** Most stale replies discarded before a write. */
-const MAX_DRAIN_READS = 8;
+/**
+ * Time allowed on top of an I/O timeout before a device_read or device_write counts as unanswered.
+ * The UTS3036B does not honor the I/O timeout of a read that has nothing to deliver: it never answers
+ * (no error 15) and drops the request silently about a second after the I/O timeout, so the RPC
+ * deadline is what ends a timed-out query. Kept short so a timeout is reported close to the one asked
+ * for; the instrument is still occupied by the abandoned read for up to a second, which only delays
+ * the next device_write (it is not lost).
+ */
+const RPC_MARGIN_MS = 500;
 const MAX_IO_TIMEOUT_MS = 0xffffffff;
 
 export interface Vxi11TransportOptions {
@@ -47,6 +55,8 @@ export interface Vxi11TransportOptions {
   device?: string;
   /** Portmapper port (default 111); tests point it at a fake. */
   portmapperPort?: number;
+  /** Extra time past an I/O timeout before an unanswered call fails (default 500 ms, see RPC_MARGIN_MS). */
+  rpcMarginMs?: number;
 }
 
 const errMessage = (err: unknown): string => (err instanceof Error ? err.message : String(err));
@@ -58,10 +68,6 @@ export class Vxi11Transport implements Transport {
   private readonly device: string;
   private client: Vxi11Client | null = null;
   private lostCallback: ((reason: string) => void) | null = null;
-  /** A query was written and its reply not read yet: it may still be queued in the instrument. */
-  private awaitingReply = false;
-  /** Read away such a reply before the next write. */
-  private needDrain = false;
 
   constructor(private readonly options: Vxi11TransportOptions = {}) {
     this.device = options.device ?? DEFAULT_VXI11_DEVICE;
@@ -79,19 +85,16 @@ export class Vxi11Transport implements Transport {
         device: this.device,
         portmapperPort: this.options.portmapperPort,
         connectTimeoutMs: options.connectTimeoutMs,
+        rpcMarginMs: this.options.rpcMarginMs ?? RPC_MARGIN_MS,
       });
     } catch (err) {
       throw new Error(`Connection failed: ${errMessage(err)}`);
     }
-    this.awaitingReply = false;
-    this.needDrain = false;
   }
 
   close(): void {
     const client = this.client;
     this.client = null;
-    this.awaitingReply = false;
-    this.needDrain = false;
     // Best effort destroy_link; close() never rejects. Pending calls reject with "Connection closed".
     void client?.close();
   }
@@ -113,13 +116,11 @@ export class Vxi11Transport implements Transport {
 
   async write(line: string): Promise<void> {
     const client = this.requireClient();
-    if (this.needDrain) await this.drain(client);
     try {
       await client.write(line, { timeoutMs: WRITE_TIMEOUT_MS, end: true });
     } catch (err) {
       throw this.mapError(client, err, "write");
     }
-    this.awaitingReply = line.includes("?");
   }
 
   async readLine(timeoutMs: number): Promise<string> {
@@ -137,14 +138,13 @@ export class Vxi11Transport implements Transport {
   }
 
   /**
-   * Over VXI-11 unread replies wait in the instrument, not in a local buffer. When a query was
-   * written and its reply never read (it timed out), the next write first reads the leftover away
-   * with a zero timeout, so it cannot be taken for the answer to the next query.
+   * Nothing to do over VXI-11. Measured on the UTS3036B: the output buffer has ONE slot (a newer reply
+   * replaces an unread older one, also one that is still queued behind a sweep) and the instrument
+   * drops the reply of a read that gave up, so a stale reply can never be mistaken for the answer to
+   * the next query. A zero-timeout device_read cannot be used to flush anyway: the instrument answers
+   * it with error 15 without delivering waiting data, and it blocks behind an abandoned read.
    */
-  discardInput(): void {
-    if (this.awaitingReply) this.needDrain = true;
-    this.awaitingReply = false;
-  }
+  discardInput(): void {}
 
   // ---------- internals ----------
 
@@ -159,22 +159,9 @@ export class Vxi11Transport implements Transport {
     try {
       const result = await client.read({ timeoutMs: io, maxBytes: MAX_REPLY_BYTES });
       if (!result.end) throw new Error(`VXI-11 reply longer than ${MAX_REPLY_BYTES} bytes without an end marker`);
-      this.awaitingReply = false;
       return result.data;
     } catch (err) {
       throw this.mapError(client, err, "read", timeoutMs);
-    }
-  }
-
-  private async drain(client: Vxi11Client): Promise<void> {
-    this.needDrain = false;
-    for (let i = 0; i < MAX_DRAIN_READS; i++) {
-      try {
-        await client.read({ timeoutMs: 0, maxBytes: MAX_REPLY_BYTES });
-      } catch (err) {
-        if (err instanceof Vxi11IoTimeoutError) return; // nothing left
-        throw this.mapError(client, err, "write");
-      }
     }
   }
 
@@ -182,6 +169,8 @@ export class Vxi11Transport implements Transport {
   private mapError(client: Vxi11Client, err: unknown, op: "read" | "write", timeoutMs = 0): Error {
     if (this.client !== client || err instanceof Vxi11ClosedError) return new Error("Connection closed");
     if (err instanceof Vxi11IoTimeoutError && op === "read") return new TransportTimeout(timeoutMs);
+    // The usual timeout on this instrument: no reply at all, the link itself is fine.
+    if (err instanceof Vxi11RpcTimeoutError && op === "read") return new TransportTimeout(timeoutMs);
     if (err instanceof Vxi11TransportError || (err instanceof Vxi11DeviceError && (err.code === 4 || err.code === 6))) {
       const reason = `VXI-11: ${errMessage(err)}`;
       this.lose(reason);

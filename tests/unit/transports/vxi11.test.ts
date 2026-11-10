@@ -11,6 +11,7 @@ let contractPort = 0;
 runTransportContract({
   name: "VXI-11",
   createTransport: () => new Vxi11Transport({ portmapperPort: contractPort }),
+  stallAfterTimeoutMs: 1600,
   expectedCapabilities: {
     syncsCommands: false,
     dropsInputDuringSweep: false,

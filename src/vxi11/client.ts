@@ -80,6 +80,12 @@ export class Vxi11LockedError extends Vxi11DeviceError {}
 export class Vxi11ConnectError extends Vxi11Error {}
 /** The RPC connection failed during a call (dropped, no RPC reply in time, RPC-level rejection). */
 export class Vxi11TransportError extends Vxi11Error {}
+/**
+ * No RPC reply arrived within the deadline (the I/O timeout plus the RPC margin) although the
+ * connection is still open. The UTS3036B never answers a device_read that has nothing to deliver
+ * (no error 15), so this is how a "query timeout" shows up on a live link.
+ */
+export class Vxi11RpcTimeoutError extends Vxi11TransportError {}
 /** The reply violated the protocol (malformed, out of range, never terminating). */
 export class Vxi11ProtocolError extends Vxi11Error {}
 /** The client was closed (or its connection is gone) before or during the call. */
@@ -374,7 +380,8 @@ function rpcFailure(err: unknown, operation: string, connecting: boolean): Vxi11
   const detail = `VXI-11 ${operation}: ${errMessage(err)}`;
   if (connecting && err instanceof RpcError) return new Vxi11ConnectError(detail, { cause: err });
   if (err instanceof RpcProtocolError) return new Vxi11ProtocolError(detail, { cause: err });
-  if (err instanceof RpcClosedError || err instanceof RpcTimeoutError || err instanceof RpcError) return new Vxi11TransportError(detail, { cause: err });
+  if (err instanceof RpcTimeoutError) return new Vxi11RpcTimeoutError(detail, { cause: err });
+  if (err instanceof RpcClosedError || err instanceof RpcError) return new Vxi11TransportError(detail, { cause: err });
   return new Vxi11TransportError(detail, { cause: err });
 }
 
