@@ -202,7 +202,7 @@ way (`npm publish --provenance --access public`; the workflow already has `id-to
 
 ## Install docs after the npm go-live
 
-The install docs were flipped from "coming soon" to the real npm commands in #105. The places that carry the npm
+The install docs were switched to the real npm commands in #105. The places that carry the npm
 command, all kept in step by `tests/unit/install-docs.test.ts` (which requires the unmarked `npx -y uni-t-uts-mcp`
 form and fails on any stale wording that says npm is not available):
 
