@@ -6,14 +6,23 @@ Tools are added as the roadmap (issue #1) progresses. Hardware verification stat
 
 ### `connect`
 
-Connect to a UNI-T UTS analyzer over raw SCPI/TCP. Verifies the link with `*IDN?` and returns the identification string.
+Connect to a UNI-T UTS analyzer over raw SCPI/TCP (the default), VXI-11, or `auto`. Verifies the link with `*IDN?` and returns the transport in use and the identification string:
+
+```
+Connected to 192.168.1.100:5025
+Transport: raw SCPI over TCP
+Device: UNI-T,UTS3036B,<serial>,<firmware>
+```
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `host` | string | No | `UTS_IP` env var | Hostname or IP address (letters, digits, `.`, `-`, `_`, `:` only) |
-| `port` | integer 1-65535 | No | `UTS_PORT` env var, then `5025` | TCP port |
+| `port` | integer 1-65535 | No | `UTS_PORT` env var, then `5025` | TCP port of the raw transport. VXI-11 finds its own port through the portmapper (TCP port 111), so an explicit `port` together with `transport: "vxi11"` is an error |
+| `transport` | `raw`, `vxi11` or `auto` | No | `UTS_TRANSPORT` env var, then `raw` | `raw`: raw SCPI over TCP. `vxi11`: VXI-11 core channel; fails if it cannot be opened. `auto`: VXI-11 if the portmapper on port 111 registers the VXI-11 core program and the link opens, otherwise raw (the reason for the fallback is logged to stderr and shown in the `Transport:` line) |
 
-If `UTS_IP` is set, the server also connects automatically at startup; a failed auto-connect is logged to stderr and does not stop the server.
+The VXI-11 device name comes from `UTS_VXI11_DEVICE` (default `inst0`; 1 to 64 characters from letters, digits and `. _ , -`). An invalid `transport`, `UTS_TRANSPORT` or `UTS_VXI11_DEVICE` is an error that names the offending value or variable and sends nothing. Error and timeout messages name the transport when it is not raw, for example `Query timeout after 5000ms for command: :FOO? (over VXI-11)`. Over VXI-11 a blocking `*OPC?` read is used to wait for a sweep (see `single_sweep`).
+
+If `UTS_IP` is set, the server also connects automatically at startup, using `UTS_TRANSPORT` and `UTS_VXI11_DEVICE`; a failed auto-connect is logged to stderr and does not stop the server.
 
 ### `disconnect`
 
@@ -21,7 +30,7 @@ Disconnect from the analyzer. Safe to call when not connected. No parameters.
 
 ### `identify`
 
-Query `*IDN?` (manufacturer, model, serial number, firmware version). Read-only. No parameters. An empty reply or one without four comma-separated fields is an error that quotes the reply.
+Query `*IDN?` (manufacturer, model, serial number, firmware version). Read-only. No parameters. The output ends with a `Transport:` line naming the transport in use (raw SCPI over TCP or VXI-11). An empty reply or one without four comma-separated fields is an error that quotes the reply.
 
 ## Raw SCPI
 
@@ -177,5 +186,7 @@ An MCP client may send several tool calls at once. The analyzer has one command 
 | Variable | Description |
 |----------|-------------|
 | `UTS_IP` | Analyzer hostname or IP; enables auto-connect and is the default for `connect` |
-| `UTS_PORT` | TCP port, default `5025` |
+| `UTS_PORT` | TCP port of the raw transport, default `5025` |
+| `UTS_TRANSPORT` | `raw` (default), `vxi11` or `auto` (VXI-11 if the instrument registers it with the portmapper, else raw); default for the `connect` tool's `transport` parameter |
+| `UTS_VXI11_DEVICE` | VXI-11 logical device name, default `inst0` |
 | `UTS_BUSY_TIMEOUT_S` | How long a tool call waits for another one to finish before failing with `Instrument busy`, in seconds (default `120`); see Concurrency |
