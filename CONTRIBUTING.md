@@ -6,7 +6,7 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). To repo
 
 ## Getting started
 
-Requires Node.js 22+ (CI tests 22 and 24).
+Requires Node.js 22+ (CI tests 22 and 24 on Linux, macOS and Windows, so keep code and tests portable: use `node:path`/`new URL`, no shell-outs, no hard-coded `/tmp`, and do not rely on sub-15 ms timer precision). `.gitattributes` keeps `tests/fixtures/**` byte-exact; do not re-save fixtures through an editor that changes line endings.
 
 ```sh
 git clone https://github.com/Reid-n0rc/uni-t-uts-mcp.git

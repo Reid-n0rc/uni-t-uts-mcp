@@ -307,3 +307,21 @@ Safety notes: `*RST`, `:SYSTem:DEFault`, `:SYSTem:LOCK`, `:KEY:*:LOCK`, LAN sett
 ## Instrument timing behavior (verified on UTS3036B V1.04.0040)
 
 See `docs/verified-hardware.md` (command timing and error queue). Summary: sync every command with `*OPC?`, one query at a time, expect a ~2.15 s stall after an unsupported query, and use `*CLS` before setters so `:SYSTem:ERRor?` only shows errors from the current operation.
+
+## Hand probing from any OS
+
+Send one query per fresh connection and wait at least 2.5 s after a query that got no reply (see the timing notes above).
+
+Unix-only (Linux/macOS; needs `nc` and `printf`):
+
+```sh
+(printf '*IDN?\n'; sleep 0.7) | nc -w 2 "$UTS_IP" 5025
+```
+
+Portable (any OS with Node 22+; works in bash, PowerShell and cmd; pass the host as the first argument):
+
+```sh
+node -e "const s=require('node:net').connect(5025,process.argv[1],()=>s.write(process.argv[2]+'\n'));s.on('data',d=>{process.stdout.write(d);s.end()});setTimeout(()=>s.destroy(),2500)" 192.168.1.100 "*IDN?"
+```
+
+On Windows cmd/PowerShell the SCPI command may need quoting so the shell does not treat `*` or `?` specially; the double quotes above are enough in both.
