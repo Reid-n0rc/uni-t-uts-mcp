@@ -66,7 +66,10 @@ describe("mcpb/manifest.json", () => {
   });
 
   it("has a user_config entry for every placeholder and no unused entries", () => {
-    const used = Object.values(env).map((v) => v.replace("${user_config.", "").replace("}", ""));
+    const used = Object.values(env).map((v) => {
+      expect(v.startsWith("${user_config.") && v.endsWith("}")).toBe(true);
+      return v.slice("${user_config.".length, -1);
+    });
     expect(used.sort()).toEqual(Object.keys(userConfig).sort());
     for (const entry of Object.values(userConfig)) {
       expect(entry.title).toBeTruthy();

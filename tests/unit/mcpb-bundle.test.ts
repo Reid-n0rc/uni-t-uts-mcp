@@ -139,7 +139,7 @@ describe.skipIf(!wanted)("the built .mcpb bundle", () => {
   it("starts from an empty folder as a stdio MCP server (initialize + tools/list)", async () => {
     const manifest = JSON.parse(readFileSync(join(unpacked, "manifest.json"), "utf8"));
     const mc = manifest.server.mcp_config;
-    const args = (mc.args as string[]).map((a) => a.replace("${__dirname}", unpacked));
+    const args = (mc.args as string[]).map((a) => a.split("${__dirname}").join(unpacked));
     const result = await smokeTest({
       command: mc.command,
       args,
