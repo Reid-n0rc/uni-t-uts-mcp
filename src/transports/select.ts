@@ -2,14 +2,20 @@ import { getPort, PMAP_PORT } from "../vxi11/portmapper.js";
 import { VXI11_CORE_PROGRAM, VXI11_CORE_VERSION } from "../vxi11/client.js";
 
 /**
- * Choosing the transport: `UTS_TRANSPORT=raw|vxi11|auto` (default raw), the VXI-11 device name
+ * Choosing the transport: `UTS_TRANSPORT=raw|vxi11|auto` (default auto), the VXI-11 device name
  * (`UTS_VXI11_DEVICE`, default inst0) and the probe behind `auto`. Everything here comes from
  * environment variables or tool parameters, so it is validated strictly before any connection.
  */
 
 export type TransportChoice = "raw" | "vxi11" | "auto";
 export const TRANSPORT_CHOICES: readonly TransportChoice[] = ["raw", "vxi11", "auto"];
-export const DEFAULT_TRANSPORT: TransportChoice = "raw";
+/**
+ * Decision of issue #75: every tool works over VXI-11 on the UTS3036B with the same values as over raw, and VXI-11
+ * is better where they differ (commands are queued during a sweep instead of dropped, no stall after an
+ * unsupported query, the full screenshot arrives). `auto` uses it when the instrument offers it and falls back to
+ * raw otherwise, so the default stays safe on instruments or networks without VXI-11.
+ */
+export const DEFAULT_TRANSPORT: TransportChoice = "auto";
 export const DEFAULT_VXI11_DEVICE = "inst0";
 const MAX_DEVICE_NAME = 64;
 
@@ -29,6 +35,25 @@ export function parseTransportChoice(value: string, source = "transport"): Trans
 export function transportFromEnv(value: string | undefined): TransportChoice {
   if (value === undefined || value === "") return DEFAULT_TRANSPORT;
   return parseTransportChoice(value, "UTS_TRANSPORT");
+}
+
+export interface ResolveTransportInput {
+  /** The `transport` tool parameter. */
+  param?: string;
+  /** The `UTS_TRANSPORT` environment variable. */
+  env?: string;
+  /** A TCP port was given (tool parameter or `UTS_PORT`): it only means something to the raw transport. */
+  portGiven?: boolean;
+}
+
+/**
+ * The transport to use: an explicit choice (parameter, then `UTS_TRANSPORT`) wins; with none, a port that was
+ * given means raw (it is a raw-transport setting, for example a tunnel); otherwise the default (auto).
+ */
+export function resolveTransport(input: ResolveTransportInput): TransportChoice {
+  if (input.param !== undefined) return parseTransportChoice(input.param, "transport");
+  if (input.env !== undefined && input.env !== "") return parseTransportChoice(input.env, "UTS_TRANSPORT");
+  return input.portGiven ? "raw" : DEFAULT_TRANSPORT;
 }
 
 /** Letters, digits and `. _ , -`, 1 to 64 characters (VXI-11 logical names such as inst0 or gpib0,5). */

@@ -92,7 +92,7 @@ describe("autoConnectFromEnv transport selection (#74)", () => {
   it("logs which transport was used", async () => {
     const conn = fakeConnection();
     const log = vi.fn();
-    await autoConnectFromEnv({ UTS_IP: "192.168.1.100" }, conn, log);
+    await autoConnectFromEnv({ UTS_IP: "192.168.1.100", UTS_TRANSPORT: "raw" }, conn, log);
     expect(log.mock.calls.join(" ")).toMatch(/raw/i);
   });
 });

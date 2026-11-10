@@ -1,6 +1,6 @@
 import type { ConnectOptions } from "./connection.js";
 import { isValidHost, portFromEnv } from "./target.js";
-import { transportFromEnv, vxi11DeviceFromEnv } from "./transports/select.js";
+import { resolveTransport, vxi11DeviceFromEnv } from "./transports/select.js";
 
 /**
  * Connect at startup from UTS_IP / UTS_PORT / UTS_TRANSPORT / UTS_VXI11_DEVICE. Never throws: failures are logged and
@@ -29,7 +29,7 @@ export async function autoConnectFromEnv(
   try {
     if (!isValidHost(host)) throw new Error("UTS_IP is not a valid hostname or IP address");
     const port = portFromEnv(env.UTS_PORT);
-    const transport = transportFromEnv(env.UTS_TRANSPORT);
+    const transport = resolveTransport({ env: env.UTS_TRANSPORT, portGiven: env.UTS_PORT !== undefined && env.UTS_PORT !== "" });
     const vxi11Device = vxi11DeviceFromEnv(env.UTS_VXI11_DEVICE);
     const idn = await conn.connect(host, port, { transport, vxi11Device, log });
     log(`Auto-connected to ${host} via ${conn.transportLabel ?? transport}: ${idn}`);
