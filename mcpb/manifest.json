@@ -1,0 +1,176 @@
+{
+  "manifest_version": "0.3",
+  "name": "uni-t-uts-mcp",
+  "display_name": "UNI-T UTS Spectrum Analyzer",
+  "version": "0.1.0",
+  "description": "MCP server for UNI-T UTS series spectrum analyzers via SCPI over LAN",
+  "long_description": "Lets Claude read and set a UNI-T UTS1000B/UTS3000B spectrum analyzer over your local network: frequency, amplitude, bandwidth, sweep, detector and traces. Enter the analyzer address in the settings, or leave it empty and ask Claude to connect to the analyzer at an address. The analyzer must be reachable on your network (raw SCPI, TCP port 5025). Nothing leaves your computer except the connection to the analyzer.",
+  "author": {
+    "name": "Reid Crowe",
+    "email": "reid@malmoset.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Reid-n0rc/uni-t-uts-mcp.git"
+  },
+  "homepage": "https://reid-n0rc.github.io/uni-t-uts-mcp/",
+  "documentation": "https://github.com/Reid-n0rc/uni-t-uts-mcp#readme",
+  "support": "https://github.com/Reid-n0rc/uni-t-uts-mcp/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "build/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/build/index.js"
+      ],
+      "env": {
+        "UTS_IP": "${user_config.host}",
+        "UTS_PORT": "${user_config.port}",
+        "UTS_TRANSPORT": "${user_config.transport}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "connect",
+      "description": "Connect to the analyzer by address (raw, VXI-11 or auto transport)."
+    },
+    {
+      "name": "disconnect",
+      "description": "Disconnect from the analyzer."
+    },
+    {
+      "name": "identify",
+      "description": "Read the analyzer identification: manufacturer, model, serial number and firmware."
+    },
+    {
+      "name": "scpi_query",
+      "description": "Send one raw SCPI query and return the reply."
+    },
+    {
+      "name": "scpi_command",
+      "description": "Send a raw SCPI command, synced and checked for instrument errors."
+    },
+    {
+      "name": "get_frequency",
+      "description": "Read center, span, start, stop and center step frequency."
+    },
+    {
+      "name": "set_frequency",
+      "description": "Set center, span, start, stop or center step frequency."
+    },
+    {
+      "name": "get_amplitude",
+      "description": "Read reference level, power unit, scale per division and attenuation."
+    },
+    {
+      "name": "set_amplitude",
+      "description": "Set reference level, power unit, scale per division or attenuation."
+    },
+    {
+      "name": "get_bandwidth",
+      "description": "Read resolution and video bandwidth, their ratio and the filter shape."
+    },
+    {
+      "name": "set_bandwidth",
+      "description": "Set resolution and video bandwidth, their ratio or the filter shape."
+    },
+    {
+      "name": "get_sweep",
+      "description": "Read sweep time, sweep type, sweep points and trigger settings."
+    },
+    {
+      "name": "set_sweep",
+      "description": "Set sweep points, sweep time, sweep type or trigger settings."
+    },
+    {
+      "name": "get_detector",
+      "description": "Read the detector of one trace or of all six traces."
+    },
+    {
+      "name": "set_detector",
+      "description": "Set the detector of one trace."
+    },
+    {
+      "name": "get_acquisition",
+      "description": "Read whether the analyzer sweeps continuously or runs a single sweep."
+    },
+    {
+      "name": "set_acquisition",
+      "description": "Switch between continuous sweep and single sweep mode."
+    },
+    {
+      "name": "start_sweep",
+      "description": "Start or restart a sweep."
+    },
+    {
+      "name": "single_sweep",
+      "description": "Run exactly one sweep and wait until it is complete."
+    },
+    {
+      "name": "wait_for_sweep_complete",
+      "description": "Wait for a sweep started with start_sweep to finish."
+    },
+    {
+      "name": "get_trace",
+      "description": "Read the configuration of one or all traces."
+    },
+    {
+      "name": "set_trace",
+      "description": "Select the current trace and set the type and options of a trace."
+    },
+    {
+      "name": "restart_trace",
+      "description": "Restart max hold, min hold or averaging."
+    },
+    {
+      "name": "set_trace_math",
+      "description": "Set trace math: a result trace from two operand traces."
+    }
+  ],
+  "tools_generated": false,
+  "keywords": [
+    "spectrum-analyzer",
+    "scpi",
+    "uni-t",
+    "uts",
+    "test-equipment",
+    "rf"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32"
+    ],
+    "runtimes": {
+      "node": ">=22.0.0"
+    }
+  },
+  "user_config": {
+    "host": {
+      "type": "string",
+      "title": "Analyzer address",
+      "description": "Hostname or IP address of the analyzer on your network, for example 192.168.1.100. Optional: leave it empty and ask Claude to connect to the analyzer at an address instead.",
+      "required": false
+    },
+    "port": {
+      "type": "number",
+      "title": "Port",
+      "description": "TCP port of the raw SCPI connection. The analyzer uses 5025; change it only if you know yours differs.",
+      "required": false,
+      "default": 5025,
+      "min": 1,
+      "max": 65535
+    },
+    "transport": {
+      "type": "string",
+      "title": "Transport",
+      "description": "How to talk to the analyzer: raw (TCP port 5025, the default), vxi11 or auto (VXI-11 when the analyzer offers it, otherwise raw). Enter one of: raw, vxi11, auto.",
+      "required": false,
+      "default": "raw"
+    }
+  }
+}

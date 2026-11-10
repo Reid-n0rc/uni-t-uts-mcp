@@ -102,7 +102,8 @@ describe("mcpb/manifest.json", () => {
 
   it("contains no real address, serial number or absolute path", () => {
     const text = read("mcpb/manifest.json");
-    expect(text).not.toMatch(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
+    const addresses = (text.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g) ?? []).filter((a) => a !== "192.168.1.100");
+    expect(addresses).toEqual([]); // only the documented placeholder is allowed
     expect(text).not.toMatch(/\/Users\/|\/home\/|[A-Za-z]:\\\\/);
   });
 });
