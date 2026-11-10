@@ -110,10 +110,12 @@ const ISSUE_PREFIX = (n: number) => `- [#${n}](https://github.com/Reid-n0rc/uni-
 const roadmapFor = (list: WikiIssue[], warnings?: string[]) => buildWikiPages(sample, { issues: list, warnings })["Roadmap.md"];
 const adversarial = (title: string, labels: string[] = []): WikiIssue => ({ number: 77, title, state: "open", labels, authorAssociation: "OWNER" });
 /** The text after the intended issue link, with every backslash escape removed. */
-const bodyOf = (roadmap: string): { line: string; plain: string } => {
+const bodyOf = (roadmap: string): { line: string; plain: string; rendered: string } => {
   const line = roadmap.split("\n").filter((l) => l.startsWith(ISSUE_PREFIX(77)))[0];
   expect(line, "the issue line is present").toBeDefined();
-  return { line, plain: line.slice(ISSUE_PREFIX(77).length).replace(/\\[\s\S]/g, "") };
+  const text = line.slice(ISSUE_PREFIX(77).length);
+  // plain: escape pairs removed (what markdown could still act on); rendered: escapes resolved (what a reader sees)
+  return { line, plain: text.replace(/\\[\s\S]/g, ""), rendered: text.replace(/\\([\s\S])/g, "$1") };
 };
 
 describe("untrusted issue text (issue #103)", () => {
@@ -138,14 +140,15 @@ describe("untrusted issue text (issue #103)", () => {
   ];
   it("renders every adversarial title as one plain-text line with no live markdown, HTML, URL, mention or control character", () => {
     for (const title of titles) {
-      const { line, plain } = bodyOf(roadmapFor([adversarial(title)]));
+      const { line, plain, rendered } = bodyOf(roadmapFor([adversarial(title)]));
       expect(line, title).not.toContain("\n");
       expect(line, title).not.toContain("\r");
       expect(line, title).not.toMatch(/[\p{Cc}\p{Cf}\u2028\u2029]/u);
       // after removing backslash escapes nothing markdown-active may remain
       expect(plain, title).not.toMatch(/[`*_[\]()!#|~<>&@]/);
-      expect(plain, title).not.toContain("://");
-      expect(plain.toLowerCase(), title).not.toContain("www.");
+      expect(rendered, title).not.toContain("://");
+      expect(rendered.toLowerCase(), title).not.toContain("www.");
+      expect(rendered, title).not.toContain("@");
       // the only link on the line is the intended one
       expect(line.match(/\]\(/g)?.length ?? 0, title).toBe(1);
       expect(line.startsWith(ISSUE_PREFIX(77)), title).toBe(true);
@@ -165,7 +168,10 @@ describe("untrusted issue text (issue #103)", () => {
   it("escapes the same way inside labels and caps them", () => {
     const { line } = bodyOf(roadmapFor([adversarial("T", ["[bad](http://evil.example)", "@someone", "<b>x</b>", "ok-label", "y".repeat(300)])]));
     expect(line).toContain("ok-label");
-    expect(line.replace(/\\[\s\S]/g, "")).not.toMatch(/[`*[\]()!#|~<>&@]|:\/\//);
+    // the label list sits inside the intended _( ... )_ emphasis wrapper
+    const inner = line.slice(ISSUE_PREFIX(77).length).replace(/^T _\(/, "").replace(/\)_$/, "");
+    expect(inner.replace(/\\[\s\S]/g, "")).not.toMatch(/[`*_[\]()!#|~<>&@]/);
+    expect(inner.replace(/\\([\s\S])/g, "$1")).not.toContain("://");
     expect(line.length).toBeLessThan(400);
   });
   it("lists only issues by an owner, member or collaborator and shows the skipped count as a number only", () => {
@@ -184,7 +190,7 @@ describe("untrusted issue text (issue #103)", () => {
     expect(roadmap).not.toContain("issues/4)");
     expect(roadmap).toContain("Open issues (2)");
     expect(roadmap).toContain("Completed issues (1)");
-    expect(roadmap).toMatch(/\b4 issues? from other authors/);
+    expect(roadmap).toContain("4 issues from other authors are not listed");
   });
   it("parseIssues keeps author_association for the filter", () => {
     expect(parseIssues([{ number: 9, title: "t", state: "open", labels: [], author_association: "MEMBER" }])[0].authorAssociation).toBe("MEMBER");
@@ -390,7 +396,7 @@ describe("scripts/sync-wiki.mjs command line", () => {
   it("builds into --out using --issues-file, and --check passes on this repository", () => {
     const dir = mkdtempSync(join(tmpdir(), "wiki-cli-"));
     const issuesFile = join(dir, "issues.json");
-    writeFileSync(issuesFile, JSON.stringify([{ number: 7, title: "Sample issue", state: "open", labels: [], authorAssociation: "OWNER" }]));
+    writeFileSync(issuesFile, JSON.stringify([{ number: 7, title: "Sample issue", state: "open", labels: [], author_association: "OWNER" }]));
     const out = join(dir, "out");
     execFileSync(process.execPath, [join(ROOT, "scripts", "sync-wiki.mjs"), "--out", out, "--issues-file", issuesFile], { cwd: ROOT, stdio: "pipe" });
     expect(readFileSync(join(out, "Roadmap.md"), "utf8")).toContain("Sample issue");

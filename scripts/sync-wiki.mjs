@@ -169,27 +169,71 @@ function homePage(sources) {
   return fill(page, "Home", "<!--TOOL_GROUPS-->", table);
 }
 
-const cleanTitle = (title) => String(title).replace(/\s+/g, " ").replace(/</g, "&lt;").trim();
+// ---- untrusted issue text (issue #103). Everything derived from an issue (title, label names) is
+// attacker-controlled on a public repository, so it is rendered as plain text only: invisible and
+// control characters are removed, private-looking data is redacted, the length is capped, bare URLs
+// and @mentions are broken up and every markdown metacharacter is backslash-escaped.
 
-function issueLine(issue) {
-  const labels = issue.labels.length > 0 ? ` _(${issue.labels.join(", ")})_` : "";
-  return `- [#${issue.number}](${REPO_URL}/issues/${issue.number}) ${cleanTitle(issue.title)}${labels}`;
+export const TRUSTED_ASSOCIATIONS = ["OWNER", "MEMBER", "COLLABORATOR"];
+export const MAX_TITLE_LENGTH = 120;
+export const MAX_LABEL_LENGTH = 40;
+const REDACTED = "[redacted]";
+
+/** True for issues opened by someone with write access to the repository (author_association as the API reports it). */
+export const isTrustedIssue = (issue) => TRUSTED_ASSOCIATIONS.includes(issue.authorAssociation);
+
+/** Plain-text, single-line, length-capped text; `onRedact` is called when private-looking data was removed. */
+export function sanitizeIssueText(value, { max = MAX_TITLE_LENGTH, onRedact } = {}) {
+  let text = String(value ?? "").normalize("NFKC");
+  // line breaks and control characters become spaces; format characters (bidi overrides, zero width,
+  // joiners, BOM, tags), surrogates, private use and unassigned code points are dropped
+  text = text.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ").replace(/[\p{Cf}\p{Cs}\p{Co}\p{Cn}]/gu, "");
+  text = text.replace(/\s+/g, " ").trim();
+  const redacted = redactPrivateData(text);
+  if (redacted !== text && onRedact) onRedact();
+  text = redacted;
+  const chars = Array.from(text);
+  if (chars.length > max) text = `${chars.slice(0, max).join("").trimEnd()}\u2026`;
+  return neutralizeMarkdown(text);
 }
 
-function roadmapPage(sources, issues) {
+/** Break up autolinks and mentions, then backslash-escape every markdown and HTML metacharacter. */
+function neutralizeMarkdown(text) {
+  return text
+    .replace(/:\/\//g, "[:]//")
+    .replace(/\bwww\./gi, "www[.]")
+    .replace(/@/g, "\uFF20")
+    .replace(/[\\`*_[\]()!#|~<>&]/g, "\\$&");
+}
+
+function issueLine(issue, onRedact) {
+  const title = sanitizeIssueText(issue.title, { onRedact: () => onRedact(issue.number) }) || "(untitled)";
+  const names = issue.labels
+    .map((l) => sanitizeIssueText(l, { max: MAX_LABEL_LENGTH, onRedact: () => onRedact(issue.number) }))
+    .filter(Boolean);
+  const labels = names.length > 0 ? ` _(${names.join(", ")})_` : "";
+  // the link target is built from the integer issue number only, never from text
+  return `- [#${Number(issue.number)}](${REPO_URL}/issues/${Number(issue.number)}) ${title}${labels}`;
+}
+
+function roadmapPage(sources, issues, warnings) {
   let body;
   if (issues) {
-    const sorted = [...issues].sort((a, b) => a.number - b.number);
+    const trusted = issues.filter(isTrustedIssue);
+    const skipped = issues.length - trusted.length;
+    const onRedact = (n) => warnings.push(`issue #${n}: private-looking text in the title or labels was redacted`);
+    const sorted = [...trusted].sort((a, b) => a.number - b.number);
     const open = sorted.filter((i) => i.state === "open");
     const closed = sorted.filter((i) => i.state !== "open");
     body = [
       `## Open issues (${open.length})`,
       "",
-      ...open.map(issueLine),
+      ...open.map((i) => issueLine(i, onRedact)),
       "",
       `## Completed issues (${closed.length})`,
       "",
-      ...closed.map(issueLine),
+      ...closed.map((i) => issueLine(i, onRedact)),
+      ...(skipped > 0 ? ["", `_${skipped} ${skipped === 1 ? "issue" : "issues"} from other authors ${skipped === 1 ? "is" : "are"} not listed._`] : []),
     ].join("\n");
   } else {
     body = `The issue lists are filled in by the automatic sync. This copy was built without access to the issue tracker, so see GitHub for the current lists: [open issues](${REPO_URL}/issues?q=is%3Aissue+is%3Aopen), [closed issues](${REPO_URL}/issues?q=is%3Aissue+is%3Aclosed).`;
@@ -198,7 +242,7 @@ function roadmapPage(sources, issues) {
 }
 
 /** The complete page set, as { "Name.md": content }. `issues` is null when the tracker is unavailable. */
-export function buildWikiPages(sources, { issues = null } = {}) {
+export function buildWikiPages(sources, { issues = null, warnings = [] } = {}) {
   const pages = {};
   for (const [name, text] of Object.entries(sources.wiki)) {
     if (!GENERATED_PAGES.includes(name)) pages[`${name}.md`] = text.replace(/\r\n/g, "\n");
@@ -206,7 +250,7 @@ export function buildWikiPages(sources, { issues = null } = {}) {
   pages["Home.md"] = homePage(sources);
   pages["Tools.md"] = toolsPage(sources);
   pages["Instrument-Behavior.md"] = behaviorPage(sources);
-  pages["Roadmap.md"] = roadmapPage(sources, issues);
+  pages["Roadmap.md"] = roadmapPage(sources, issues, warnings);
   return Object.fromEntries(Object.entries(pages).sort(([a], [b]) => (a < b ? -1 : 1)));
 }
 
@@ -221,6 +265,7 @@ export function parseIssues(json) {
       title: i.title,
       state: i.state === "open" ? "open" : "closed",
       labels: (i.labels ?? []).map((l) => (typeof l === "string" ? l : l.name)).filter(Boolean),
+      authorAssociation: typeof i.author_association === "string" ? i.author_association : "NONE",
     }));
 }
 
@@ -239,25 +284,40 @@ export function fetchIssues({ repo = REPO_SLUG, token = process.env.GH_TOKEN || 
 
 const ALLOWED_IPS = ["192.168.1.100", "127.0.0.1", "0.0.0.0"];
 
+// Each rule is a fixed regular expression plus a test of the matched text.
+const PRIVATE_RULES = [
+  {
+    re: /\b(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b/g,
+    test: (ip) => !ip.split(".").some((o) => Number(o) > 255) && !ALLOWED_IPS.includes(ip) && !/^(192\.0\.2|198\.51\.100|203\.0\.113)\./.test(ip),
+    describe: (m) => `IP address ${m}`,
+  },
+  {
+    re: /UNI-T[A-Za-z]*,UTS\w+,([^,\s]+),/g,
+    test: (m) => !m.split(",")[2].startsWith("<"),
+    describe: (m) => `serial number in an identification string (${m})`,
+  },
+  { re: /\bserial(?: number)?\s*[:=]\s*[A-Za-z0-9]{8,}/gi, test: () => true, describe: (m) => `serial number (${m})` },
+  {
+    re: /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g,
+    test: (m) => !/^noreply@|@users\.noreply\.github\.com$/.test(m),
+    describe: (m) => `email address ${m}`,
+  },
+];
+
 /** Things that must never appear in the wiki: serial numbers, real IP addresses, personal emails. */
 export function findPrivateData(text) {
   const found = [];
-  for (const m of text.matchAll(/\b(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b/g)) {
-    const octets = [m[1], m[2], m[3], m[4]].map(Number);
-    if (octets.some((o) => o > 255)) continue;
-    const ip = m[0];
-    if (ALLOWED_IPS.includes(ip)) continue;
-    if (/^(192\.0\.2|198\.51\.100|203\.0\.113)\./.test(ip)) continue;
-    found.push(`IP address ${ip}`);
-  }
-  for (const m of text.matchAll(/UNI-T[A-Za-z]*,UTS\w+,([^,\s]+),/g)) {
-    if (!m[1].startsWith("<")) found.push(`serial number in an identification string (${m[0]})`);
-  }
-  for (const m of text.matchAll(/\bserial(?: number)?\s*[:=]\s*[A-Za-z0-9]{8,}/gi)) found.push(`serial number (${m[0]})`);
-  for (const m of text.matchAll(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g)) {
-    if (!/^noreply@|@users\.noreply\.github\.com$/.test(m[0])) found.push(`email address ${m[0]}`);
+  for (const rule of PRIVATE_RULES) {
+    for (const m of text.matchAll(rule.re)) if (rule.test(m[0])) found.push(rule.describe(m[0]));
   }
   return found;
+}
+
+/** The text with everything findPrivateData would report replaced by "[redacted]". */
+export function redactPrivateData(text) {
+  let out = text;
+  for (const rule of PRIVATE_RULES) out = out.replace(rule.re, (m) => (rule.test(m) ? REDACTED : m));
+  return out;
 }
 
 /** Problems with a page set; an empty list means it is fine to publish. */
@@ -329,7 +389,9 @@ function main(argv) {
   if (issuesFile) issues = parseIssues(JSON.parse(readFileSync(resolve(issuesFile), "utf8")));
   else if (!argv.includes("--no-issues") && !check) issues = fetchIssues();
 
-  const pages = buildWikiPages(loadSources(root), { issues });
+  const warnings = [];
+  const pages = buildWikiPages(loadSources(root), { issues, warnings });
+  for (const w of warnings) console.warn(`wiki: warning: ${w}`);
   const problems = checkPages(pages, { repoRoot: root });
   if (problems.length > 0) {
     for (const p of problems) console.error(`wiki: ${p}`);

@@ -23,3 +23,9 @@ export function fetchIssues(options?: { repo?: string; token?: string }): WikiIs
 export function findPrivateData(text: string): string[];
 export function checkPages(pages: WikiPages, options?: { repoRoot?: string }): string[];
 export function writePages(dir: string, pages: WikiPages): void;
+export const TRUSTED_ASSOCIATIONS: string[];
+export const MAX_TITLE_LENGTH: number;
+export const MAX_LABEL_LENGTH: number;
+export function isTrustedIssue(issue: WikiIssue): boolean;
+export function sanitizeIssueText(value: unknown, options?: { max?: number; onRedact?: () => void }): string;
+export function redactPrivateData(text: string): string;
