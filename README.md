@@ -2,7 +2,7 @@
 
 A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for controlling UNI-T UTS series spectrum analyzers (UTS1000B/T, UTS3000B) over SCPI.
 
-> **Status:** under active development. The tools below work and are verified on a UNI-T UTS3036B (firmware V1.04.0040) over LAN; see [docs/verified-hardware.md](docs/verified-hardware.md). Trace data fetch, markers and measurements are not implemented yet; progress is tracked in the [roadmap issue](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/1). See [Install](#install) for setup.
+> **Status:** under active development. The tools below work and are verified on a UNI-T UTS3036B (firmware V1.04.0040) over LAN; see [docs/verified-hardware.md](docs/verified-hardware.md). Markers and measurements are not implemented yet; progress is tracked in the [roadmap issue](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/1). See [Install](#install) for setup.
 
 ## Tools available
 
@@ -15,6 +15,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for co
 | Bandwidth, sweep, detector | `get_bandwidth`, `set_bandwidth`, `get_sweep`, `set_sweep`, `get_detector`, `set_detector` |
 | Acquisition | `get_acquisition`, `set_acquisition`, `start_sweep`, `single_sweep`, `wait_for_sweep_complete` |
 | Trace configuration | `get_trace`, `set_trace`, `restart_trace`, `set_trace_math` |
+| Trace data | `get_trace_data` |
 | Screenshot | `screenshot` (PNG image of the screen; needs VXI-11, see [tools reference](docs/tools-reference.md#screenshot)) |
 
 Parameters and behavior: [docs/tools-reference.md](docs/tools-reference.md). Set `UTS_IP` (see [Install](#install); optionally also `UTS_PORT`, default 5025) to connect automatically at startup. The default transport is `auto`: VXI-11 when the analyzer offers it (verified on the UTS3036B), otherwise raw SCPI over TCP; `UTS_TRANSPORT=raw` or `vxi11` forces one (setting only `UTS_PORT` also means raw), and `UTS_VXI11_DEVICE` (default `inst0`) names the VXI-11 device. VXI-11 queues commands during a sweep instead of dropping them, lets `single_sweep` wait with one blocking `*OPC?`, and does not truncate the screenshot transfer; see the [programming guide](docs/programming-guide.md#vxi-11-transport-srctransportsvxi11ts-srctransportsselectts).

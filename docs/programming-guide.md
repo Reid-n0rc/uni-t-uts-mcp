@@ -152,7 +152,7 @@ All are SA-module commands. Query form is the same string with `?`. Max frequenc
 | ASCII | n/a | Comma-separated scientific-notation values, no block header; one value per sweep point; unit dBm default (follows `:UNIT:POWer`, unconfirmed) |
 | Binary | n/a | IEEE 754 float, 32 or 64 bit, wrapped in the data block header (`#9`+9 digits per 1K p.5; 3K p.4 describes `#`+1 digit N). Byte order not stated. |
 | Point count | `[:SENSe]:SWEep:POINts` 11..40001 | Number of values = sweep points |
-| X axis | compute: `f_i = start + i*(stop-start)/(points-1)` | not stated; derive from `:FREQuency:STARt?`/`STOP?`/`:SWEep:POINts?` |
+| X axis | compute: `f_i = start + i*(stop-start)/(points-1)` | not stated; derive from `:FREQuency:STARt?`/`STOP?`/`:SWEep:POINts?`. **Verified (T6, `get_trace_data`):** in zero span start and stop are both the center frequency, so there is no frequency axis (the tool returns a time axis 0..sweep time) |
 | Alternate | `:READ:CHPower2?` returns channel-power trace data **(1K only)** (1K p.~70) | |
 | Save trace to file | `:MMEMory:STORe:TRACe TRACEn,"<name>.trace"`, `:MMEMory:LOAD:TRACe TRACEn,"<name>.trace"` (3K p.49-50); file lives on the instrument | |
 

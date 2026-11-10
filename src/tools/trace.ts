@@ -34,7 +34,7 @@ function parseChoice<T extends string>(table: Record<T, string>, what: string) {
 const parseType = parseChoice(TYPES, "trace type");
 const parseAverageType = parseChoice(AVERAGE_TYPES, "average type");
 
-function parseTraceNumber(reply: string): number {
+export function parseTraceNumber(reply: string): number {
   const n = Number(reply.trim());
   if (!Number.isInteger(n) || n < 1 || n > 6) throw new Error(`Unexpected trace number ${JSON.stringify(reply)}`);
   return n;

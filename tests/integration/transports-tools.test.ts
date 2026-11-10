@@ -15,7 +15,8 @@ import { startFakeVxi11Instrument, type FakeVxi11Instrument } from "../fakeVxi11
 const PNG_HEAD = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
 const reply = (cmd: string): string | undefined => {
   if (cmd === ":SYSTem:ERRor?") return '0,"No error"';
-  if (cmd.endsWith("?")) return defaultReply(cmd);
+  // queries: "?" at the end, or before a parameter (":TRACe:DATA? TRACE1")
+  if (cmd.includes("?")) return defaultReply(cmd);
   return undefined;
 };
 
