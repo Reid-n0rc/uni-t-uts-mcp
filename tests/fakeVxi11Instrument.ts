@@ -1,3 +1,5 @@
+import * as net from "node:net";
+import { encodeCall, encodeRecord } from "../src/vxi11/rpc.js";
 import { XdrReader, XdrWriter } from "../src/vxi11/xdr.js";
 import { portKey, startFakeRpcServer, type FakeRpcCall, type FakeRpcResult, type FakeRpcServer } from "./fakeRpcServer.js";
 
@@ -20,7 +22,9 @@ import { portKey, startFakeRpcServer, type FakeRpcCall, type FakeRpcResult, type
  */
 
 const CORE_PROGRAM = 395183;
-const PROC = { createLink: 10, write: 11, read: 12, readStb: 13, clear: 15, destroyLink: 23 } as const;
+const PROC = { createLink: 10, write: 11, read: 12, readStb: 13, clear: 15, enableSrq: 20, destroyLink: 23, createIntrChan: 25, destroyIntrChan: 26 } as const;
+const INTR_PROGRAM = 395185;
+const PROC_DEVICE_INTR_SRQ = 30;
 const FLAG_END = 8;
 const REASON_REQCNT = 1;
 const REASON_END = 4;
@@ -77,6 +81,17 @@ export interface FakeVxi11Instrument {
   stb: number;
   readonly sweeping: boolean;
   sweepsCompleted: number;
+  /** Interrupt channel: what create_intr_chan asked for (hostAddr dotted, port, program, version, family), newest last. */
+  intrChannels: { host: string; port: number; program: number; version: number; family: number }[];
+  /** device_enable_srq calls: (enable, handle). */
+  enableSrqCalls: { enable: boolean; handle: Buffer }[];
+  destroyedIntrChannels: number;
+  /**
+   * Connect to the registered interrupt channel (once, kept open) and send device_intr_srq with the
+   * handle given to device_enable_srq. Rejects when no channel or no enabled SRQ exists.
+   * `options.proc`/`program` override the call (garbage tests); `options.from` is unused.
+   */
+  raiseSrq(options?: { program?: number; procedure?: number; handle?: Buffer }): Promise<void>;
   setScpiHandler(handler: ScpiHandler): void;
   /** Make the next `count` calls of `procedure` fail with VXI-11 error `code`. */
   injectError(procedure: number, code: number, count?: number): void;
@@ -97,6 +112,8 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
   let sweeping = false;
   let sweepTimer: NodeJS.Timeout | undefined;
   const timers = new Set<NodeJS.Timeout>();
+  let intrSocket: net.Socket | undefined;
+  const timersSockets = new Set<net.Socket>();
   const linkState = new Map<number, LinkState>();
   const queued: { linkId: number; statement: string }[] = [];
   const injected = new Map<number, { code: number; count: number }>();
@@ -119,6 +136,25 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
       return sweeping;
     },
     sweepsCompleted: 0,
+    intrChannels: [],
+    enableSrqCalls: [],
+    destroyedIntrChannels: 0,
+    async raiseSrq(o = {}) {
+      const ch = fake.intrChannels.at(-1);
+      const en = fake.enableSrqCalls.at(-1);
+      if (!ch || fake.destroyedIntrChannels >= fake.intrChannels.length) throw new Error("no interrupt channel");
+      if (!en?.enable && o.handle === undefined) throw new Error("SRQ not enabled");
+      if (!intrSocket || intrSocket.destroyed) {
+        intrSocket = await new Promise<net.Socket>((resolve, reject) => {
+          const sock = net.connect(ch.port, ch.host, () => resolve(sock));
+          sock.once("error", reject);
+          sock.on("error", () => {});
+        });
+        timersSockets.add(intrSocket);
+      }
+      const args = new XdrWriter().opaque(o.handle ?? en!.handle).toBuffer();
+      intrSocket.write(encodeRecord(encodeCall(7000 + fake.intrChannels.length, o.program ?? INTR_PROGRAM, 1, o.procedure ?? PROC_DEVICE_INTR_SRQ, args)));
+    },
     setScpiHandler(h) {
       scpi = h;
     },
@@ -133,6 +169,7 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
       if (sweepTimer) clearTimeout(sweepTimer);
       for (const t of timers) clearTimeout(t);
       timers.clear();
+      for (const s of timersSockets) s.destroy();
       for (const s of linkState.values()) for (const w of [...s.waiters]) w();
       await rpc.close();
     },
@@ -316,6 +353,51 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
     link.output = [];
     link.input = Buffer.alloc(0);
     for (let i = queued.length - 1; i >= 0; i--) if (queued[i].linkId === linkId) queued.splice(i, 1);
+    return new XdrWriter().u32(0);
+  });
+
+  const plain = (procedure: number, body: (args: XdrReader) => FakeRpcResult): void => {
+    rpc.register(CORE_PROGRAM, 1, procedure, (args, call) => {
+      if (drops.delete(procedure)) {
+        call.socket.destroy();
+        return undefined;
+      }
+      const inj = injected.get(procedure);
+      if (inj && inj.count > 0) {
+        inj.count--;
+        return new XdrWriter().u32(inj.code);
+      }
+      return body(args);
+    });
+  };
+
+  // create_intr_chan: (hostAddr, hostPort, progNum, progVers, progFamily) -> error (no link id)
+  plain(PROC.createIntrChan, (args) => {
+    const addr = args.u32();
+    const port = args.u32();
+    const program = args.u32();
+    const version = args.u32();
+    const family = args.u32();
+    const open = fake.intrChannels.length - fake.destroyedIntrChannels;
+    if (open > 0) return new XdrWriter().u32(9); // channel already established: out of resources
+    fake.intrChannels.push({ host: [addr >>> 24, (addr >>> 16) & 255, (addr >>> 8) & 255, addr & 255].join("."), port, program, version, family });
+    return new XdrWriter().u32(0);
+  });
+
+  // destroy_intr_chan: () -> error
+  plain(PROC.destroyIntrChan, () => {
+    if (fake.intrChannels.length - fake.destroyedIntrChannels === 0) return new XdrWriter().u32(6); // CHANNEL_NOT_ESTABLISHED
+    fake.destroyedIntrChannels++;
+    intrSocket?.destroy();
+    return new XdrWriter().u32(0);
+  });
+
+  // device_enable_srq: (link, enable, handle) -> error
+  register(PROC.enableSrq, (c) => new XdrWriter().u32(c), (args) => {
+    const enable = args.bool();
+    const handle = Buffer.from(args.opaque(40));
+    if (enable && fake.intrChannels.length - fake.destroyedIntrChannels === 0) return new XdrWriter().u32(6);
+    fake.enableSrqCalls.push({ enable, handle });
     return new XdrWriter().u32(0);
   });
 
