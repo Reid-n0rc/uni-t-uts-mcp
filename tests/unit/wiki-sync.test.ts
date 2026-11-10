@@ -241,7 +241,8 @@ describe("the real wiki built from this repository", () => {
     expect(start).toContain("uni-t-uts-mcp-0.1.0.tgz");
     expect(start).toContain("github:Reid-n0rc/uni-t-uts-mcp#v0.1.0");
     expect(start).toContain("ghcr.io/reid-n0rc/uni-t-uts-mcp");
-    expect(start).toMatch(/npm registry[^\n]*coming soon/i);
+    expect(start).toContain("claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp");
+    expect(start.toLowerCase()).not.toContain("coming soon");
     expect(start).toContain("UTS_TRANSPORT");
     expect(start).toContain("UTS_BUSY_TIMEOUT_S");
     expect(pages["Architecture.md"]).toContain("UTS_BUSY_TIMEOUT_S");
