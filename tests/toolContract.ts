@@ -12,7 +12,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { SessionLock } from "../src/sessionLock.js";
 
-export type Kind = "getter" | "setter" | "rawQuery" | "rawCommand" | "connect" | "disconnect";
+export type Kind = "getter" | "setter" | "rawQuery" | "rawCommand" | "connect" | "disconnect" | "discover";
 export type Mode =
   | "notConnected" // every call fails with the not-connected error
   | "timeout" // every query times out
@@ -41,6 +41,7 @@ export const APPLICABLE: Record<Kind, Mode[]> = {
   rawCommand: ["notConnected", "writeFailure", "instrumentError", "partial"],
   connect: ["timeout", "writeFailure"],
   disconnect: [],
+  discover: [], // own UDP/TCP sockets, mocked in the contract test; never uses the instrument connection
 };
 
 export const CONTRACT: Record<string, ContractEntry> = {
@@ -49,6 +50,7 @@ export const CONTRACT: Record<string, ContractEntry> = {
     args: { host: "192.168.1.100" }, invalid: [{ host: "bad host!" }, { port: 70000 }, { transport: "serial" }, { transport: "vxi11", port: 5025 }],
   },
   disconnect: { kind: "disconnect", args: {} },
+  discover_instruments: { kind: "discover", args: {}, invalid: [{ timeout_ms: 50 }, { timeout_ms: 60000 }] },
   identify: { kind: "getter", args: {} },
   scpi_query: {
     kind: "rawQuery",

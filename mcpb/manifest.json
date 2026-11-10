@@ -38,6 +38,10 @@
       "description": "Connect to the analyzer by address (raw, VXI-11 or auto transport)."
     },
     {
+      "name": "discover_instruments",
+      "description": "Find analyzers on your local network without knowing their address (read-only)."
+    },
+    {
       "name": "disconnect",
       "description": "Disconnect from the analyzer."
     },
