@@ -6,6 +6,8 @@ import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 const mockConnection = vi.hoisted(() => ({
   isConnected: vi.fn(() => true),
   getConnectionInfo: vi.fn(() => "192.168.1.100:5025"),
+  transportName: "raw",
+  transportLabel: "raw SCPI over TCP",
   connect: vi.fn(async () => "UNI-TREND,UTS0000X,<serial>,V0.0.0"),
   disconnect: vi.fn(),
   runExclusive: (fn: () => unknown) => fn(),
@@ -13,6 +15,8 @@ const mockConnection = vi.hoisted(() => ({
 }));
 
 vi.mock("../../src/connection.js", () => ({ connection: mockConnection }));
+
+const RAW_OPTIONS = expect.objectContaining({ transport: "raw", vxi11Device: "inst0" });
 
 let client: Client;
 let cleanup: () => Promise<void>;
@@ -30,6 +34,8 @@ afterAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllEnvs();
+  mockConnection.transportName = "raw";
+  mockConnection.transportLabel = "raw SCPI over TCP";
   mockConnection.isConnected.mockReturnValue(true);
 });
 
@@ -48,7 +54,7 @@ describe("connect", () => {
     vi.stubEnv("UTS_IP", "192.168.1.100");
     const res = await callTool(client, "connect", {});
     expect(res.isError).toBeFalsy();
-    expect(mockConnection.connect).toHaveBeenCalledWith("192.168.1.100", 5025);
+    expect(mockConnection.connect).toHaveBeenCalledWith("192.168.1.100", 5025, RAW_OPTIONS);
     expect(getText(res)).toContain("192.168.1.100:5025");
     expect(getText(res)).toContain("UNI-TREND,UTS0000X");
   });
@@ -57,13 +63,13 @@ describe("connect", () => {
     vi.stubEnv("UTS_IP", "192.168.1.100");
     vi.stubEnv("UTS_PORT", "5555");
     await callTool(client, "connect", {});
-    expect(mockConnection.connect).toHaveBeenCalledWith("192.168.1.100", 5555);
+    expect(mockConnection.connect).toHaveBeenCalledWith("192.168.1.100", 5555, RAW_OPTIONS);
   });
 
   it("explicit host and port override the environment", async () => {
     vi.stubEnv("UTS_IP", "192.168.1.100");
     await callTool(client, "connect", { host: "analyzer.lab.example", port: 5026 });
-    expect(mockConnection.connect).toHaveBeenCalledWith("analyzer.lab.example", 5026);
+    expect(mockConnection.connect).toHaveBeenCalledWith("analyzer.lab.example", 5026, RAW_OPTIONS);
   });
 
   it("errors and mentions UTS_IP when no host is available", async () => {
@@ -110,7 +116,13 @@ describe("identify", () => {
   it("returns the *IDN? reply", async () => {
     const res = await callTool(client, "identify", {});
     expect(mockConnection.query).toHaveBeenCalledWith("*IDN?");
-    expect(getText(res)).toBe("UNI-TREND,UTS0000X,<serial>,V0.0.0");
+    expect(getText(res)).toContain("UNI-TREND,UTS0000X,<serial>,V0.0.0");
+  });
+
+  it("states which transport is in use", async () => {
+    expect(getText(await callTool(client, "identify", {}))).toContain("Transport: raw SCPI over TCP");
+    mockConnection.transportLabel = "VXI-11 (device inst0)";
+    expect(getText(await callTool(client, "identify", {}))).toContain("Transport: VXI-11 (device inst0)");
   });
 
   it("surfaces the not-connected error", async () => {
@@ -154,5 +166,63 @@ describe("disconnect", () => {
     const res = await callTool(client, "disconnect", {});
     expect(res.isError).toBeFalsy();
     expect(getText(res)).toMatch(/not connected/i);
+  });
+});
+
+describe("transport selection (#74)", () => {
+  it("states the transport in the connect output", async () => {
+    const res = await callTool(client, "connect", { host: "192.168.1.100" });
+    expect(getText(res)).toContain("Transport: raw SCPI over TCP");
+  });
+
+  it("defaults to raw, honors UTS_TRANSPORT and UTS_VXI11_DEVICE, and the parameter wins", async () => {
+    vi.stubEnv("UTS_TRANSPORT", "vxi11");
+    vi.stubEnv("UTS_VXI11_DEVICE", "inst2");
+    await callTool(client, "connect", { host: "192.168.1.100" });
+    expect(mockConnection.connect).toHaveBeenLastCalledWith(
+      "192.168.1.100",
+      5025,
+      expect.objectContaining({ transport: "vxi11", vxi11Device: "inst2" })
+    );
+    await callTool(client, "connect", { host: "192.168.1.100", transport: "auto" });
+    expect(mockConnection.connect).toHaveBeenLastCalledWith(
+      "192.168.1.100",
+      5025,
+      expect.objectContaining({ transport: "auto", vxi11Device: "inst2" })
+    );
+  });
+
+  it("shows the VXI-11 transport in the connect output", async () => {
+    mockConnection.transportName = "vxi11";
+    mockConnection.transportLabel = "VXI-11 (device inst0)";
+    mockConnection.getConnectionInfo.mockReturnValueOnce("192.168.1.100 (VXI-11 inst0)");
+    const res = await callTool(client, "connect", { host: "192.168.1.100", transport: "vxi11" });
+    expect(getText(res)).toContain("Transport: VXI-11 (device inst0)");
+  });
+
+  it("rejects an invalid transport parameter without connecting", async () => {
+    const res = await callTool(client, "connect", { host: "192.168.1.100", transport: "serial" });
+    expect(res.isError).toBe(true);
+    expect(mockConnection.connect).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid UTS_TRANSPORT or UTS_VXI11_DEVICE with a message naming the variable", async () => {
+    vi.stubEnv("UTS_TRANSPORT", "hislip");
+    let res = await callTool(client, "connect", { host: "192.168.1.100" });
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toContain("UTS_TRANSPORT");
+    vi.stubEnv("UTS_TRANSPORT", "");
+    vi.stubEnv("UTS_VXI11_DEVICE", "bad name;");
+    res = await callTool(client, "connect", { host: "192.168.1.100" });
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toContain("UTS_VXI11_DEVICE");
+    expect(mockConnection.connect).not.toHaveBeenCalled();
+  });
+
+  it("rejects an explicit port together with transport vxi11 (the port is for the raw transport only)", async () => {
+    const res = await callTool(client, "connect", { host: "192.168.1.100", transport: "vxi11", port: 5025 });
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toMatch(/port.*raw/i);
+    expect(mockConnection.connect).not.toHaveBeenCalled();
   });
 });

@@ -13,6 +13,13 @@ The text of a release's section is also used as its GitHub release notes.
 
 ### Added
 - `npm run client-config -- --host <address>` prints (never writes) the Claude Code command and the MCP JSON for your OS and paths.
+- VXI-11 as a selectable transport (`UTS_TRANSPORT=raw|vxi11|auto`, default `raw`; `UTS_VXI11_DEVICE`,
+  default `inst0`; an optional `transport` parameter on `connect`). `auto` uses VXI-11 when the
+  analyzer registers it with the portmapper on port 111 and falls back to raw with a logged reason.
+  Over VXI-11 commands sent during a sweep are queued instead of dropped, and `single_sweep` waits
+  with one blocking `*OPC?` read instead of staying silent and polling. `connect` and `identify` name
+  the transport in use. Hardware verification of every tool over VXI-11 is still pending, so the
+  default stays raw. Allow outbound TCP to port 111 and the dynamic VXI-11 port in a firewall.
 
 ### Changed
 - README, site and docs now lead with install forms that work today (release tarball, `github:` spec, pinned Docker image, from a clone); `npx -y uni-t-uts-mcp` is labelled coming soon until the package is on npm. A test keeps the install commands in step with the package version.

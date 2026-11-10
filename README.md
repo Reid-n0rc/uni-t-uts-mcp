@@ -16,7 +16,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for co
 | Acquisition | `get_acquisition`, `set_acquisition`, `start_sweep`, `single_sweep`, `wait_for_sweep_complete` |
 | Trace configuration | `get_trace`, `set_trace`, `restart_trace`, `set_trace_math` |
 
-Parameters and behavior: [docs/tools-reference.md](docs/tools-reference.md). Set `UTS_IP` (see [Install](#install); optionally also `UTS_PORT`, default 5025) to connect automatically at startup.
+Parameters and behavior: [docs/tools-reference.md](docs/tools-reference.md). Set `UTS_IP` (see [Install](#install); optionally also `UTS_PORT`, default 5025) to connect automatically at startup. The default transport is raw SCPI over TCP; `UTS_TRANSPORT=vxi11` (or `auto`, which uses VXI-11 when the analyzer offers it) selects VXI-11, with `UTS_VXI11_DEVICE` (default `inst0`) naming the device. VXI-11 queues commands during a sweep instead of dropping them and lets `single_sweep` wait with one blocking `*OPC?`; see the [programming guide](docs/programming-guide.md#vxi-11-transport).
 
 **Parallel tool calls are safe.** The instrument has a single command stream, so the server runs tool calls one at a time per instrument, first in first out: each tool's whole command sequence is atomic, results and errors are never mixed up between calls, and a long operation such as `single_sweep` makes other calls wait (they fail with `Instrument busy` after `UTS_BUSY_TIMEOUT_S` seconds, default 120). Details: [Concurrency](docs/tools-reference.md#concurrency-all-tools).
 
@@ -25,11 +25,11 @@ Parameters and behavior: [docs/tools-reference.md](docs/tools-reference.md). Set
 Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp): TypeScript, stdio transport, vitest tests, npm and Docker publishing via tag-triggered GitHub Actions.
 
 - `src/connection.ts` – serialized SCPI queue with timeouts, `*OPC?`-synced commands and hold-off after unsupported queries, on top of a pluggable transport
-- `src/transports/` – the `Transport` interface with capability flags, and the raw SCPI over TCP transport (`raw.ts`)
+- `src/transports/` – the `Transport` interface with capability flags, the raw SCPI over TCP transport (`raw.ts`), the VXI-11 transport (`vxi11.ts`) and transport selection (`select.ts`: `UTS_TRANSPORT`, `UTS_VXI11_DEVICE`, the `auto` probe)
 - `src/sessionLock.ts` – the FIFO exclusive-session lock behind `connection.runExclusive`; every tool is registered through `defineTool` (`src/tools/util.ts`), which runs it inside a session
 - `src/blocks.ts`, `src/scpi.ts` – binary block parser; SCPI helpers and the safety denylist
 - `src/instrument.ts`, `src/errors.ts`, `src/acquisition.ts` – applying settings with error-queue checks, sweep synchronization
-- `src/vxi11/` – dependency-free ONC RPC/XDR client, portmapper and VXI-11 core-channel client (foundation for the VXI-11 transport, not yet wired in)
+- `src/vxi11/` – dependency-free ONC RPC/XDR client, portmapper and VXI-11 core-channel client (used by the VXI-11 transport)
 - `src/tools/` – one file per tool group, registered in `src/server.ts`
 - `tests/` – unit and mocked integration tests, a fake SCPI server, a transport contract suite (`transportContract.ts`), and captured instrument fixtures
 - `scripts/client-config.mjs` – the `npm run client-config` printer; also the single place that holds the install specs and the `NPM_PUBLISHED` switch
@@ -107,7 +107,7 @@ claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp
 
 ## Supported platforms
 
-Linux, macOS and Windows, with Node.js 22 or newer (CI builds and tests on `ubuntu-latest`, `macos-latest` and `windows-latest` with Node 22 and 24). A Docker image (Linux) is also provided. The analyzer must be reachable over the LAN on TCP port 5025 (raw SCPI); allow outbound connections to that port in any host firewall. Docker Desktop on macOS and Windows reaches LAN instruments through its outbound NAT, so no extra network setup is needed.
+Linux, macOS and Windows, with Node.js 22 or newer (CI builds and tests on `ubuntu-latest`, `macos-latest` and `windows-latest` with Node 22 and 24). A Docker image (Linux) is also provided. The analyzer must be reachable over the LAN on TCP port 5025 (raw SCPI); allow outbound connections to that port in any host firewall. For VXI-11 (`UTS_TRANSPORT=vxi11` or `auto`) also allow outbound TCP to port 111 (the portmapper) and to the dynamic core-channel port the portmapper reports (it changes between instrument restarts, so allow outbound connections to the analyzer on any port). Docker Desktop on macOS and Windows reaches LAN instruments through its outbound NAT, so no extra network setup is needed.
 
 To set the address in a shell instead of the client configuration:
 

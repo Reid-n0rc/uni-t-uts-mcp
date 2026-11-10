@@ -1,10 +1,19 @@
 import { SessionLock, busyTimeoutFromEnv, type RunOptions } from "./sessionLock.js";
 import { RawTransport } from "./transports/raw.js";
 import {
+  DEFAULT_VXI11_DEVICE,
+  isValidDeviceName,
+  parseTransportChoice,
+  probeVxi11,
+  type TransportChoice,
+} from "./transports/select.js";
+import { Vxi11Transport } from "./transports/vxi11.js";
+import {
   TransportTimeout,
   type Transport,
   type TransportCapabilities,
   type TransportFactory,
+  type TransportName,
 } from "./transports/transport.js";
 
 /**
@@ -19,6 +28,9 @@ import {
  * (`*CLS`, setters, error drain, readback...) must also not interleave with another tool's, so
  * tools run inside `runExclusive()`: a FIFO exclusive-session lock per connection, independent of
  * the transport (see src/sessionLock.ts and `defineTool` in src/tools/util.ts).
+ *
+ * Which transport `connect()` uses (raw SCPI, VXI-11, or `auto`) comes from `ConnectOptions.transport`;
+ * error messages name the transport whenever it is not raw.
  */
 
 export const DEFAULT_PORT = 5025;
@@ -43,7 +55,18 @@ export interface ConnectOptions {
   opcTimeoutMs?: number;
   /** Quiet period after a timed-out query, measured from when it was sent (default 2500). */
   recoveryMs?: number;
+  /** raw (default), vxi11, or auto: VXI-11 when the portmapper registers it, else raw. Ignored when the connection was built with a transport factory. */
+  transport?: TransportChoice;
+  /** VXI-11 logical device name (default inst0). */
+  vxi11Device?: string;
+  /** Portmapper port used for VXI-11 and the auto probe (default 111; tests use a fake). */
+  vxi11PortmapperPort?: number;
+  /** Receives a message when `auto` falls back to raw. */
+  log?: (message: string) => void;
 }
+
+/** How a transport is named in error messages (raw is the unmarked default). */
+const TRANSPORT_DISPLAY: Record<TransportName, string> = { raw: "raw TCP", vxi11: "VXI-11" };
 
 export interface QueryOptions {
   /**
@@ -93,18 +116,39 @@ export class UtsConnection {
   private holdTimer: ReturnType<typeof setTimeout> | null = null;
   /** Why the link went away unexpectedly (null after connect() or an explicit disconnect()). */
   private lostReason: string | null = null;
+  /** How the transport was chosen, when that was not explicit (`auto`); shown by `transportLabel`. */
+  private selectionNote = "";
   /** The exclusive-session lock; its wait limit follows UTS_BUSY_TIMEOUT_S (default 120 s). */
   private readonly lock = new SessionLock(() => this.busyTimeoutMs);
 
-  /** `createTransport` makes the transport used by each `connect()` (raw SCPI over TCP by default). */
-  constructor(private readonly createTransport: TransportFactory = () => new RawTransport()) {}
+  /**
+   * `createTransport`, when given, makes the transport for every `connect()` and the `transport`
+   * option is ignored (tests and embedders); otherwise `connect()` picks raw, VXI-11 or auto.
+   */
+  constructor(private readonly createTransport?: TransportFactory) {}
+
+  /** Name of the transport in use (null when not connected). */
+  get transportName(): TransportName | null {
+    return this.transport?.name ?? null;
+  }
+
+  /** Description of the transport in use for `connect`/`identify` output, e.g. "VXI-11 (device inst0)". */
+  get transportLabel(): string {
+    return this.transport ? this.transport.label + this.selectionNote : "not connected";
+  }
+
+  /** " (over VXI-11)" for a non-raw transport, "" for raw (raw messages stay as they always were). */
+  private get via(): string {
+    const t = this.transport;
+    return t && t.name !== "raw" ? ` (over ${TRANSPORT_DISPLAY[t.name]})` : "";
+  }
 
   /**
    * Capability flags of the current transport (of a fresh one when not connected), so callers can
    * adapt to the wire instead of checking which transport is in use.
    */
   get capabilities(): TransportCapabilities {
-    return (this.transport ?? this.createTransport()).capabilities;
+    return (this.transport ?? this.createTransport?.() ?? new RawTransport()).capabilities;
   }
 
   async connect(
@@ -112,19 +156,53 @@ export class UtsConnection {
     port: number = DEFAULT_PORT,
     options: ConnectOptions = {}
   ): Promise<string> {
+    const choice = parseTransportChoice(options.transport ?? "raw", "transport");
+    const device = options.vxi11Device ?? DEFAULT_VXI11_DEVICE;
+    if (!isValidDeviceName(device)) {
+      throw new Error("Invalid VXI-11 device name: expected 1-64 characters from letters, digits and . _ , -");
+    }
     if (this.transport) this.disconnect();
     this.host = host;
     this.port = port;
     this.opcTimeoutMs = options.opcTimeoutMs ?? DEFAULT_OPC_TIMEOUT;
     this.recoveryMs = options.recoveryMs ?? DEFAULT_RECOVERY_MS;
     this.lastQueryTimeoutAt = 0;
+    this.selectionNote = "";
+    const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT;
+    const vxi11 = () => new Vxi11Transport({ device, portmapperPort: options.vxi11PortmapperPort });
+    const identTimeoutMs = options.identTimeoutMs ?? DEFAULT_IDENT_TIMEOUT;
 
-    const transport = this.createTransport();
-    await transport.open({
-      host,
-      port,
-      connectTimeoutMs: options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT,
-    });
+    if (this.createTransport) return this.attach(this.createTransport(), connectTimeoutMs, identTimeoutMs);
+    if (choice === "raw") return this.attach(new RawTransport(), connectTimeoutMs, identTimeoutMs);
+    if (choice === "vxi11") return this.attach(vxi11(), connectTimeoutMs, identTimeoutMs);
+
+    // auto: VXI-11 when the portmapper registers its core program and it opens, else raw.
+    let reason: string;
+    const probe = await probeVxi11(host, { portmapperPort: options.vxi11PortmapperPort, timeoutMs: connectTimeoutMs });
+    if (probe.available) {
+      try {
+        const idn = await this.attach(vxi11(), connectTimeoutMs, identTimeoutMs);
+        this.selectionNote = ", selected by auto";
+        return idn;
+      } catch (err) {
+        reason = `VXI-11 is registered but could not be used: ${errorMessage(err)}`;
+      }
+    } else {
+      reason = `VXI-11 is not available: ${probe.reason}`;
+    }
+    options.log?.(`UTS_TRANSPORT=auto: ${reason}; using the raw transport`);
+    try {
+      const idn = await this.attach(new RawTransport(), connectTimeoutMs, identTimeoutMs);
+      this.selectionNote = `, selected by auto because ${reason}`;
+      return idn;
+    } catch (err) {
+      throw new Error(`Auto transport selection failed. VXI-11: ${reason}. raw: ${errorMessage(err)}`);
+    }
+  }
+
+  /** Open `transport`, make it the current one and read `*IDN?`. */
+  private async attach(transport: Transport, connectTimeoutMs: number, identTimeoutMs: number): Promise<string> {
+    await transport.open({ host: this.host, port: this.port, connectTimeoutMs });
 
     this.transport = transport;
     this.lostReason = null;
@@ -133,12 +211,11 @@ export class UtsConnection {
     });
 
     try {
-      return await this.query("*IDN?", options.identTimeoutMs ?? DEFAULT_IDENT_TIMEOUT);
+      return await this.query("*IDN?", identTimeoutMs);
     } catch (err) {
+      const via = this.via;
       this.disconnect();
-      throw new Error(
-        `Connected but failed to initialize: ${err instanceof Error ? err.message : String(err)}`
-      );
+      throw new Error(`Connected${via} but failed to initialize: ${errorMessage(err)}`);
     }
   }
 
@@ -177,7 +254,8 @@ export class UtsConnection {
   }
 
   getConnectionInfo(): string {
-    return this.isConnected() ? `${this.host}:${this.port}` : "Not connected";
+    if (!this.isConnected()) return "Not connected";
+    return this.transport!.name === "raw" ? `${this.host}:${this.port}` : `${this.host} (${this.transport!.label})`;
   }
 
   async sendCommand(cmd: string, options: CommandOptions = {}): Promise<void> {
@@ -252,7 +330,7 @@ export class UtsConnection {
       try {
         await transport.write(job.cmd);
       } catch (err) {
-        throw new Error(`Write failed: ${errorMessage(err)}`);
+        throw new Error(`Write failed${this.via}: ${errorMessage(err)}`);
       }
 
       if (job.kind === "command") {
@@ -261,13 +339,13 @@ export class UtsConnection {
           try {
             await transport.write("*OPC?");
           } catch (err) {
-            throw new Error(`Write failed: ${errorMessage(err)}`);
+            throw new Error(`Write failed${this.via}: ${errorMessage(err)}`);
           }
           try {
             await transport.readLine(this.opcTimeoutMs);
           } catch (err) {
             if (err instanceof TransportTimeout) {
-              throw new Error(`Timeout waiting for the instrument to finish command (*OPC?): ${job.cmd}`);
+              throw new Error(`Timeout waiting for the instrument to finish command (*OPC?)${this.via}: ${job.cmd}`);
             }
             throw err;
           }
@@ -295,7 +373,7 @@ export class UtsConnection {
           }
         }
         throw new Error(
-          `${job.kind === "binary" ? "Binary query" : "Query"} timeout after ${job.timeoutMs}ms for command: ${job.cmd}`
+          `${job.kind === "binary" ? "Binary query" : "Query"} timeout after ${job.timeoutMs}ms for command: ${job.cmd}${this.via}`
         );
       }
     } catch (err) {

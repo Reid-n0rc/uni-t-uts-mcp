@@ -134,3 +134,14 @@ Probed with raw SCPI, then through the built server (`get_trace`, `set_trace`, `
 - **`:trace1:mode write`** (the manual appendix example) gives `-113`; `:TRACe<n>:TYPE` is the right form. `:KEY:Default` was not sent.
 - **Late error posting:** a rejected command can post its error well after `*CLS`: the first setter after a batch of rejected `:CALCulate:MATH` probes saw a stale `-109 "Missing parameter"` although the setting applied. A one-off stale error after probing is not a tool bug; re-running `:SYSTem:ERRor?` until `0` clears it.
 - **Tracking generator side effects (found while testing, relevant to the tracking-generator tools):** `:OUTPut:STATe 1` makes the auto sweep time about 2.15 s (the instrument then drops most lines sent during the sweep in continuous mode). After `:OUTPut:STATe 0` the automatic RBW stayed at 300 kHz (auto sweep time 264 ms instead of 2.6475 ms) until `:SENSe:BANDwidth:RESolution:AUTO ON` was sent again, which restored 3 MHz; both auto flags still read 1 while stale.
+
+## VXI-11 transport (prototype 2026-11-10, issue #64; wired in by issue #74, firmware V1.04.0040)
+
+Measured with a throwaway prototype script before the transport was written (not by the TypeScript transport):
+
+- The portmapper (TCP and UDP 111) registers the VXI-11 core, async and interrupt programs (395183, 395184, 395185) over TCP on a dynamic port (56569 at test time). `create_link("inst0")` works, `maxRecvSize` is 1 MiB. HiSLIP (4880) is closed.
+- **Commands are queued during a sweep, not dropped.** `device_write` calls and queries issued mid-sweep are accepted in 1 to 2 ms and answered when the sweep ends (unlike the raw socket, which ignores them).
+- **A blocking `*OPC?` is a real sweep-complete signal:** `:INITiate:IMMediate`, then `*OPC?`, then `device_read` with a long timeout returned `1` after 4.085 to 4.125 s for a 4.0 s sweep. A mid-sweep `:SENSe:SWEep:TIME?` also blocked until the sweep ended (4.096 s) and then answered.
+- True SRQ does not work: `create_intr_chan` and `device_enable_srq` succeed but the instrument never connects back, and `device_readstb` answers in about 1 ms with a status byte that stays 0x00 even with `*ESE 1` / `*SRE 48`. The interrupt channel is therefore not used.
+
+What the transport assumes (the capability flags `VXI11_CAPABILITIES`): no `*OPC?` pacing, no dropped input during a sweep, no hold-off after a timed-out query. **Only verified against the fake VXI-11 instrument so far**: the full tool set over VXI-11 on the real analyzer (unsupported-query behavior, pacing needs, hold-off, stale replies after timeouts, burst handling) is the hardware verification of issue #75, which decides the default transport. The default stays `raw` until then.

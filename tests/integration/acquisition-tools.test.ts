@@ -32,7 +32,7 @@ const fake = vi.hoisted(() => {
 });
 
 vi.mock("../../src/connection.js", () => ({
-  connection: { query: fake.query, sendCommand: fake.sendCommand, msSinceQueryTimeout: () => Infinity, runExclusive: (fn: () => unknown) => fn() },
+  connection: { capabilities: { syncsCommands: true, dropsInputDuringSweep: true, holdOffAfterTimeout: true }, query: fake.query, sendCommand: fake.sendCommand, msSinceQueryTimeout: () => Infinity, runExclusive: (fn: () => unknown) => fn() },
 }));
 
 let client: Client;

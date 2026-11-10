@@ -44,7 +44,10 @@ export const APPLICABLE: Record<Kind, Mode[]> = {
 };
 
 export const CONTRACT: Record<string, ContractEntry> = {
-  connect: { kind: "connect", args: { host: "192.168.1.100" }, invalid: [{ host: "bad host!" }, { port: 70000 }] },
+  connect: {
+    kind: "connect",
+    args: { host: "192.168.1.100" }, invalid: [{ host: "bad host!" }, { port: 70000 }, { transport: "serial" }, { transport: "vxi11", port: 5025 }],
+  },
   disconnect: { kind: "disconnect", args: {} },
   identify: { kind: "getter", args: {} },
   scpi_query: {
@@ -250,9 +253,13 @@ export const fakeConnection = {
   },
   isConnected: () => fake.mode !== "notConnected",
   getConnectionInfo: () => "192.168.1.100:5025",
+  transportName: "raw",
+  transportLabel: "raw SCPI over TCP",
+  /** Capability flags of the (raw) transport, read by src/acquisition.ts to pick the sweep wait method. */
+  capabilities: { syncsCommands: true, dropsInputDuringSweep: true, holdOffAfterTimeout: true },
   msSinceQueryTimeout: () => Infinity,
   disconnect: () => {},
-  async connect(_host: string, _port: number) {
+  async connect(_host: string, _port: number, _options?: unknown) {
     fake.connectCalls++;
     if (fake.mode === "timeout") throw new Error("Connection failed: timeout connecting to 192.168.1.100:5025");
     if (fake.mode === "writeFailure") throw new Error("Connected but failed to initialize: Write failed: EPIPE");

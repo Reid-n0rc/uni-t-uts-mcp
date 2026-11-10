@@ -251,7 +251,7 @@ Newer manual adds numbered forms `:READ:CHPower<n>?`, `:READ:ACPower<n>?`, `:REA
 - The 3000B manual documents only `*OPC` / `*OPC?` (p.5). It gives no statement of what "current operation" covers for a sweep, no `:STATus:OPERation` registers, and no `*WAI`. `*ESR?`/`*STB?` exist only in the 1K manual.
 - Documented blocking behavior: `:READ:<meas>?` "starts a measurement and waits for the measurement to complete" (p.51). `:FETCh` does not wait.
 - Single sweep: `:INITiate:CONTinuous OFF` (single mode). Start with `:INITiate:IMMediate` (documented under EMI, p.114) or `*TRG` (1K) or the Single key (`:KEY:Single`, key name in Appendix 1).
-- **Verified (T4): `*OPC?` does NOT block.** While a single sweep runs the instrument ignores every line it receives (nothing is queued, so an `*OPC?` sent then is never answered), and it answers `1` at once otherwise. Working pattern: `:INITiate:CONTinuous OFF`, then `:INITiate:IMMediate` **without** `*OPC?` sync, send nothing for the sweep time (`:SENSe:SWEep:TIME?`; the sweep takes about that long), then poll `*OPC?` with short timeouts; the first reply means the sweep is done. Implemented as `waitForSweepComplete` in `src/acquisition.ts`. `:INITiate:CONTinuous` accepts `ON`/`OFF`/`1`/`0`. In continuous mode nothing can be awaited. SRQ-style polling (`*ESE 1`, `*SRE 32`, `*OPC`, then `*ESR?`/`*STB?`) was also tested and does not work: the unit never sets the operation-complete bits, and real SRQ interrupts are not available over raw TCP (see verified-hardware.md).
+- **Verified (T4): `*OPC?` does NOT block.** While a single sweep runs the instrument ignores every line it receives (nothing is queued, so an `*OPC?` sent then is never answered), and it answers `1` at once otherwise. Working pattern: `:INITiate:CONTinuous OFF`, then `:INITiate:IMMediate` **without** `*OPC?` sync, send nothing for the sweep time (`:SENSe:SWEep:TIME?`; the sweep takes about that long), then poll `*OPC?` with short timeouts; the first reply means the sweep is done. Implemented as `waitForSweepComplete` in `src/acquisition.ts`. `:INITiate:CONTinuous` accepts `ON`/`OFF`/`1`/`0`. In continuous mode nothing can be awaited. SRQ-style polling (`*ESE 1`, `*SRE 32`, `*OPC`, then `*ESR?`/`*STB?`) was also tested and does not work: the unit never sets the operation-complete bits, and real SRQ interrupts are not available over raw TCP (see verified-hardware.md). Over VXI-11 the instrument queues commands during a sweep and a blocking `*OPC?` read does return when the sweep ends (see "VXI-11 transport" below).
 
 ## 10. Suggested MCP tool groups
 
@@ -339,7 +339,7 @@ The UTS3036B also answers VXI-11 (see issue #64). The RPC layer under it is impl
 
 ### VXI-11 core channel client (`src/vxi11/client.ts`)
 
-`Vxi11Client` speaks the VXI-11 core channel (program 395183 v1) on top of the RPC layer. It is not yet used by `UtsConnection` (issue #74).
+`Vxi11Client` speaks the VXI-11 core channel (program 395183 v1) on top of the RPC layer. It is used by the VXI-11 transport (next section).
 
 - `Vxi11Client.connect(host, { device = "inst0", port?, portmapperPort?, connectTimeoutMs?, rpcMarginMs?, closeTimeoutMs? })` asks the portmapper for the core port unless `port` is given, opens the connection and calls `create_link` (procedure 10). It exposes `linkId`, `maxRecvSize` (1 MiB on the UTS3036B) and `abortPort` (reported as 111; unused, there is no abort channel).
 - `write(data, { timeoutMs, end = true })` is `device_write` (11). Data longer than `maxRecvSize` is split; the END flag (8) is set only on the last chunk. If the instrument accepts fewer bytes than sent, the rest is sent again.
@@ -350,3 +350,27 @@ The UTS3036B also answers VXI-11 (see issue #64). The RPC layer under it is impl
 - Every call has a deadline (the I/O timeout plus `rpcMarginMs`, default 5 s), so a promise never stays pending if the instrument stops answering or drops the connection. Reply fields are validated (reason bits, sizes against the request, status byte range, no trailing bytes) and reads are capped at 16 MiB. `write` and `read` each enforce one overall deadline across all their chunks (a server answering a byte at a time cannot stretch it; later calls are refused with `Vxi11IoTimeoutError` and never get a 0 ms I/O timeout) and cap the number of RPC calls (`maxCalls`, default 10000, exceeded means `Vxi11ProtocolError`).
 - The interrupt channel (`create_intr_chan`, `device_enable_srq`) is not implemented: the instrument never connects back and the status byte never changes.
 - `tests/fakeVxi11Instrument.ts` simulates all of this without hardware, including a sweep that queues commands (they are not dropped, unlike on the raw socket) and answers `*OPC?` only when it ends.
+
+### VXI-11 transport (`src/transports/vxi11.ts`, `src/transports/select.ts`)
+
+`Vxi11Transport` implements the `Transport` interface on `Vxi11Client`, so every tool works over it unchanged. Selection:
+
+- `UTS_TRANSPORT=raw|vxi11|auto` (default `raw`) or the `transport` parameter of `connect`. `auto` asks the portmapper on TCP port 111 for the VXI-11 core program; if it is registered and the link opens (`create_link`, then `*IDN?`) VXI-11 is used, otherwise the raw transport is used and the reason is logged (and shown in the `Transport:` line of `connect`). `vxi11` never falls back: a failure is an error.
+- `UTS_VXI11_DEVICE` is the logical device name (default `inst0`, the name the UTS3036B accepts; the VISA resource string is `TCPIP0::<ip>::inst0::INSTR`). It is validated (1 to 64 characters from letters, digits and `. _ , -`) before anything is sent. The raw TCP port (`UTS_PORT`) does not apply to VXI-11; the portmapper port is fixed at 111.
+- Firewall: allow outbound TCP to port 111 and to the dynamic core-channel port the portmapper reports (it was 56569 in one test and changes between restarts). The interrupt channel is not used, so no inbound connection is needed.
+
+Capability flags (`VXI11_CAPABILITIES`, explicit constants in `src/transports/vxi11.ts`, derived from the prototype findings and not yet confirmed by the hardware verification, #75):
+
+| Flag | VXI-11 | Meaning |
+|------|--------|---------|
+| `syncsCommands` | false | no `*OPC?` after each command: `device_write` returns when the instrument accepted the line |
+| `dropsInputDuringSweep` | false | commands and queries sent during a single sweep are queued and answered when it ends |
+| `holdOffAfterTimeout` | false | no quiet period after a timed-out query (the instrument answers with I/O timeout error 15) |
+
+Messages are written as one `device_write` with END and no terminator; a reply is read with `device_read` until END. Over VXI-11 an unread reply waits in the instrument, so when a query timed out and its reply was never read the transport reads it away (zero timeout) before the next write. A timed-out read (error 15) is a query timeout that names VXI-11; a dropped connection is reported as `Connection to the spectrum analyzer was lost (VXI-11: ...)`.
+
+**Sweep wait over VXI-11.** `src/acquisition.ts` chooses the method from the `dropsInputDuringSweep` flag, not from the transport name. Where input is queued (VXI-11), `startSweep` reads the sweep time and writes `:INITiate:IMMediate`; `waitForSweepComplete` then writes `*OPC?` once and does one `device_read` with timeout = remaining sweep time + 10 s (or the tool's `timeout_s`). The instrument answers `1` when the sweep ends, so there is no silent period and no polling. A timeout is a `SweepTimeoutError` that names the blocking `*OPC?` read over VXI-11. The raw transport keeps the silent-then-poll method of section 9.
+
+If hardware verification shows that VXI-11 needs pacing or a hold-off after all, change the constants in `VXI11_CAPABILITIES`; nothing else has to change.
+
+Tested only against the in-process fake VXI-11 instrument (`tests/fakeVxi11Instrument.ts`) until the hardware verification (#75).

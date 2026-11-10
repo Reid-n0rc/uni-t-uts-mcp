@@ -54,7 +54,7 @@ export function registerAcquisitionTools(server: McpServer): void {
   defineTool(
     server,
     "get_acquisition",
-    "Get the acquisition mode: continuous (true) or single sweep (false), plus the sweep time (s) and its auto flag. Note: while a single sweep is running the instrument ignores all commands.",
+    "Get the acquisition mode: continuous (true) or single sweep (false), plus the sweep time (s) and its auto flag. Note: over the raw transport the instrument ignores all commands while a single sweep is running; over VXI-11 it queues them.",
     {},
     { readOnlyHint: true },
     async () => {
@@ -91,7 +91,7 @@ export function registerAcquisitionTools(server: McpServer): void {
     server,
     "start_sweep",
     "Start (:INITiate:IMMediate) or restart (:INITiate:RESTart) a sweep. In single mode, wait=true (default) blocks until the sweep is complete; with wait=false " +
-      "call wait_for_sweep_complete next, because the instrument ignores every command while it sweeps. In continuous mode the sweep is restarted and not awaited. " +
+      "call wait_for_sweep_complete next, because over the raw transport the instrument ignores every command while it sweeps (VXI-11 queues them). In continuous mode the sweep is restarted and not awaited. " +
       "There is no stop/pause/resume: the instrument rejects :INITiate:STOP/PAUSe/RESume.",
     {
       method: z.enum(["immediate", "restart"]).optional().describe("immediate (default) or restart"),
@@ -157,7 +157,7 @@ export function registerAcquisitionTools(server: McpServer): void {
   defineTool(
     server,
     "wait_for_sweep_complete",
-    "Wait for a sweep started with start_sweep(wait=false) to finish: stays silent for the remaining sweep time (the instrument ignores input while sweeping), then polls *OPC? until it answers.",
+    "Wait for a sweep started with start_sweep(wait=false) to finish: over the raw transport it stays silent for the remaining sweep time (the instrument ignores input while sweeping) and then polls *OPC? until it answers; over VXI-11 it makes one blocking *OPC? read that returns when the sweep ends.",
     { timeout_s: TIMEOUT },
     { readOnlyHint: false },
     async ({ timeout_s }) => {
