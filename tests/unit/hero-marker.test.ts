@@ -184,6 +184,21 @@ describe("placeCallout", () => {
     expect(Number.isFinite(r.left) && Number.isFinite(r.top)).toBe(true);
   });
 
+  it("a side window slides down until it clears the text above it", () => {
+    const text: Rect = { left: 0, top: 100, right: 900, bottom: 300 };
+    const r = M.placeCallout({ anchor: { x: 760, y: 360 }, size, bounds, avoid: [text], order: ["right"] });
+    expect(r.side).toBe("right");
+    expect(r.top).toBeGreaterThanOrEqual(300);
+    expect(r.left).toBeGreaterThan(760);
+  });
+
+  it("keeps the previous side while it is still free (no flip-flopping)", () => {
+    const r = M.placeCallout({ anchor: { x: 700, y: 500 }, size, bounds, prefer: "right" });
+    expect(r.side).toBe("right");
+    const blocked = M.placeCallout({ anchor: { x: 700, y: 500 }, size, bounds, prefer: "right", avoid: [{ left: 700, top: 0, right: 1280, bottom: 800 }] });
+    expect(blocked.side).not.toBe("right");
+  });
+
   it("is deterministic", () => {
     const a = M.placeCallout({ anchor: { x: 700, y: 500 }, size, bounds });
     const b = M.placeCallout({ anchor: { x: 700, y: 500 }, size, bounds });
