@@ -21,7 +21,7 @@ Disconnect from the analyzer. Safe to call when not connected. No parameters.
 
 ### `identify`
 
-Query `*IDN?` (manufacturer, model, serial number, firmware version). Read-only. No parameters.
+Query `*IDN?` (manufacturer, model, serial number, firmware version). Read-only. No parameters. An empty reply or one without four comma-separated fields is an error that quotes the reply.
 
 ## Raw SCPI
 
@@ -60,7 +60,7 @@ Read-only. Returns JSON with `center_hz`, `span_hz`, `start_hz`, `stop_hz`, `cen
 
 ### `set_frequency`
 
-Frequency parameters are coupled, so choose one group per call; the settings are re-read afterwards and anything the instrument changed is listed in `warnings`.
+Frequency parameters are coupled, so choose one group per call; the settings are re-read afterwards and anything the instrument changed is listed in `warnings` (including `center_step_auto` and, with `zero_span`, a span that is not 0).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -86,7 +86,7 @@ Read-only. Returns JSON with `reference_level` (in the current `power_unit`), `p
 
 ### `set_amplitude`
 
-All parameters are optional, but at least one is required. The settings are re-read afterwards; values the instrument clamped are listed in `warnings`.
+All parameters are optional, but at least one is required. The settings are re-read afterwards; values the instrument clamped are listed in `warnings`, and so are a `power_unit`, `scale_type`, `preamp` or `attenuation_auto` it did not take.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -104,7 +104,7 @@ Commands are sent in dependency order (unit, preamp, attenuation, impedance, sca
 
 ## Bandwidth, sweep and detector
 
-Command syntax: [programming-guide.md](programming-guide.md) section 2. Verified on the UTS3036B: see [verified-hardware.md](verified-hardware.md). All setters clamp silently, so every setter re-reads the state and lists adjusted values in `warnings`.
+Command syntax: [programming-guide.md](programming-guide.md) section 2. Verified on the UTS3036B: see [verified-hardware.md](verified-hardware.md). All setters clamp silently, so every setter re-reads the state and lists adjusted values in `warnings` (including requested auto flags, enums and trigger source).
 
 ### `get_bandwidth` / `set_bandwidth`
 
@@ -137,6 +137,10 @@ Switches to single mode, runs one sweep and waits until it is complete, so the t
 ### `start_sweep` / `wait_for_sweep_complete`
 
 `start_sweep` sends `:INITiate:IMMediate` (`method: "immediate"`, default) or `:INITiate:RESTart`. In single mode `wait` (default true) waits for completion; with `wait: false` call `wait_for_sweep_complete` next (nothing else can be sent meanwhile). In continuous mode the sweep is restarted, not awaited, and a warning says so. `timeout_s` is optional on all three tools.
+
+## Error handling (all tools)
+
+Tools never throw; failures are `isError` results. A malformed or empty reply names the command and quotes the reply; a timeout names the command; setters report instrument errors with their code and the commands sent, and say when settings may be partially applied (also when the readback after a successful send fails). `single_sweep` failures say when the instrument was left in single sweep mode. See AGENTS.md "Error handling standard".
 
 ## Environment variables
 
