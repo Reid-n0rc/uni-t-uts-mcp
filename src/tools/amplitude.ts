@@ -133,19 +133,21 @@ export function registerAmplitudeTools(server: McpServer): void {
         const problem = validate(args);
         if (problem) return errorResult(problem);
 
+        // Order matters (verified on hardware): the reference level is coupled to the attenuation and
+        // preamp (it is clamped to a maximum that depends on them) and its readback includes the level
+        // offset, so unit, preamp, attenuation and offset are applied before the reference level.
         const commands: string[] = [];
         if (args.power_unit !== undefined) commands.push(`:UNIT:POWer ${UNITS[args.power_unit]}`);
-        if (args.scale_per_div_db !== undefined) commands.push(`${Y}:PDIVision ${formatNumber(args.scale_per_div_db)}`);
-        if (args.scale_type !== undefined) commands.push(`${Y}:SPACing ${SCALE_TYPES[args.scale_type]}`);
-        if (args.reference_level !== undefined) commands.push(`${Y}:RLEVel ${formatNumber(args.reference_level)}`);
-        if (args.reference_level_offset_db !== undefined) {
-          commands.push(`${Y}:RLEVel:OFFSet ${formatNumber(args.reference_level_offset_db)}`);
-        }
-        // The preamp changes the automatic attenuation, so set it before attenuation.
         if (args.preamp !== undefined) commands.push(`:POWer:GAIN:STATe ${onOff(args.preamp)}`);
         if (args.attenuation_db !== undefined) commands.push(`:POWer:ATTenuation ${formatNumber(args.attenuation_db)}`);
         if (args.attenuation_auto !== undefined) commands.push(`:POWer:ATTenuation:AUTO ${onOff(args.attenuation_auto)}`);
         if (args.input_impedance_ohm !== undefined) commands.push(`${IMPEDANCE} ${args.input_impedance_ohm}`);
+        if (args.scale_per_div_db !== undefined) commands.push(`${Y}:PDIVision ${formatNumber(args.scale_per_div_db)}`);
+        if (args.scale_type !== undefined) commands.push(`${Y}:SPACing ${SCALE_TYPES[args.scale_type]}`);
+        if (args.reference_level_offset_db !== undefined) {
+          commands.push(`${Y}:RLEVel:OFFSet ${formatNumber(args.reference_level_offset_db)}`);
+        }
+        if (args.reference_level !== undefined) commands.push(`${Y}:RLEVel ${formatNumber(args.reference_level)}`);
 
         await applyCommands(commands);
 

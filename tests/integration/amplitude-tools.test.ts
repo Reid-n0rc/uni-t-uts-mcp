@@ -288,6 +288,19 @@ describe("set_amplitude", () => {
     }
   });
 
+  it("applies preamp/attenuation and the offset before the reference level (the level is coupled to them)", async () => {
+    await callTool(client, "set_amplitude", {
+      reference_level: 0, reference_level_offset_db: 2, preamp: false, attenuation_auto: true,
+    });
+    const idx = (c: string) => fake.calls.findIndex((x) => x.startsWith(c));
+    const level = idx(`${Y}:RLEVel `);
+    expect(level).toBe(fake.calls.length - 1);
+    for (const c of [":POWer:GAIN:STATe", ":POWer:ATTenuation:AUTO", `${Y}:RLEVel:OFFSet`]) {
+      expect(idx(c)).toBeGreaterThanOrEqual(0);
+      expect(idx(c)).toBeLessThan(level);
+    }
+  });
+
   it("combines several settings in one call", async () => {
     const res = await callTool(client, "set_amplitude", {
       power_unit: "dBm", reference_level: -20, scale_per_div_db: 5, preamp: true, attenuation_auto: true,
@@ -295,10 +308,10 @@ describe("set_amplitude", () => {
     expect(res.isError).toBeFalsy();
     expect(fake.calls).toEqual([
       ":UNIT:POWer DBM",
-      `${Y}:PDIVision 5`,
-      `${Y}:RLEVel -20`,
       ":POWer:GAIN:STATe ON",
       ":POWer:ATTenuation:AUTO ON",
+      `${Y}:PDIVision 5`,
+      `${Y}:RLEVel -20`,
     ]);
   });
 
