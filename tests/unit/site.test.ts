@@ -163,3 +163,53 @@ describe("buildSite", () => {
     }
   });
 });
+
+describe("summary quality", () => {
+  it("merges a very short first sentence with the next one", () => {
+    const [{ tools }] = parseToolsReference("## G\n\n### `t`\n\nRead-only. Returns JSON with the frequency settings.\n");
+    expect(tools[0].summary).toBe("Read-only. Returns JSON with the frequency settings.");
+  });
+
+  it("cuts a long sentence at a clause boundary instead of mid-phrase", () => {
+    const long = "Frequency parameters are coupled, so choose one group per call; the settings are re-read afterwards and anything the instrument changed is listed in warnings including the step and the offset values.";
+    const [{ tools }] = parseToolsReference(`## G\n\n### \`t\`\n\n${long}\n`);
+    expect(tools[0].summary).toBe("Frequency parameters are coupled, so choose one group per call.");
+  });
+});
+
+describe("renderToolGroups details", () => {
+  it("prefers supplied tool descriptions (first sentence) over the docs summary", () => {
+    const groups = [{ name: "G", tools: [{ name: "t_1", summary: "Docs summary." }] }];
+    const html = renderToolGroups(groups, { t_1: "Get the thing, in Hz. More detail follows." });
+    expect(html).toContain("Get the thing, in Hz.");
+    expect(html).not.toContain("More detail");
+    expect(html).not.toContain("Docs summary.");
+  });
+
+  it("shows paired tools that share one summary as a single row", () => {
+    const groups = [{ name: "G", tools: [
+      { name: "get_a", summary: "Read or set a." },
+      { name: "set_a", summary: "Read or set a." },
+      { name: "other", summary: "Something else." },
+    ] }];
+    const html = renderToolGroups(groups);
+    expect(html).toContain("<code>get_a</code> <code>set_a</code>");
+    expect((html.match(/<li>/g) ?? []).length).toBe(2);
+  });
+
+  it("omits the decorative file name when the group name is long", () => {
+    const groups = [{ name: "Bandwidth, sweep and detector", tools: [{ name: "t", summary: "x." }] }];
+    expect(renderToolGroups(groups)).not.toContain(".exe");
+    expect(renderToolGroups([{ name: "Frequency", tools: [{ name: "t", summary: "x." }] }])).toContain("frequency.exe");
+  });
+
+  it("buildSite uses descriptions when given", () => {
+    const out = mkdtempSync(join(tmpdir(), "uts-site-"));
+    try {
+      buildSite({ outDir: out, descriptions: { set_frequency: "A custom one-line description." } });
+      expect(readFileSync(join(out, "index.html"), "utf8")).toContain("A custom one-line description.");
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
+  });
+});
