@@ -130,6 +130,26 @@ export const CONTRACT: Record<string, ContractEntry> = {
       empty: "its only query is the *OPC? poll, whose non-1 replies just keep it polling until the timeout",
     },
   },
+  get_trace: { kind: "getter", args: {} },
+  set_trace: {
+    kind: "setter",
+    args: { trace: 2, type: "max_hold" },
+    invalid: [{}, { type: "write" }, { trace: 7, type: "write" }, { trace: 1 }, { average_count: 0 }, { average_count: 1000 }],
+    warn: [
+      { trace: 2, type: "max_hold" }, { trace: 2, update: false }, { trace: 2, display: false },
+      { selected_trace: 2 }, { average_count: 10 }, { average_type: "power" },
+    ],
+  },
+  restart_trace: {
+    kind: "setter",
+    args: { trace: 2 },
+    invalid: [{ trace: 0 }, { trace: 7 }],
+  },
+  set_trace_math: {
+    kind: "rawCommand",
+    args: { trace: 1, operation: "power_sum", operand_a: 2, operand_b: 3 },
+    invalid: [{ trace: 1, operation: "power_sum" }, { trace: 8, operation: "off" }, { trace: 1, operation: "power_sum", operand_a: 2, operand_b: 3, offset_db: 5 }],
+  },
 };
 
 // ---------- canned replies ----------
@@ -145,6 +165,9 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/SWEep:TYPE\?$/, "SWEep"],
   [/SOURce\?$/, "IMMediate"],
   [/DETector:TRACe\d\?$/, "NORMal"],
+  [/^:TRACe\d:TYPE\?$/, "WRITe"],
+  [/^:TRACe:SELect\?$/, "1"],
+  [/AVERage:TYPE\?$/, "LOG"],
   [/(:AUTO|:STATe|:CONTinuous)\?$/, "1"],
   [/\?$/, "1000"],
 ];
