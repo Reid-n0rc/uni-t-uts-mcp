@@ -136,3 +136,29 @@ describe("truncated and malformed input", () => {
     expect(new XdrReader(big.subarray(2)).u32()).toBe(5);
   });
 });
+
+describe("fuzz", () => {
+  it("only ever throws XdrError on random input and never reads out of range", () => {
+    let seed = 12345;
+    const rnd = (): number => (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0);
+    for (let i = 0; i < 2000; i++) {
+      const buf = Buffer.alloc(rnd() % 24);
+      for (let j = 0; j < buf.length; j++) buf[j] = rnd() & 0xff;
+      const r = new XdrReader(buf);
+      try {
+        for (let k = 0; k < 6; k++) {
+          switch (rnd() % 5) {
+            case 0: r.u32(); break;
+            case 1: r.i32(); break;
+            case 2: r.bool(); break;
+            case 3: r.opaque(64); break;
+            default: r.string(64);
+          }
+          expect(r.remaining).toBeGreaterThanOrEqual(0);
+        }
+      } catch (err) {
+        expect(err).toBeInstanceOf(XdrError);
+      }
+    }
+  });
+});

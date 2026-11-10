@@ -8,6 +8,8 @@ MCP server (TypeScript, stdio) for UNI-T UTS series spectrum analyzers (UTS1000B
 
 - `src/index.ts` – server entry, registers tool groups
 - `src/connection.ts` – SCPI connection singleton with a query queue
+- `src/vxi11/` – dependency-free ONC RPC stack for the planned VXI-11 transport (#64): `xdr.ts` (bounds-checked XDR codec), `rpc.ts` (RPC v2 over TCP, record marking, xid matching, typed `Rpc*Error`s), `portmapper.ts` (`getPort`). Parses network input: keep every length capped and use `>>> 0` for the 0x80000000 record-marking bit (JS bitwise ops are signed)
+- `tests/fakeRpcServer.ts` – in-process fake ONC RPC server + portmapper, reused by the VXI-11 fake instrument
 - `src/tools/*.ts` – one file per tool group, each exporting `register<Group>Tools(server)`
 - `tests/unit/`, `tests/integration/` – vitest; integration tests mock `src/connection.js`
 - `docs/` – `references.md` (manuals and links), `verified-hardware.md` (what was tested on), tools reference, programming-guide notes, manual testing guide

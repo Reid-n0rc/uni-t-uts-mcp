@@ -325,3 +325,13 @@ node -e "const s=require('node:net').connect(5025,process.argv[1],()=>s.write(pr
 ```
 
 On Windows cmd/PowerShell the SCPI command may need quoting so the shell does not treat `*` or `?` specially; the double quotes above are enough in both.
+
+## VXI-11 wire layer (ONC RPC over TCP; `src/vxi11/`)
+
+The UTS3036B also answers VXI-11 (see issue #64). The RPC layer under it is implemented in `src/vxi11/` with no dependencies and was checked against the real instrument with a prototype:
+
+- The portmapper (program 100000 v2, procedure 3 `GETPORT`, TCP port 111) returns the dynamic TCP port of the VXI-11 core program 395183 v1 (`0` means not registered).
+- Calls use ONC RPC v2 with AUTH_NONE. TCP messages are record-marked: a 4-byte big-endian header whose top bit (`0x80000000`) marks the last fragment and whose low 31 bits are the fragment length. In JavaScript the header must be built and read with `>>> 0`, because bitwise operators are signed 32-bit.
+- Replies are matched by xid; `MSG_DENIED` and non-`SUCCESS` `accept_stat` values become typed errors (`RpcDeniedError`, `RpcAcceptError`).
+- Limits applied to network input: records are capped at 4 MiB, opaque/string values at 16 MiB, record fragments at 4096, authentication bodies at 400 bytes. Violations close the connection with `RpcProtocolError`.
+- `tests/fakeRpcServer.ts` is an in-process fake RPC server and portmapper for hardware-free tests.
