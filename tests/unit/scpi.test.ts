@@ -213,4 +213,19 @@ describe("checkCommand hardening (#31)", () => {
     expect(checkCommand(":DISP:TEXT \"café\"").allowed).toBe(false);
     expect(checkCommand(":FREQ:CENT? \u2028").allowed).toBe(false);
   });
+
+  it("blocks Unicode whitespace that could fake a header end or # block", () => {
+    expect(checkCommand(":FOO\u00a0#13a;b;*RST").allowed).toBe(false);
+    expect(checkCommand(":FOO\u0085:SYST:DEF").allowed).toBe(false);
+  });
+
+  it("fails closed on a lone CR (the instrument may not treat it as a terminator)", () => {
+    expect(checkCommand(":SYST:COMM:LAN:DHCP?\rIPAD 1.2.3.4").allowed).toBe(false);
+    expect(checkCommand(":FREQ:CENT?\r").allowed).toBe(false);
+  });
+
+  it("still accepts CRLF and LF terminators", () => {
+    expect(checkCommand(":FREQ:CENT?\r\n").allowed).toBe(true);
+    expect(checkCommand(":FREQ:CENT?\n").allowed).toBe(true);
+  });
 });
