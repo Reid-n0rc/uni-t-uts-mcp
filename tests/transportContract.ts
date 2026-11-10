@@ -86,7 +86,7 @@ export function runTransportContract(harness: TransportHarness): void {
     it("advertises the expected capability flags", () => {
       expect(harness.createTransport().capabilities).toEqual(harness.expectedCapabilities);
       const flags = harness.createTransport().capabilities;
-      for (const key of ["syncsCommands", "dropsInputDuringSweep", "holdOffAfterTimeout"] as const) {
+      for (const key of ["syncsCommands", "dropsInputDuringSweep", "holdOffAfterTimeout", "completeLargeBlocks"] as const) {
         expect(typeof flags[key]).toBe("boolean");
       }
     });

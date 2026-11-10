@@ -16,6 +16,7 @@ runTransportContract({
     syncsCommands: false,
     dropsInputDuringSweep: false,
     holdOffAfterTimeout: false,
+    completeLargeBlocks: true,
   },
   async startFake(handler: FakeHandler) {
     const fake = await startFakeVxi11Instrument({
@@ -64,6 +65,7 @@ describe("VXI-11 transport specifics", () => {
       syncsCommands: false,
       dropsInputDuringSweep: false,
       holdOffAfterTimeout: false,
+      completeLargeBlocks: true,
     });
     const t = new Vxi11Transport();
     expect(t.capabilities).toBe(VXI11_CAPABILITIES);

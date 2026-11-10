@@ -14,6 +14,7 @@ runTransportContract({
     syncsCommands: true,
     dropsInputDuringSweep: true,
     holdOffAfterTimeout: true,
+    completeLargeBlocks: false,
   },
   async startFake(handler: FakeHandler) {
     const fake = await startFakeScpi((line, socket) => {
@@ -55,6 +56,7 @@ describe("raw transport specifics", () => {
       syncsCommands: true,
       dropsInputDuringSweep: true,
       holdOffAfterTimeout: true,
+      completeLargeBlocks: false,
     });
     expect(new RawTransport().capabilities).toBe(RAW_CAPABILITIES);
     expect(new UtsConnection().capabilities).toEqual(RAW_CAPABILITIES);

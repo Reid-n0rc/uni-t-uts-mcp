@@ -136,4 +136,4 @@ If something does not work, see [Troubleshooting](Troubleshooting).
 - The analyzer **ignores every command while a single sweep is running** on the raw socket, so long manual sweep times make other tools time out. The server copes with this for its own sweeps. See [Instrument Behavior](Instrument-Behavior).
 - **Parallel tool calls are safe.** The server runs tool calls one at a time per instrument, in the order they arrive, so results and errors are never mixed up. A long operation such as `single_sweep` makes other calls wait, and a call that waits longer than `UTS_BUSY_TIMEOUT_S` seconds fails with `Instrument busy` without having sent anything.
 - Some commands are blocked unless explicitly confirmed (reset, network settings, panel lock, file writes). See [Safety and Security](Safety-and-Security).
-- Trace data fetch, markers, measurements and screenshots are not available yet; see the [Roadmap](Roadmap).
+- Markers and measurements are not available yet (the `screenshot` tool works, over VXI-11 only); see the [Roadmap](Roadmap).

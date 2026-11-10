@@ -136,6 +136,7 @@ export const CONTRACT: Record<string, ContractEntry> = {
       empty: "its only query is the *OPC? poll, whose non-1 replies just keep it polling until the timeout",
     },
   },
+  screenshot: { kind: "getter", args: {} },
   get_trace: { kind: "getter", args: {} },
   set_trace: {
     kind: "setter",
@@ -205,6 +206,7 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/SOURce\?$/, "IMMediate"],
   [/DETector:TRACe\d\?$/, "NORMal"],
   [/^:TRACe\d:TYPE\?$/, "WRITe"],
+  [/^:SYSTem:PICture:FORMat\?$/, "BMP"],
   [/^:TRACe:SELect\?$/, "1"],
   [/AVERage:TYPE\?$/, "LOG"],
   [/(:AUTO|:STATe|:CONTinuous)\?$/, "1"],
@@ -291,7 +293,7 @@ export const fakeConnection = {
   transportName: "raw",
   transportLabel: "raw SCPI over TCP",
   /** Capability flags of the (raw) transport, read by src/acquisition.ts to pick the sweep wait method. */
-  capabilities: { syncsCommands: true, dropsInputDuringSweep: true, holdOffAfterTimeout: true },
+  capabilities: { syncsCommands: true, dropsInputDuringSweep: true, holdOffAfterTimeout: true, completeLargeBlocks: true },
   msSinceQueryTimeout: () => Infinity,
   disconnect: () => {},
   async connect(_host: string, _port: number, _options?: unknown) {
@@ -331,6 +333,7 @@ export const fakeConnection = {
       fake.failed.push(cmd);
       throw new Error(`Binary query timeout after ${timeoutMs}ms for command: ${cmd}`);
     }
+    if (cmd === ":DISPlay:DATA?") return Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"); // PNG signature + IHDR start
     return Buffer.from([0, 1, 2, 3]);
   },
   async sendCommand(cmd: string, _options?: unknown): Promise<void> {

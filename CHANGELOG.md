@@ -12,9 +12,16 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Security
+- All GitHub Actions in the workflows are pinned to full commit SHAs (Dependabot keeps them updated) and a unit test rejects unpinned ones; the repository now requires SHA pinning.
+
 ### Added
 - `get_trace_data` (read-only): the amplitude values of one trace (1-6, default the selected trace) with the computed linear frequency axis (`:FREQuency:STARt?`/`:STOP?` over `:SENSe:SWEep:POINts?` points), the power unit, the trace type and summary statistics (min, max, mean, peak level and peak frequency). Zero span is detected and gets a time axis from 0 to the sweep time instead. `format` is `ascii` (default), `real32` or `real64`; for the binary formats the instrument's `:FORMat` is switched for the read and always restored (as `ASCii`), with an explicit error if the restore fails. `fresh` runs one single sweep first and puts continuous mode back. `max_points` applies peak-preserving min/max decimation and says so with the original point count; `include_axis` leaves out the per-point axis. Malformed, short or long replies and a count that differs from the sweep points are errors naming the command. Verified on a UTS3036B over raw and VXI-11.
 - Marker tools: `get_marker`, `set_marker`, `marker_search` (peak, next peak, next left/right, minimum, peak-to-peak), `marker_to_instrument` (center, step, start, stop, reference level), `markers_all_off`, `get_peak_criteria` and `set_peak_criteria`. A marker's frequency and level are read together; markers that are off report `null` instead of the instrument's stale values.
+- `screenshot` tool: captures the analyzer screen as a PNG image (`:SYSTem:PICture:FORMat PNG` + `:DISPlay:DATA?`, about 3 s) and always restores the picture format. It needs the VXI-11 transport; over raw TCP, where the analyzer truncates large replies at 144,800 bytes (issue #42), it refuses with instructions to switch transport. New transport capability flag `completeLargeBlocks`.
+
+### Changed
+- Project site: the soundtrack now defaults to 136 BPM (seeded variation 130-142); `?bpm=` still overrides it (clamped 60-180).
 
 ## [0.2.0] - 2026-11-10
 

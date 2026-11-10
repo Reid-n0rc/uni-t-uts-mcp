@@ -114,6 +114,10 @@
       "description": "Wait for a sweep started with start_sweep to finish."
     },
     {
+      "name": "screenshot",
+      "description": "Capture the analyzer screen as a PNG image (needs the VXI-11 transport)."
+    },
+    {
       "name": "get_trace",
       "description": "Read the configuration of one or all traces."
     },

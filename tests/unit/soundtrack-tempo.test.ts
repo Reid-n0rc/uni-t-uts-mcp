@@ -70,12 +70,12 @@ describe("tempo override in the page behavior", () => {
     expect(policy.contexts).toHaveLength(1);
   });
 
-  it("works from the hash and defaults to a 118-132 tempo otherwise", async () => {
+  it("works from the hash and defaults to a 130-142 tempo otherwise", async () => {
     expect(setup({ hash: "#bpm=75" }).sound.bpm).toBe(75);
     await flush();
     const plain = setup({}).sound.bpm;
-    expect(plain).toBeGreaterThanOrEqual(118);
-    expect(plain).toBeLessThanOrEqual(132);
+    expect(plain).toBeGreaterThanOrEqual(130);
+    expect(plain).toBeLessThanOrEqual(142);
     expect(setup({ search: "?bpm=zzz" }).sound.bpm).toBe(plain);
   });
 
@@ -118,6 +118,6 @@ describe("look-ahead scheduler accuracy at high tempo", () => {
   it("clamps an out-of-range engine tempo", () => {
     resetPolicy("allowed");
     expect(Soundtrack.createEngine(StubContext, { seed: 1, bpm: 999 }).song.bpm).toBe(180);
-    expect(Soundtrack.createEngine(StubContext, { seed: 1, bpm: "x" }).song.bpm).toBeGreaterThanOrEqual(118);
+    expect(Soundtrack.createEngine(StubContext, { seed: 1, bpm: "x" }).song.bpm).toBeGreaterThanOrEqual(130);
   });
 });
