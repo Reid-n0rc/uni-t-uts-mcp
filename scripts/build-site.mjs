@@ -11,13 +11,17 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 export function buildSite({ root = resolve(here, ".."), outDir = join(root, "_site"), descriptions = {} } = {}) {
   const siteDir = join(root, "site");
-  const template = readFileSync(join(siteDir, "index.html"), "utf8");
+  const soundtrack = readFileSync(join(siteDir, "soundtrack.cjs"), "utf8");
+  if (/<\/script|<!--/i.test(soundtrack)) throw new Error("site/soundtrack.cjs must not contain a closing script tag or an HTML comment opener");
+  let template = readFileSync(join(siteDir, "index.html"), "utf8");
+  if (!template.includes("<!--SOUNDTRACK_JS-->")) throw new Error("Template is missing the <!--SOUNDTRACK_JS--> placeholder");
+  template = template.split("<!--SOUNDTRACK_JS-->").join(soundtrack);
   const groups = parseToolsReference(readFileSync(join(root, "docs", "tools-reference.md"), "utf8"));
 
   mkdirSync(outDir, { recursive: true });
   // Any extra assets next to the template are copied as they are.
   for (const entry of readdirSync(siteDir)) {
-    if (entry === "index.html") continue;
+    if (entry === "index.html" || entry === "soundtrack.cjs") continue; // the soundtrack is inlined, not shipped
     cpSync(join(siteDir, entry), join(outDir, entry), { recursive: true });
   }
   writeFileSync(join(outDir, "index.html"), renderSite(template, groups, descriptions));

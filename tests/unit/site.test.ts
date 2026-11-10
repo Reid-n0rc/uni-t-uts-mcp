@@ -269,3 +269,63 @@ describe("renderToolGroups details", () => {
     }
   });
 });
+
+describe("site soundtrack (issue #91)", () => {
+  const html = readFileSync(new URL("../../site/index.html", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../../site/soundtrack.cjs", import.meta.url), "utf8");
+  const built = (() => {
+    const out = mkdtempSync(join(tmpdir(), "uts-site-"));
+    try {
+      buildSite({ outDir: out });
+      return { page: readFileSync(join(out, "index.html"), "utf8"), copied: existsSync(join(out, "soundtrack.cjs")) };
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
+  })();
+  const body = html.slice(html.indexOf("<body"));
+
+  it("has a real button with aria-pressed and a clear label, first in the tab order", () => {
+    const button = /<button[^>]*id="sound-toggle"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(button).toMatch(/aria-pressed="(true|false)"/);
+    expect(button).toMatch(/aria-label="[^"]*[Ss]oundtrack/);
+    const focusable = [...body.matchAll(/<(a|button|input|select|textarea|summary)\b[^>]*>|\stabindex="[^"]*"/g)];
+    expect(focusable[0][0]).toContain('id="sound-toggle"');
+    expect(html).not.toMatch(/tabindex="[1-9]/);
+    // and it comes before the skip link
+    expect(body.indexOf('id="sound-toggle"')).toBeLessThan(body.indexOf('class="skip-link"'));
+  });
+
+  it("has a polite status prompt that says to tap anywhere", () => {
+    expect(html).toMatch(/id="sound-prompt"[^>]*role="status"/);
+    expect(html.toLowerCase()).toContain("tap anywhere to start the soundtrack");
+  });
+
+  it("uses no media elements, audio files or external requests", () => {
+    for (const page of [html, built.page, source]) {
+      expect(page).not.toMatch(/<(audio|video|source|track|embed|object|iframe)\b/i);
+      expect(page).not.toMatch(/\.(mp3|ogg|oga|wav|flac|m4a|aac|opus|webm|mp4)\b/i);
+      expect(page).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|WebSocket|new\s+Audio\s*\(|importScripts|sendBeacon/);
+      expect(page).not.toMatch(/\b(src|href|srcset)=["']?(https?:)?\/\/(?!github\.com\/Reid-n0rc)/i);
+    }
+  });
+
+  it("is inlined into the single built page and not copied as a separate file", () => {
+    expect(html).toContain("<!--SOUNDTRACK_JS-->");
+    expect(source).not.toMatch(/<\/script|<!--/i);
+    expect(built.page).not.toContain("<!--SOUNDTRACK_JS-->");
+    expect(built.page).toContain("createEngine");
+    expect(built.page).not.toMatch(/<script[^>]+\ssrc=/i);
+    expect(built.copied).toBe(false);
+  });
+
+  it("the hero trace reads the analyser only while the soundtrack plays", () => {
+    expect(html).toMatch(/Soundtrack\.[\s\S]*getSpectrum|\.getSpectrum\(/);
+  });
+
+  it("credits the generated music and says how to mute, in the footer", () => {
+    const footer = /<footer[\s\S]*?<\/footer>/.exec(html)?.[0] ?? "";
+    expect(footer).toMatch(/generated live in your browser/i);
+    expect(footer).toMatch(/mute/i);
+    expect(footer).toMatch(/first click, tap or key press/i);
+  });
+});

@@ -58,10 +58,30 @@ describe("checkTagMatchesVersion", () => {
 });
 
 describe("repository changelog", () => {
-  it("has an Unreleased section with content", () => {
-    const text = readFileSync(new URL("../../CHANGELOG.md", import.meta.url), "utf8");
+  const text = readFileSync(new URL("../../CHANGELOG.md", import.meta.url), "utf8");
+  const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
+
+  it("has an Unreleased heading (it is empty right after a release)", () => {
     expect(text).toMatch(/^## \[Unreleased\]/m);
-    expect(extractChangelogSection(text, "Unreleased")).not.toBeNull();
+  });
+
+  it("has a non-empty section for the version in package.json, so the release workflow can use it as notes", () => {
+    // Plain string checks: no regular expression is built from the version string.
+    const heading = text.split("\n").find((line) => line.startsWith(`## [${pkg.version}] - `));
+    expect(heading, `CHANGELOG.md needs a "## [${pkg.version}] - YYYY-MM-DD" heading`).toBeDefined();
+    expect(heading!.slice(`## [${pkg.version}] - `.length)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const section = extractChangelogSection(text, pkg.version);
+    expect(section).not.toBeNull();
+    expect(section!.trim().length).toBeGreaterThan(0);
+  });
+
+  it("links the Unreleased and current-version sections", () => {
+    const lines = text.split("\n");
+    const unreleased = lines.find((line) => line.startsWith("[Unreleased]: "));
+    expect(unreleased).toBeDefined();
+    expect(unreleased!.startsWith("[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v")).toBe(true);
+    expect(unreleased!.endsWith("...HEAD")).toBe(true);
+    expect(lines.some((line) => line.startsWith(`[${pkg.version}]: https://github.com/`))).toBe(true);
   });
 });
 
