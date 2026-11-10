@@ -18,6 +18,6 @@ describe("createServer", () => {
     await Promise.all([client.connect(ct), server.connect(st)]);
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
-    for (const n of ["connect", "disconnect", "identify", "scpi_query", "scpi_command"]) expect(names).toContain(n);
+    for (const n of ["connect", "disconnect", "identify", "scpi_query", "scpi_command", "get_frequency", "set_frequency"]) expect(names).toContain(n);
   });
 });
