@@ -171,7 +171,7 @@ All are SA-module commands. Query form is the same string with `?`. Max frequenc
 | Marker lines | `:CALCulate:MARKer<n>:LINes[:STATe] {1\|0}` | | p.16 |
 | Marker function | `:CALCulate:MARKer<n>:FUNCtion {OFF\|NOISe\|BPOWer\|BDENsity}`; band: `...:FUNCtion:BAND:SPAN`, `:BAND:LEFT`, `:BAND:RIGHt` (Hz) | result via `:Y?` | p.16-18 |
 | N-dB bandwidth | `:CALCulate:MARKer<n>:BANDwidth[:STATe] {1\|0}`, `...:BANDwidth\|BWIDth:NDB <real>` (-0.01 to -140 dB), `...:BANDwidth\|BWIDth:RESult?` (Hz) | | p.18-19 |
-| Freq counter | `:CALCulate:MARKer:FCOunt[:STATe] {1\|0}`, `:CALCulate:MARKer:FCOunt:GATetime <time>` (1 us to 500 ms) | counter result query not documented | p.19 |
+| Freq counter | `:CALCulate:MARKer:FCOunt[:STATe] {1\|0}`, `:CALCulate:MARKer:FCOunt:GATetime <time>` (1 us to 500 ms) | counter result: `:CALCulate:MARKer:FCOunt:X?` (undocumented, found on the UTS3036B; 9.91e37 while off); gate clamped to 1 us..500 ms | p.19 |
 | All markers off | `:CALCulate:MARKer:AOFF` | no query | p.20 |
 | Marker-to-instrument | `:CALCulate:MARKer<n>[:SET]:CENTer`, `:STEP`, `:STARt`, `:STOP`, `:RLEVel` | no args, no return | p.20-21 |
 | Marker table | `:CALCulate:MARKer:TABLe[:STATe] {1\|0}` | | p.21 |

@@ -10,6 +10,7 @@ import { registerTraceTools } from "./tools/trace.js";
 import { registerScreenshotTools } from "./tools/screenshot.js";
 import { registerTraceDataTools } from "./tools/traceData.js";
 import { registerMarkerTools } from "./tools/marker.js";
+import { registerMarkerFunctionTools } from "./tools/markerFunctions.js";
 import { registerMeasurementTools } from "./tools/measurement.js";
 import { guardToolRegistration } from "./tools/util.js";
 
@@ -29,6 +30,7 @@ export function createServer(): McpServer {
   registerScreenshotTools(server);
   registerTraceDataTools(server);
   registerMarkerTools(server);
+  registerMarkerFunctionTools(server);
   registerMeasurementTools(server);
   return server;
 }

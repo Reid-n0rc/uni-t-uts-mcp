@@ -221,6 +221,18 @@ No parameters. Sends `:CALCulate:MARKer:AOFF` and reads every marker's mode to c
 
 Peak search criteria: `threshold_dbm` (a peak must be above it; -200 to 30) and `excursion_db` (a peak must rise this far above its valleys; 0 to 100), each with a `threshold_auto` / `excursion_auto` flag. In automatic mode the instrument computes the value from the trace and reports it. `get_peak_criteria` is read-only and takes no parameters. `set_peak_criteria` needs at least one of the four parameters; giving a value turns that criterion's automatic mode **off** (verified), `*_auto: true` switches it back on and cannot be combined with a value for the same criterion. Values outside the documented ranges are refused before anything is sent; the readback is compared and clamped values are `warnings`.
 
+### `get_marker_function` / `set_marker_function`
+
+A marker's function: `noise` (noise level per Hz at the marker), `band_power` (power in a band around the marker), `band_density` (power density in that band) or `off`. `get_marker_function` is read-only (`marker` 1-10, default 1) and returns `function` and `band_span_hz`. `set_marker_function` needs `marker` and at least one of `function` and `band_span_hz` (Hz, above 0); the span is sent first. The function's result is the marker's level: read it with `get_marker` (`y`). Values the instrument did not take are `warnings`.
+
+### `get_marker_ndb` / `set_marker_ndb`
+
+The N-dB bandwidth measurement of a marker: the width in Hz of the trace around the marker where it is within N dB of the marker level. `get_marker_ndb` (read-only) returns `enabled`, `ndb` (negative dB) and `bandwidth_hz` (`null` while off, because the result query is only sent while on, and `null` when the instrument answers `nan` because the trace does not fall N dB on both sides of the marker). `set_marker_ndb` takes `marker` and at least one of `enabled` and `ndb` (-140 to -0.01, checked before anything is sent); N is sent first. Readback differences are `warnings`.
+
+### `get_frequency_counter` / `set_frequency_counter`
+
+The marker frequency counter: `enabled`, `gate_time_s` and `frequency_hz` (the counted frequency of the selected marker via `:CALCulate:MARKer:FCOunt:X?`, only queried while on; `null` while off or when the instrument reports its invalid value 9.91e37). `get_frequency_counter` is read-only and takes no parameters. `set_frequency_counter` takes `enabled` and/or `gate_time_s` (1e-6 to 0.5 s, checked before anything is sent). Readback differences are `warnings`.
+
 ## Measurements
 
 Channel power, time-domain power and occupied bandwidth (OBW). The instrument has **no query for the active measurement**, and `:CONFigure:<meas>` presets the span, RBW and sweep time (for example span 3 MHz) which `:CONFigure:SANalyzer` does not put back, so these tools save and restore that state and never scan for the active mode (queries the instrument does not answer stall it, and over VXI-11 can drop the link). Spectrum analyzer mode is told by `:SENSe:DETector:TRACe1?`, which only it answers; one measurement is told by `:SENSe:<meas>:AVERage:STATe?`. While a measurement is active most spectrum analyzer queries (detector, trace type) get no reply. A probe that gets no reply costs about 4.5 s (the 1.5 s timeout plus a 3 s pause while the instrument recovers). Measurement names: `channel_power`, `time_power`, `obw`; other measurements (ACPR, C/N, harmonics, TOI) are not covered.
