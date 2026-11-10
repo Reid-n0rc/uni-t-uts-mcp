@@ -13,8 +13,8 @@ import { defineTool, errorResult, setterFailure, textResult } from "./util.js";
 // meanwhile are lost (raw) or blocked until the stall ends (VXI-11, where a blocked write can even time out and
 // drop the link). So after every miss the next probe waits out the stall, and the timeout stays short.
 const PROBE_TIMEOUT_MS = 1500;
-/** Pause after a probe that got no reply, before the next query. Mutable so tests do not sleep. */
-export const probeTuning = { recoveryMs: 3000 };
+/** Pause after a probe that got no reply, and the settle time before a FETCh of a just-entered measurement. Mutable so tests do not sleep. */
+export const probeTuning = { recoveryMs: 3000, settleMs: 1500 };
 
 const DEFAULT_READ_TIMEOUT_S = 30;
 const SA = "spectrum_analyzer" as const;
@@ -486,6 +486,8 @@ export function registerMeasurementTools(server: McpServer): void {
         let failure: unknown;
         try {
           configureWarnings = (await configure(measurement, params, entry)).warnings;
+          // FETCh (raw TCP) returns what the instrument has now: give a freshly entered measurement time to produce its first results.
+          if (entry !== "none" && !readIsUsable()) await new Promise((resolve) => setTimeout(resolve, probeTuning.settleMs));
           result = await readResult(measurement, false, timeout_s ?? DEFAULT_READ_TIMEOUT_S);
         } catch (err) {
           failure = err;

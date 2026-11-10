@@ -20,7 +20,8 @@ let cleanup: () => Promise<void>;
 let toolNames: string[] = [];
 
 beforeAll(async () => {
-  probeTuning.recoveryMs = 0; // no real pauses after the fake's probe timeouts
+  probeTuning.recoveryMs = 0;
+  probeTuning.settleMs = 0; // no real pauses after the fake's probe timeouts
   const [ct, st] = InMemoryTransport.createLinkedPair();
   const server = createServer();
   client = new Client({ name: "contract", version: "0.0.0" });

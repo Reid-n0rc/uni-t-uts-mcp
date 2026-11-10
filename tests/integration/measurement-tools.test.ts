@@ -134,6 +134,7 @@ let cleanup: () => Promise<void>;
 
 beforeAll(async () => {
   probeTuning.recoveryMs = 0;
+  probeTuning.settleMs = 0;
   const ctx = await createTestServer(registerMeasurementTools);
   client = ctx.client;
   cleanup = ctx.cleanup;
