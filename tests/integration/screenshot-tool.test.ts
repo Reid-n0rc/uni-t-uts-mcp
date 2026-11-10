@@ -138,7 +138,7 @@ describe("screenshot", () => {
     expect(getText(res)).toContain("-224");
   });
 
-  it("still returns the image but warns when restoring the format fails", async () => {
+  it("reports an error (keeping the image) when restoring the format fails", async () => {
     let n = 0;
     fake.sendCommand.mockImplementation(async (cmd: string) => {
       if (cmd === "*CLS") return;
@@ -149,8 +149,9 @@ describe("screenshot", () => {
     });
     const res = await callTool(client, "screenshot");
     expect(n).toBeGreaterThan(1);
-    expect(res.isError).toBeFalsy();
-    expect(getText(res)).toMatch(/could not restore.*BMP/i);
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toMatch(/could not be restored to BMP/i);
+    expect((res.content as Array<{ type: string }>).some((b) => b.type === "image")).toBe(true);
   });
 
   it("reports an unreadable picture format", async () => {
