@@ -169,6 +169,22 @@ function splitStatements(line: string): SplitResult {
   return { statements };
 }
 
+export type LineAnalysis =
+  | { ok: true; statements: number; queries: number }
+  | { ok: false; reason: string };
+
+/**
+ * Count the statements and queries (headers ending in `?`) in a command line, using
+ * the same tokenizer as the denylist. Fails closed (`ok: false`) when the line is
+ * ambiguous, so callers can refuse it.
+ */
+export function analyzeLine(line: string): LineAnalysis {
+  const split = splitStatements(line);
+  if ("error" in split) return { ok: false, reason: split.error };
+  const queries = split.statements.filter(({ text }) => text.split(/\s/, 1)[0].endsWith("?")).length;
+  return { ok: true, statements: split.statements.length, queries };
+}
+
 /** Common (`*`) commands that need confirmation. *SAV overwrites saved state like :MMEMory:STORe. */
 const BLOCKED_COMMON = new Map<string, string>([
   ["*RST", "*RST resets the instrument to factory defaults"],
