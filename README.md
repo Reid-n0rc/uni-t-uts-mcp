@@ -1,5 +1,7 @@
 # uni-t-uts-mcp
 
+[![codecov](https://codecov.io/gh/Reid-n0rc/uni-t-uts-mcp/graph/badge.svg)](https://codecov.io/gh/Reid-n0rc/uni-t-uts-mcp)
+
 A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for controlling UNI-T UTS series spectrum analyzers (UTS1000B/T, UTS3000B) over SCPI.
 
 > **Status:** under active development. The tools below work and are verified on a UNI-T UTS3036B (firmware V1.04.0040) over LAN; see [docs/verified-hardware.md](docs/verified-hardware.md). Measurements are not implemented yet; progress is tracked in the [roadmap issue](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/1). See [Install](#install) for setup.
@@ -8,7 +10,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for co
 
 | Group | Tools |
 |-------|-------|
-| Connection | `connect`, `disconnect`, `identify` |
+| Connection | `connect` (`host: "auto"` finds the analyzer), `discover_instruments`, `disconnect`, `identify` |
 | Raw SCPI | `scpi_query`, `scpi_command` (with a confirm-required safety denylist) |
 | Frequency | `get_frequency`, `set_frequency` |
 | Amplitude | `get_amplitude`, `set_amplitude` |
@@ -29,6 +31,7 @@ Parameters and behavior: [docs/tools-reference.md](docs/tools-reference.md). Set
 Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp): TypeScript, stdio transport, vitest tests, npm and Docker publishing via tag-triggered GitHub Actions.
 
 - `src/connection.ts` – serialized SCPI queue with timeouts, `*OPC?`-synced commands and hold-off after unsupported queries, on top of a pluggable transport
+- `src/discovery.ts`, `src/autoHost.ts` – network discovery (portmapper UDP broadcast on each local subnet, `*IDN?` of the responders) behind `discover_instruments` and `host=auto`
 - `src/transports/` – the `Transport` interface with capability flags, the raw SCPI over TCP transport (`raw.ts`), the VXI-11 transport (`vxi11.ts`) and transport selection (`select.ts`: `UTS_TRANSPORT`, `UTS_VXI11_DEVICE`, the `auto` probe)
 - `src/sessionLock.ts` – the FIFO exclusive-session lock behind `connection.runExclusive`; every tool is registered through `defineTool` (`src/tools/util.ts`), which runs it inside a session
 - `src/tools/screenshot.ts` – the `screenshot` tool (PNG via `:DISPlay:DATA?`, picture format restored in a `finally`)
@@ -46,7 +49,7 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 
 Everything in this section works today (v0.2.0, also on npm). You need Node.js 22 or newer (or Docker). Use your analyzer's address in place of `192.168.1.100`.
 
-`UTS_IP` is optional. If you leave it out, tell the assistant "connect to the analyzer at 192.168.1.100" and it will use the `connect` tool.
+`UTS_IP` is optional. Set it to `auto` (or ask the assistant to connect with host `auto`) to find the analyzer on your local subnet without knowing its address; this works when exactly one analyzer answers and is unauthenticated, so check the model and address it reports. If you leave it out, tell the assistant "connect to the analyzer at 192.168.1.100" and it will use the `connect` tool.
 
 ### Claude Code
 

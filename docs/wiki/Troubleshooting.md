@@ -7,6 +7,10 @@ Error results always say which command failed and, where it helps, what to do ne
 **"Not connected to the spectrum analyzer. Use the 'connect' tool first."**
 No connection is open. Either set `UTS_IP` in the MCP client's configuration (the server then connects at startup) or call `connect` with a `host`. If auto-connect failed, the reason was written to the server's stderr (check your MCP client's server log).
 
+**`host: "auto"` / `discover_instruments` finds nothing**
+- Discovery uses a UDP broadcast on port 111 on each of the computer's own IPv4 subnets, so the analyzer must be powered, have LAN enabled and be on the same subnet; it does not cross routers (give the address to `connect` instead). Firewalls and VLAN or Wi-Fi client isolation block broadcasts.
+- With several analyzers, `connect` with `auto` lists them and asks for an explicit `host`.
+
 **`connect` fails ("Connection failed", timeout, refused)**
 - Check the address and that the analyzer is on the same network as your computer.
 - Test the port: `nc -z -w 2 <ip> 5025` (macOS/Linux) or `Test-NetConnection <ip> -Port 5025` (Windows PowerShell).

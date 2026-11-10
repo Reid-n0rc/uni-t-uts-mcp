@@ -8,6 +8,11 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 vi.mock("../../src/connection.js", async () => ({ connection: (await import("../toolContract.js")).fakeConnection }));
+// discover_instruments uses real sockets: the contract test must never touch the network.
+vi.mock("../../src/discovery.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/discovery.js")>()),
+  discoverInstruments: async () => ({ instruments: [], notes: [] }),
+}));
 
 /**
  * Error handling standard (AGENTS.md): for every registered tool, under every failure mode that applies
@@ -203,7 +208,7 @@ describe("every tool is an exclusive instrument session", () => {
 });
 
 describe("parallel mode", () => {
-  const instrumentTools = entries.filter(([, e]) => e.kind !== "connect" && e.kind !== "disconnect");
+  const instrumentTools = entries.filter(([, e]) => e.kind !== "connect" && e.kind !== "disconnect" && e.kind !== "discover");
 
   /** Session ids in the order operations ran; a session id that comes back after another one means interleaving. */
   function expectContiguous(): number[] {

@@ -379,3 +379,7 @@ Messages are written as one `device_write` with END and no terminator; a reply i
 If the flags ever need to change for another firmware, change the constants in `VXI11_CAPABILITIES`; nothing else has to change.
 
 Verified on the real UTS3036B (issue #75) as well as against the in-process fake VXI-11 instrument (`tests/fakeVxi11Instrument.ts`, whose `firmware: true` option reproduces the read behavior above).
+
+## Discovery (portmapper over UDP, `src/discovery.ts`)
+
+ONC RPC runs over UDP too (no record marking: one datagram is one message). `GETPORT` (portmapper program 100000 v2, procedure 3) with mapping `{395183, 1, IPPROTO_TCP=6, 0}` sent to UDP port 111 returns the TCP port of the VXI-11 core channel, 0 when it is not registered. The reply is 28 bytes (xid, REPLY, accepted, AUTH_NONE verifier, SUCCESS, port); match the xid and reject anything else. Sent to a subnet's broadcast address every VXI-11 instrument answers. The protocol is unauthenticated: see the trust rules in the tools reference.

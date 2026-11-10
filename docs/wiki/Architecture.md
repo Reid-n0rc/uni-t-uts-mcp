@@ -31,7 +31,7 @@ src/transports/     raw SCPI over TCP (raw.ts) or VXI-11 (vxi11.ts, on src/vxi11
 TCP port 5025 (raw), or port 111 and the core-channel port (VXI-11), on the analyzer
 ```
 
-Other files: `src/autoconnect.ts` (connect from `UTS_IP`, `UTS_PORT`, `UTS_TRANSPORT` at startup, never throws) and `src/target.ts` (host and port validation).
+Other files: `src/discovery.ts` (portmapper UDP broadcast per local subnet, reply trust rules, `*IDN?` identification) and `src/autoHost.ts` (`host=auto`), `src/autoconnect.ts` (connect from `UTS_IP`, `UTS_PORT`, `UTS_TRANSPORT` at startup, never throws) and `src/target.ts` (host and port validation).
 
 ## The connection layer
 

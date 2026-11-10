@@ -25,6 +25,7 @@ This server sends SCPI commands to lab instruments over the network, so the area
 
 - the command denylist and parser in `src/scpi.ts` (bypasses that let state-changing or destructive commands run without `confirm`)
 - the raw `scpi_command` / `scpi_query` tools and any path where untrusted text reaches the instrument
+- network discovery (`src/discovery.ts`): the UDP portmapper broadcast and its replies are untrusted input (spoofed or off-subnet responders, malformed datagrams, resource use); `host=auto` must never connect to something the user cannot see
 - the TCP connection layer (framing, injection of extra commands, resource exhaustion)
 - the Docker image and the GitHub Actions workflows (secrets, supply chain)
 
