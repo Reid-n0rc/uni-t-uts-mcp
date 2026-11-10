@@ -12,19 +12,10 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
-### Fixed
-
-- VXI-11 over a slow or routed path (issue #127): the portmapper probe behind `UTS_TRANSPORT=auto` and the `vxi11` open now retry (three attempts within `UTS_VXI11_PROBE_TIMEOUT_S`, default 15 s) instead of failing at one 5 s timeout and falling back to raw. A new link must answer a status poll before use, and a stale link is replaced. The fallback reason and the `vxi11` error name port 111. A timed-out write is reported (not resent). The link is released (`destroy_link`) on disconnect, SIGINT, SIGTERM and stdin close.
+## [0.3.0] - 2026-11-10
 
 ### Added
 
-- `UTS_VXI11_PROBE_TIMEOUT_S` environment variable (1 to 120 seconds).
-- Test coverage: `npm run test:coverage` (vitest v8, `coverage/lcov.info`), uploaded to Codecov from one CI job (Ubuntu, Node 24) when the `CODECOV_TOKEN` secret is set; informational only (`codecov.yml`); README badge.
-
-### Security
-- All GitHub Actions in the workflows are pinned to full commit SHAs (Dependabot keeps them updated) and a unit test rejects unpinned ones; the repository now requires SHA pinning.
-
-### Added
 - Measurement tools for channel power, time-domain power and occupied bandwidth: `get_measurement`, `configure_measurement`, `read_measurement`, `exit_measurement` and `measure` (a one-shot that always restores the analyzer mode and the center, span, RBW, VBW, sweep time and continuous-sweep state, which the measurement presets overwrite). The instrument has no query for the active measurement, so the tools never scan for it. Verified on a UTS3036B over raw and VXI-11; over raw TCP `READ` replies have no line terminator, so FETCh is used there.
 - The measurement tools also cover adjacent channel power (`acpr`), third-order intercept (`toi`), carrier-to-noise ratio (`cn`) and harmonics (`harmonics`): the same five tools with new `measurement` values and parameters (`carrier_bandwidth_hz`, `offset_hz`, `offset_side`, `noise_bandwidth_hz`, `fundamental_hz`, `harmonics_count`, `sweep_time_s`) and labeled results.
 - `discover_instruments` (read-only) and `connect` with `host: "auto"` / `UTS_IP=auto`: find the analyzer on the local network without knowing its IP. A portmapper `GETPORT` (VXI-11 core program) is broadcast on each local IPv4 subnet over UDP, replies are accepted only from hosts inside that subnet, and each responder is identified with `*IDN?` only (serial number not returned). `auto` connects only when exactly one UNI-T analyzer answers and says in the result that the host was auto-selected. Works on Windows, macOS and Linux with no dependencies.
@@ -32,9 +23,33 @@ The text of a release's section is also used as its GitHub release notes.
 - Marker tools: `get_marker`, `set_marker`, `marker_search` (peak, next peak, next left/right, minimum, peak-to-peak), `marker_to_instrument` (center, step, start, stop, reference level), `markers_all_off`, `get_peak_criteria` and `set_peak_criteria`. A marker's frequency and level are read together; markers that are off report `null` instead of the instrument's stale values.
 - Marker function tools: `get_marker_function` / `set_marker_function` (noise, band power, band density, band span), `get_marker_ndb` / `set_marker_ndb` (N-dB bandwidth on/off, N from -140 to -0.01, measured bandwidth) and `get_frequency_counter` / `set_frequency_counter` (on/off, gate time, counted frequency). Verified on a UTS3036B; the instrument clamps N and the gate time and answers `nan` when no N-dB bandwidth exists, which is reported as `null`.
 - `screenshot` tool: captures the analyzer screen as a PNG image (`:SYSTem:PICture:FORMat PNG` + `:DISPlay:DATA?`, about 3 s) and always restores the picture format. It needs the VXI-11 transport; over raw TCP, where the analyzer truncates large replies at 144,800 bytes (issue #42), it refuses with instructions to switch transport. New transport capability flag `completeLargeBlocks`.
+- Test coverage: `npm run test:coverage` (vitest v8, `coverage/lcov.info`), uploaded to Codecov from one CI job (Ubuntu, Node 24) when the `CODECOV_TOKEN` secret is set; informational only (`codecov.yml`); README badge.
 
 ### Changed
+
 - Project site: the soundtrack now defaults to 136 BPM (seeded variation 130-142); `?bpm=` still overrides it (clamped 60-180).
+
+### Fixed
+
+- VXI-11 over a slow or routed path (issue #127): the portmapper probe behind `UTS_TRANSPORT=auto` and the `vxi11` open now retry (three attempts within `UTS_VXI11_PROBE_TIMEOUT_S`, default 15 s) instead of failing at one 5 s timeout and falling back to raw. A new link must answer a status poll before use, and a stale link is replaced. The fallback reason and the `vxi11` error name port 111. A timed-out write is reported (not resent). The link is released (`destroy_link`) on disconnect, SIGINT, SIGTERM and stdin close. The probe budget is set with the new `UTS_VXI11_PROBE_TIMEOUT_S` environment variable (1 to 120 seconds).
+
+### Security
+
+- All GitHub Actions in the workflows are pinned to full commit SHAs (Dependabot keeps them updated) and a unit test rejects unpinned ones; the repository now requires SHA pinning.
+
+### Known limitations
+
+- Limit lines and the tracking generator are not implemented yet; see the [roadmap](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/1).
+- The `screenshot` tool needs the VXI-11 transport: over raw TCP the analyzer truncates large replies at 144,800 bytes
+  ([#42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)) and the tool refuses with instructions.
+- Over raw TCP the measurement tools read results with `FETCh` (`READ` replies have no line terminator there).
+- VXI-11 is verified on one analyzer model and firmware only (UTS3036B V1.04.0040); other UTS models are expected to be
+  similar but are untested.
+- `start_sweep` with `wait=false` releases the instrument session before the sweep ends, so another tool call can run
+  while the analyzer is still sweeping and have its commands ignored; use `single_sweep` or `wait_for_sweep_complete`
+  when other calls may follow.
+- The Claude Desktop `.mcpb` bundle is built and checked in CI but has not been installed in Claude Desktop itself yet,
+  and it is not code-signed.
 
 ## [0.2.0] - 2026-11-10
 
@@ -171,6 +186,7 @@ latest published at the time) over LAN; see [docs/verified-hardware.md](docs/ver
 - Verified on one analyzer model and firmware (UTS3036B V1.04.0040); other UTS models are expected to be
   similar but are untested.
 
-[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v0.1.0

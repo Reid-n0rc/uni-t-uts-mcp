@@ -64,7 +64,6 @@ Users double-click it in Claude Desktop; see the README for the settings dialog.
   - **Fixes, documentation-only and internal changes ship in patch releases** (0.2.1).
   - **Breaking changes** to tool names or parameters are announced under "Changed" in the changelog and also raise the
     minor version (never a patch release). Result shapes and environment variables follow the same rule.
-  - The next minor, 0.3.0, is planned to carry the trace data download tool (#15) and the screenshot tool (#20).
   - 1.0.0 is cut when the tool set and its results are considered stable.
 - The version lives only in `package.json` (`src/server.ts` reads it at runtime). The git tag is `v<version>`,
   for example `v0.1.0`. Pre-release tags use a hyphen (`v0.2.0-rc.1`): they create a GitHub pre-release and do not move the Docker
