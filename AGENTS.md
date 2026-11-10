@@ -26,3 +26,12 @@ Commands: `npm run build`, `npm test`, `npm run inspector`.
 - Mark read-only tools with `readOnlyHint: true`.
 - Source of truth for commands is the UNI-T programming manual; links are in `docs/references.md`; cite the manual section in code comments when a command is non-obvious. Do not guess SCPI syntax.
 - Do not copy source from other projects without keeping their license notices.
+
+## Process
+
+- **Issues first.** Work is tracked as GitHub issues: one roadmap/epic issue plus small task issues. Do not start a task without an issue.
+- **Task sizing.** Each task must fit in one context window: one tool group or one module, with its tests and docs. Split anything larger.
+- **Test-driven.** For every task: write failing tests first (commit them or keep them in the same PR as the first commit), then implement until green, then refactor. Tests use a mocked connection; hardware checks are separate, manual, and recorded in `docs/verified-hardware.md`.
+- **Incremental commits.** One logical change per commit (tests, implementation, docs may be separate commits), each building and passing on its own, so a person can audit the history.
+- **Branches/PRs.** Branch `issue-<n>-<slug>` from `main`, one PR per issue, `Closes #<n>`.
+- **Privacy.** Never put device serial numbers or real IP addresses in the repo, issues, or PRs.
