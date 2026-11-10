@@ -4,7 +4,7 @@ import { connection } from "../connection.js";
 import { DEFAULT_PORT, isValidHost, portFromEnv } from "../target.js";
 import { AUTO_HOST, autoSelectedNote, resolveAutoHost } from "../autoHost.js";
 import { discoverInstruments } from "../discovery.js";
-import { TRANSPORT_CHOICES, resolveTransport, vxi11DeviceFromEnv } from "../transports/select.js";
+import { TRANSPORT_CHOICES, resolveTransport, vxi11DeviceFromEnv, vxi11ProbeBudgetFromEnv } from "../transports/select.js";
 import { errorResult, textResult, defineTool } from "./util.js";
 
 /** Hosts in `discover_instruments` results that must not be probed again: the one this server is connected to. */
@@ -91,6 +91,7 @@ export function registerConnectionTools(server: McpServer): void {
         const portGiven = port !== undefined || (process.env.UTS_PORT !== undefined && process.env.UTS_PORT !== "");
         const choice = resolveTransport({ param: transport, env: process.env.UTS_TRANSPORT, portGiven });
         const device = vxi11DeviceFromEnv(process.env.UTS_VXI11_DEVICE);
+        const vxi11ProbeBudgetMs = vxi11ProbeBudgetFromEnv(process.env.UTS_VXI11_PROBE_TIMEOUT_S);
         if (port !== undefined && choice === "vxi11") {
           return errorResult(
             "The 'port' parameter applies to the raw transport only; VXI-11 finds its port through the portmapper (port 111). " +
@@ -100,6 +101,7 @@ export function registerConnectionTools(server: McpServer): void {
         const idn = await connection.connect(targetHost, targetPort, {
           transport: choice,
           vxi11Device: device,
+          vxi11ProbeBudgetMs,
           log: (message) => console.error(message),
         });
         const where = connection.transportName === "vxi11" ? targetHost : `${targetHost}:${targetPort}`;

@@ -218,7 +218,7 @@ export class Vxi11Client {
           timeoutMs: connectTimeoutMs,
         });
       } catch (err) {
-        throw new Vxi11ConnectError(`VXI-11 portmapper lookup on ${host} failed: ${errMessage(err)}`, { cause: err });
+        throw new Vxi11ConnectError(`VXI-11 portmapper lookup on ${host} (port ${options.portmapperPort ?? PMAP_PORT}) failed: ${errMessage(err)}`, { cause: err });
       }
       if (port === 0) throw new Vxi11ConnectError(`VXI-11 core channel (program ${VXI11_CORE_PROGRAM}) is not registered with the portmapper on ${host}`);
     }

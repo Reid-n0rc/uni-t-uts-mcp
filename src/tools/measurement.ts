@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { connection } from "../connection.js";
 import { applyCommands, queryBool, queryNumber, queryParsed, readBack, ReplyError } from "../instrument.js";
-import { formatNumber, onOff, parseBool, parseNumberList } from "../scpi.js";
+import { formatNumber, onOff, parseBool, parseNumber, parseNumberList } from "../scpi.js";
 import { defineTool, errorResult, setterFailure, textResult } from "./util.js";
 
 // Commands: docs/programming-guide.md section 7. Behavior verified on the UTS3036B (docs/verified-hardware.md,
@@ -19,7 +19,9 @@ export const probeTuning = { recoveryMs: 3000, settleMs: 1500 };
 const DEFAULT_READ_TIMEOUT_S = 30;
 const SA = "spectrum_analyzer" as const;
 
-const MEASUREMENTS = { channel_power: "CHPower", time_power: "TPOWer", obw: "OBWidth" } as const;
+const MEASUREMENTS = {
+  channel_power: "CHPower", time_power: "TPOWer", obw: "OBWidth", acpr: "ACPower", toi: "TOI", cn: "CNRatio", harmonics: "HARMonics",
+} as const;
 type Measurement = keyof typeof MEASUREMENTS;
 type Mode = Measurement | typeof SA;
 const MEASUREMENT_NAMES = Object.keys(MEASUREMENTS) as [Measurement, ...Measurement[]];
@@ -47,33 +49,70 @@ const PARAMS = {
   average_count: z.number().finite().optional().describe("Averages, integer 1-999 (manual range)"),
   average_control: z.enum(["exponential", "repeat"]).optional().describe("Average termination control"),
   average_type: z.enum(["voltage", "power", "log"]).optional().describe("Average type"),
-  integration_bandwidth_hz: z.number().finite().optional().describe("channel_power only: integration bandwidth in Hz (clamped by the instrument to 100 Hz..3.61 GHz)"),
+  integration_bandwidth_hz: z.number().finite().optional().describe("channel_power, acpr or cn: integration bandwidth in Hz (channel_power: clamped by the instrument to 100 Hz..3.61 GHz)"),
   left_limit_s: z.number().finite().optional().describe("time_power only: left limit in s, 0-0.01 (10 ms)"),
   right_limit_s: z.number().finite().optional().describe("time_power only: right limit in s, 0-0.01 (10 ms)"),
   percent: z.number().finite().optional().describe("obw only: occupied power fraction, above 0 up to 1 (0.99 = 99 %); the instrument clamps to 0.9999"),
   xdb: z.number().finite().optional().describe("obw only: x dB level in dB, -100 to -0.1"),
+  carrier_bandwidth_hz: z.number().finite().optional().describe("acpr only: carrier (main channel) bandwidth in Hz"),
+  offset_hz: z.number().finite().optional().describe("acpr or cn: offset of the adjacent channel (acpr) or of the noise (cn) from the carrier, in Hz, 0 or more"),
+  offset_side: z.enum(["both", "negative", "positive"]).optional().describe("acpr only: which adjacent channels to measure"),
+  noise_bandwidth_hz: z.number().finite().optional().describe("cn only: noise bandwidth in Hz"),
+  fundamental_hz: z.number().finite().optional().describe("harmonics only: fundamental frequency in Hz"),
+  harmonics_count: z.number().finite().optional().describe("harmonics only: number of results including the fundamental, integer 2-10 (the preset is 2)"),
+  sweep_time_s: z.number().finite().optional().describe("harmonics only: sweep time in s, 0.001-100"),
 };
 type ParamArgs = { [K in keyof typeof PARAMS]?: z.infer<(typeof PARAMS)[K]> };
 const PARAM_KEYS = Object.keys(PARAMS) as Array<keyof typeof PARAMS>;
 
+// Measurement specific parameters in the order they are sent (the harmonics count last, after the sweep time).
 const SPECIFIC: Record<Measurement, Array<keyof typeof PARAMS>> = {
   channel_power: ["integration_bandwidth_hz"],
   time_power: ["left_limit_s", "right_limit_s"],
   obw: ["percent", "xdb"],
+  acpr: ["integration_bandwidth_hz", "carrier_bandwidth_hz", "offset_hz", "offset_side"],
+  toi: [],
+  cn: ["integration_bandwidth_hz", "noise_bandwidth_hz", "offset_hz"],
+  harmonics: ["fundamental_hz", "sweep_time_s", "harmonics_count"],
 };
-const ALL_SPECIFIC = Object.values(SPECIFIC).flat();
+const ALL_SPECIFIC = [...new Set(Object.values(SPECIFIC).flat())];
+
+const SIDES = { both: "BOTH", negative: "NEGative", positive: "POSitive" } as const;
+
+/** SCPI path (after :SENSe:<meas>:) of each specific parameter, per measurement. */
+const PATHS: Partial<Record<keyof typeof PARAMS, Partial<Record<Measurement, string>>>> = {
+  integration_bandwidth_hz: { channel_power: "BANDwidth:INTegration", acpr: "BANDwidth:INTegration", cn: "BANDwidth:INTegration" },
+  left_limit_s: { time_power: "LLIMit" },
+  right_limit_s: { time_power: "RLIMit" },
+  percent: { obw: "PERCent" },
+  xdb: { obw: "XDB" },
+  carrier_bandwidth_hz: { acpr: "CARRier:LIST:BANDwidth" },
+  offset_hz: { acpr: "OFFSet:LIST:FREQuency", cn: "OFFSet" },
+  offset_side: { acpr: "OFFSet:LIST:SIDE" },
+  noise_bandwidth_hz: { cn: "BANDwidth:NOISe" },
+  fundamental_hz: { harmonics: "FREQuency:FUNDamental" },
+  harmonics_count: { harmonics: "NUMBer" },
+  sweep_time_s: { harmonics: "SWEeptime" },
+};
 
 function validateParams(measurement: Measurement, a: ParamArgs): string | undefined {
   for (const key of ALL_SPECIFIC) {
     if (a[key] !== undefined && !SPECIFIC[measurement].includes(key)) {
-      const owner = (Object.keys(SPECIFIC) as Measurement[]).find((m) => SPECIFIC[m].includes(key));
-      return `${key} applies to ${owner} only, not ${measurement}.`;
+      const owners = (Object.keys(SPECIFIC) as Measurement[]).filter((m) => SPECIFIC[m].includes(key));
+      return `${key} applies to ${owners.join(" or ")} only, not ${measurement}.`;
     }
   }
   if (a.average_count !== undefined && (!Number.isInteger(a.average_count) || a.average_count < 1 || a.average_count > 999)) {
     return "average_count must be an integer from 1 to 999.";
   }
-  if (a.integration_bandwidth_hz !== undefined && !(a.integration_bandwidth_hz > 0)) return "integration_bandwidth_hz must be greater than 0.";
+  for (const key of ["integration_bandwidth_hz", "carrier_bandwidth_hz", "noise_bandwidth_hz", "fundamental_hz"] as const) {
+    if (a[key] !== undefined && !(a[key]! > 0)) return `${key} must be greater than 0.`;
+  }
+  if (a.offset_hz !== undefined && !(a.offset_hz >= 0)) return "offset_hz must be 0 or more.";
+  if (a.harmonics_count !== undefined && (!Number.isInteger(a.harmonics_count) || a.harmonics_count < 2 || a.harmonics_count > 10)) {
+    return "harmonics_count must be an integer from 2 to 10.";
+  }
+  if (a.sweep_time_s !== undefined && !(a.sweep_time_s >= 0.001 && a.sweep_time_s <= 100)) return "sweep_time_s must be between 0.001 and 100 s.";
   for (const key of ["left_limit_s", "right_limit_s"] as const) {
     const v = a[key];
     if (v !== undefined && !(v >= 0 && v <= 0.01)) return `${key} must be between 0 and 0.01 s.`;
@@ -90,11 +129,12 @@ function paramCommands(m: Measurement, a: ParamArgs): string[] {
   if (a.average !== undefined) out.push(`${s}:AVERage:STATe ${onOff(a.average)}`);
   if (a.average_type !== undefined) out.push(`${s}:AVERage:TYPE ${AVERAGE_TYPES[a.average_type]}`);
   if (a.average_control !== undefined) out.push(`${s}:AVERage:TCONtrol ${AVERAGE_CONTROLS[a.average_control]}`);
-  if (a.integration_bandwidth_hz !== undefined) out.push(`${s}:BANDwidth:INTegration ${formatNumber(a.integration_bandwidth_hz)}`);
-  if (a.left_limit_s !== undefined) out.push(`${s}:LLIMit ${formatNumber(a.left_limit_s)}`);
-  if (a.right_limit_s !== undefined) out.push(`${s}:RLIMit ${formatNumber(a.right_limit_s)}`);
-  if (a.percent !== undefined) out.push(`${s}:PERCent ${formatNumber(a.percent)}`);
-  if (a.xdb !== undefined) out.push(`${s}:XDB ${formatNumber(a.xdb)}`);
+  for (const key of SPECIFIC[m]) {
+    const v = a[key];
+    if (v === undefined) continue;
+    const path = PATHS[key]![m];
+    out.push(`${s}:${path} ${key === "harmonics_count" ? v : key === "offset_side" ? SIDES[v as keyof typeof SIDES] : formatNumber(v as number)}`);
+  }
   if (a.average_count !== undefined) out.push(`${s}:AVERage:COUNt ${a.average_count}`);
   return out;
 }
@@ -113,14 +153,16 @@ async function readParams(m: Measurement): Promise<ParamState> {
     average_control: await queryParsed(`${s}:AVERage:TCONtrol?`, (r) => pick(r, AVERAGE_CONTROLS, "average control")),
     average_type: await queryParsed(`${s}:AVERage:TYPE?`, (r) => pick(r, AVERAGE_TYPES, "average type")),
   };
-  if (m === "channel_power") state.integration_bandwidth_hz = await queryNumber(`${s}:BANDwidth:INTegration?`);
-  if (m === "time_power") {
-    state.left_limit_s = await queryNumber(`${s}:LLIMit?`);
-    state.right_limit_s = await queryNumber(`${s}:RLIMit?`);
-  }
-  if (m === "obw") {
-    state.percent = await queryNumber(`${s}:PERCent?`);
-    state.xdb = await queryNumber(`${s}:XDB?`);
+  for (const key of SPECIFIC[m]) {
+    const command = `${s}:${PATHS[key]![m]}?`;
+    if (key === "offset_side") state.offset_side = await queryParsed(command, (r) => pick(r, SIDES, "offset side"));
+    else if (key === "harmonics_count") {
+      state.harmonics_count = await queryParsed(command, (r) => {
+        const n = Number(r.trim());
+        if (!Number.isInteger(n)) throw new Error(`Expected an integer, got ${JSON.stringify(r)}`);
+        return n;
+      });
+    } else (state as Record<string, unknown>)[key] = await queryNumber(command);
   }
   return state;
 }
@@ -302,17 +344,27 @@ async function readResult(m: Measurement, fetchRequested: boolean, timeoutS: num
   const verb = fetch ? "FETCh" : "READ";
   const timeoutMs = Math.round(timeoutS * 1000);
   const name = MEASUREMENTS[m];
-  const list = async (command: string, count: number) => {
+  const listAny = async (command: string) => {
     const reply = await connection.query(command, timeoutMs);
-    let values: number[];
     try {
-      values = parseNumberList(reply);
+      return parseNumberList(reply);
     } catch (err) {
       throw new ReplyError(command, reply, err instanceof Error ? err.message : String(err));
     }
-    if (values.length !== count) throw new ReplyError(command, reply, `expected ${count} value(s), got ${values.length}`);
-    return values;
   };
+  function list(command: string, count: number): Promise<number[]>;
+  function list(command: string, count: number, allowNan: true): Promise<Array<number | null>>;
+  async function list(command: string, count: number, allowNan = false): Promise<Array<number | null>> {
+    const reply = await connection.query(command, timeoutMs);
+    let values: Array<number | null>;
+    try {
+      values = reply.split(",").map((part) => (allowNan && part.trim().toLowerCase() === "nan" ? null : parseNumber(part)));
+    } catch (err) {
+      throw new ReplyError(command, reply, err instanceof Error ? err.message : String(err));
+    }
+    if (values.length !== count) throw new ReplyError(command, reply.trim(), `expected ${count} value(s), got ${values.length}`);
+    return values;
+  }
   const withWarnings = <T extends object>(result: T) => (warnings.length > 0 ? { ...result, warnings } : result);
   if (m === "channel_power") {
     const [power, density] = await list(`:${verb}:${name}?`, 2);
@@ -321,6 +373,66 @@ async function readResult(m: Measurement, fetchRequested: boolean, timeoutS: num
   if (m === "time_power") {
     const [power] = await list(`:${verb}:${name}?`, 1);
     return withWarnings({ measurement: m, command: verb, power_dbm: power });
+  }
+  if (m === "acpr") {
+    // The combined reply has three values on this firmware (main dBm, lower dBc, upper dBc; the manual lists five), so the
+    // absolute powers come from the :MAIN?/:LOWer?/:UPPer? sub-results. READ runs the measurement with the combined query
+    // (the READ sub-forms get no reply, as for OBW) and the sub-results are fetched. A side that is not measured reads nan.
+    if (!fetch) await list(`:READ:${name}?`, 3, true);
+    const [main] = await list(`:FETCh:${name}:MAIN?`, 1, true);
+    const lower = await list(`:FETCh:${name}:LOWer?`, 2, true);
+    const upper = await list(`:FETCh:${name}:UPPer?`, 2, true);
+    if (main === null || (lower[0] === null && upper[0] === null)) {
+      throw new ReplyError(`:FETCh:${name}:MAIN?`, "nan", "no result yet (nan); wait for a sweep to finish");
+    }
+    for (const [label, side] of [["lower", lower], ["upper", upper]] as const) {
+      if (side[0] === null) warnings.push(`${label} adjacent channel not measured (nan); check offset_side`);
+    }
+    return withWarnings({
+      measurement: m, command: verb, main_power_dbm: main, lower_power_dbm: lower[0], lower_dbc: lower[1], upper_power_dbm: upper[0], upper_dbc: upper[1],
+    });
+  }
+  if (m === "cn") {
+    const [carrier, noise, ratio] = await list(`:${verb}:${name}?`, 3);
+    return withWarnings({ measurement: m, command: verb, carrier_dbm: carrier, noise_dbm: noise, cn_db: ratio });
+  }
+  // TOI: :FETCh:TOI:IPT? (documented) gets no reply on the UTS3036B and stalls it, so it is not used: each third-order product carries its TOI.
+  // Results made of several queries: with READ only the first one runs the measurement (and waits), the others FETCh its results.
+  const verbFor = (i: number) => (i === 0 ? verb : "FETCh");
+  if (m === "toi") {
+    const [lowT, upT, lowTone, upTone] = [
+      await list(`:${verbFor(0)}:${name}:LOW:TRD?`, 4),
+      await list(`:${verbFor(1)}:${name}:UP:TRD?`, 4),
+      await list(`:${verbFor(2)}:${name}:LOW:TONE?`, 2),
+      await list(`:${verbFor(3)}:${name}:UP:TONE?`, 2),
+    ];
+    const product = ([frequency_hz, amplitude_dbm, dbc, toi_dbm]: number[]) => ({ frequency_hz, amplitude_dbm, dbc, toi_dbm });
+    const tone = ([frequency_hz, amplitude_dbm]: number[]) => ({ frequency_hz, amplitude_dbm });
+    return withWarnings({
+      measurement: m, command: verb, lower_third_order: product(lowT), upper_third_order: product(upT), lower_tone: tone(lowTone), upper_tone: tone(upTone),
+    });
+  }
+  if (m === "harmonics") {
+    // Both lists always hold 10 values (verified); only the first `harmonics_count` are results (the fundamental and then
+    // the 2nd, 3rd, ... harmonic), the rest are placeholders (0 dBm, shown as a large positive dBc).
+    const count = await queryParsed(`${sense(m)}:NUMBer?`, (r) => {
+      const n = Number(r.trim());
+      if (!Number.isInteger(n) || n < 2 || n > 10) throw new Error(`Expected an integer from 2 to 10, got ${JSON.stringify(r)}`);
+      return n;
+    });
+    const ampCommand = `:${verbFor(0)}:${name}:AMPLitude:ALL?`;
+    const freqCommand = `:FETCh:${name}:FREQuency:ALL?`;
+    const amplitudes = await listAny(ampCommand);
+    const frequencies = await listAny(freqCommand);
+    if (amplitudes.length < count) throw new ReplyError(ampCommand, amplitudes.join(","), `expected at least ${count} values (harmonics_count), got ${amplitudes.length}`);
+    if (frequencies.length !== amplitudes.length) throw new ReplyError(freqCommand, frequencies.join(","), `expected ${amplitudes.length} values like ${ampCommand}, got ${frequencies.length}`);
+    const [thdPercent, thdDbc] = await list(`:FETCh:${name}:DISTortion?`, 2);
+    return withWarnings({
+      measurement: m, command: verb,
+      fundamental: { frequency_hz: frequencies[0], amplitude_dbm: amplitudes[0] },
+      harmonics: amplitudes.slice(1, count).map((amplitude_dbc, i) => ({ order: i + 2, frequency_hz: frequencies[i + 1], amplitude_dbc })),
+      thd_percent: thdPercent, thd_dbc: thdDbc,
+    });
   }
   // OBW: the combined reply has seven values of which the manual documents only four (and :READ:OBWidth:<sub>? gets
   // no reply), so READ runs the measurement with the combined query and the documented sub-results are fetched.
@@ -359,7 +471,7 @@ export function registerMeasurementTools(server: McpServer): void {
     "get_measurement",
     "Report whether the instrument is in spectrum analyzer mode, or check one measurement. The instrument has no query for the active measurement, so " +
       "without 'measurement' this asks one query that only spectrum analyzer mode answers (spectrum_analyzer, or an error that a measurement is active). " +
-      "With 'measurement' (channel_power, time_power or obw) it checks that measurement and returns its parameters; an error means it is not active. " +
+      "With 'measurement' (channel_power, time_power, obw, acpr, toi, cn or harmonics) it checks that measurement and returns its parameters; an error means it is not active. " +
       "A check that gets no reply costs a few seconds while the instrument recovers.",
     { measurement: MEASUREMENT.optional().describe("Check this measurement and return its parameters") },
     { readOnlyHint: true },
@@ -368,7 +480,7 @@ export function registerMeasurementTools(server: McpServer): void {
         const misses: string[] = [];
         if (args.measurement === undefined) {
           if (!(await isSpectrumAnalyzer(misses))) {
-            return errorResult(`${notSpectrumAnalyzer(misses)} Use get_measurement with measurement=channel_power, time_power or obw to check which one.`);
+            return errorResult(`${notSpectrumAnalyzer(misses)} Use get_measurement with measurement=<name> (channel_power, time_power, obw, acpr, toi, cn or harmonics) to check which one.`);
           }
           return textResult(JSON.stringify({ measurement: SA }, null, 2));
         }
@@ -384,7 +496,7 @@ export function registerMeasurementTools(server: McpServer): void {
   defineTool(
     server,
     "configure_measurement",
-    "Enter a measurement (channel_power, time_power or obw) and set its parameters; the instrument stays in the measurement until exit_measurement. " +
+    "Enter a measurement (channel_power, time_power, obw, acpr, toi, cn or harmonics) and set its parameters; the instrument stays in the measurement until exit_measurement. " +
       "preset=true (default) is :CONFigure:<meas>, false is :CONFigure:<meas>:NDEFault. Either way the instrument changes the span, RBW and sweep time " +
       "(for example span 3 MHz); when entered from spectrum analyzer mode the previous frequency, bandwidth and sweep settings are saved and " +
       "exit_measurement puts them back. While a measurement is active most spectrum analyzer queries (detector, trace type) get no reply.",
@@ -414,7 +526,8 @@ export function registerMeasurementTools(server: McpServer): void {
     "read_measurement",
     "Read the result of the active measurement. READ (default) runs the measurement and waits for it; fetch=true returns the latest result at once. " +
       "channel_power gives channel power (dBm) and density (dBm/Hz), time_power gives power (dBm), obw gives occupied bandwidth (Hz), frequency error (Hz), " +
-      "x dB bandwidth (Hz) and total power (dBm). Errors when that measurement is not active; it never changes the mode.",
+      "x dB bandwidth (Hz) and total power (dBm), acpr gives main, lower and upper channel power (dBm) and lower/upper relative power (dBc), cn gives carrier and noise power (dBm) and C/N (dB), " +
+      "toi gives the lower and upper third-order products and tones and the intercept, harmonics gives the fundamental, harmonics 2..n (dBc) and distortion (THD). Errors when that measurement is not active; it never changes the mode.",
     { measurement: MEASUREMENT, fetch: z.boolean().optional().describe("Return the latest result without starting a measurement"), timeout_s: TIMEOUT },
     { readOnlyHint: true },
     async (args) => {
@@ -461,7 +574,7 @@ export function registerMeasurementTools(server: McpServer): void {
     server,
     "measure",
     "One-shot measurement that leaves the instrument as it found it: from spectrum analyzer mode it saves the frequency, bandwidth and sweep settings, enters the " +
-      "measurement (channel_power, time_power or obw) with the given parameters, READs the result, and ALWAYS (even on errors) exits to spectrum analyzer " +
+      "measurement (channel_power, time_power, obw, acpr, toi, cn or harmonics) with the given parameters, READs the result, and ALWAYS (even on errors) exits to spectrum analyzer " +
       "mode, restores the settings and verifies. With the requested measurement already active it only reads and puts any parameters you changed back. " +
       "It refuses when the instrument is not in spectrum analyzer mode and the requested measurement is not the active one (use exit_measurement first). Takes the measurement's averaging time.",
     { measurement: MEASUREMENT, preset: z.boolean().optional().describe("Preset the measurement's parameters when entering (default true)"), timeout_s: TIMEOUT, ...PARAMS },

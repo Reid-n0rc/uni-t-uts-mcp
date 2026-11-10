@@ -12,9 +12,15 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- VXI-11 over a slow or routed path (issue #127): the portmapper probe behind `UTS_TRANSPORT=auto` and the `vxi11` open now retry (three attempts within `UTS_VXI11_PROBE_TIMEOUT_S`, default 15 s) instead of failing at one 5 s timeout and falling back to raw. A new link must answer a status poll before use, and a stale link is replaced. The fallback reason and the `vxi11` error name port 111. A timed-out write is reported (not resent). The link is released (`destroy_link`) on disconnect, SIGINT, SIGTERM and stdin close.
+
 ### Added
 
 - VXI-11 interrupt channel client (`Vxi11Client.enableSrq`/`waitForSrq`/`disableSrq`, bounded `IntrServer` for `device_intr_srq`), tested against a fake instrument. Live test on the UTS3036B (#128): the interrupt channel is accepted but the analyzer never connects back and its status byte never changes, so no tool uses it; documented in verified-hardware.md.
+
+- `UTS_VXI11_PROBE_TIMEOUT_S` environment variable (1 to 120 seconds).
 - Test coverage: `npm run test:coverage` (vitest v8, `coverage/lcov.info`), uploaded to Codecov from one CI job (Ubuntu, Node 24) when the `CODECOV_TOKEN` secret is set; informational only (`codecov.yml`); README badge.
 
 ### Security
@@ -22,6 +28,7 @@ The text of a release's section is also used as its GitHub release notes.
 
 ### Added
 - Measurement tools for channel power, time-domain power and occupied bandwidth: `get_measurement`, `configure_measurement`, `read_measurement`, `exit_measurement` and `measure` (a one-shot that always restores the analyzer mode and the center, span, RBW, VBW, sweep time and continuous-sweep state, which the measurement presets overwrite). The instrument has no query for the active measurement, so the tools never scan for it. Verified on a UTS3036B over raw and VXI-11; over raw TCP `READ` replies have no line terminator, so FETCh is used there.
+- The measurement tools also cover adjacent channel power (`acpr`), third-order intercept (`toi`), carrier-to-noise ratio (`cn`) and harmonics (`harmonics`): the same five tools with new `measurement` values and parameters (`carrier_bandwidth_hz`, `offset_hz`, `offset_side`, `noise_bandwidth_hz`, `fundamental_hz`, `harmonics_count`, `sweep_time_s`) and labeled results.
 - `discover_instruments` (read-only) and `connect` with `host: "auto"` / `UTS_IP=auto`: find the analyzer on the local network without knowing its IP. A portmapper `GETPORT` (VXI-11 core program) is broadcast on each local IPv4 subnet over UDP, replies are accepted only from hosts inside that subnet, and each responder is identified with `*IDN?` only (serial number not returned). `auto` connects only when exactly one UNI-T analyzer answers and says in the result that the host was auto-selected. Works on Windows, macOS and Linux with no dependencies.
 - `get_trace_data` (read-only): the amplitude values of one trace (1-6, default the selected trace) with the computed linear frequency axis (`:FREQuency:STARt?`/`:STOP?` over `:SENSe:SWEep:POINts?` points), the power unit, the trace type and summary statistics (min, max, mean, peak level and peak frequency). Zero span is detected and gets a time axis from 0 to the sweep time instead. `format` is `ascii` (default), `real32` or `real64`; for the binary formats the instrument's `:FORMat` is switched for the read and always restored (as `ASCii`), with an explicit error if the restore fails. `fresh` runs one single sweep first and puts continuous mode back. `max_points` applies peak-preserving min/max decimation and says so with the original point count; `include_axis` leaves out the per-point axis. Malformed, short or long replies and a count that differs from the sweep points are errors naming the command. Verified on a UTS3036B over raw and VXI-11.
 - Marker tools: `get_marker`, `set_marker`, `marker_search` (peak, next peak, next left/right, minimum, peak-to-peak), `marker_to_instrument` (center, step, start, stop, reference level), `markers_all_off`, `get_peak_criteria` and `set_peak_criteria`. A marker's frequency and level are read together; markers that are off report `null` instead of the instrument's stale values.

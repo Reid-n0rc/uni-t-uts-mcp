@@ -61,6 +61,8 @@ export interface ConnectOptions {
   vxi11Device?: string;
   /** Portmapper port used for VXI-11 and the auto probe (default 111; tests use a fake). */
   vxi11PortmapperPort?: number;
+  /** Total time for reaching VXI-11 (portmapper probe or open, retries included); default three times the connect timeout. From `UTS_VXI11_PROBE_TIMEOUT_S`. */
+  vxi11ProbeBudgetMs?: number;
   /** Receives a message when `auto` falls back to raw. */
   log?: (message: string) => void;
 }
@@ -169,8 +171,9 @@ export class UtsConnection {
     this.lastQueryTimeoutAt = 0;
     this.selectionNote = "";
     const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT;
-    const vxi11 = () => new Vxi11Transport({ device, portmapperPort: options.vxi11PortmapperPort });
+    const vxi11 = () => new Vxi11Transport({ device, portmapperPort: options.vxi11PortmapperPort, connectBudgetMs: budgetMs });
     const identTimeoutMs = options.identTimeoutMs ?? DEFAULT_IDENT_TIMEOUT;
+    const budgetMs = options.vxi11ProbeBudgetMs ?? connectTimeoutMs * 3;
 
     if (this.createTransport) return this.attach(this.createTransport(), connectTimeoutMs, identTimeoutMs);
     if (choice === "raw") return this.attach(new RawTransport(), connectTimeoutMs, identTimeoutMs);
@@ -178,7 +181,7 @@ export class UtsConnection {
 
     // auto: VXI-11 when the portmapper registers its core program and it opens, else raw.
     let reason: string;
-    const probe = await probeVxi11(host, { portmapperPort: options.vxi11PortmapperPort, timeoutMs: connectTimeoutMs });
+    const probe = await probeVxi11(host, { portmapperPort: options.vxi11PortmapperPort, budgetMs });
     if (probe.available) {
       try {
         const idn = await this.attach(vxi11(), connectTimeoutMs, identTimeoutMs);
@@ -238,6 +241,16 @@ export class UtsConnection {
   disconnect(): void {
     this.lostReason = null;
     this.closeAll("Connection closed");
+  }
+
+  /**
+   * Close the connection and wait until the transport has released its link (for VXI-11 the destroy_link
+   * call), so a process that exits right after leaves no stale link on the instrument. Idempotent.
+   */
+  async shutdown(): Promise<void> {
+    const transport = this.transport;
+    this.disconnect();
+    await transport?.drain?.();
   }
 
   isConnected(): boolean {

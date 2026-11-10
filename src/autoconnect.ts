@@ -2,10 +2,10 @@ import type { ConnectOptions } from "./connection.js";
 import { isValidHost, portFromEnv } from "./target.js";
 import { AUTO_HOST, autoSelectedNote, resolveAutoHost } from "./autoHost.js";
 import type { DiscoveryResult } from "./discovery.js";
-import { resolveTransport, vxi11DeviceFromEnv } from "./transports/select.js";
+import { resolveTransport, vxi11DeviceFromEnv, vxi11ProbeBudgetFromEnv } from "./transports/select.js";
 
 /**
- * Connect at startup from UTS_IP / UTS_PORT / UTS_TRANSPORT / UTS_VXI11_DEVICE. Never throws: failures are logged and
+ * Connect at startup from UTS_IP / UTS_PORT / UTS_TRANSPORT / UTS_VXI11_DEVICE / UTS_VXI11_PROBE_TIMEOUT_S. Never throws: failures are logged and
  * the user can still call the `connect` tool. Returns whether a connection was made.
  */
 export async function autoConnectFromEnv(
@@ -41,7 +41,8 @@ export async function autoConnectFromEnv(
     const port = portFromEnv(env.UTS_PORT);
     const transport = resolveTransport({ env: env.UTS_TRANSPORT, portGiven: env.UTS_PORT !== undefined && env.UTS_PORT !== "" });
     const vxi11Device = vxi11DeviceFromEnv(env.UTS_VXI11_DEVICE);
-    const idn = await conn.connect(host, port, { transport, vxi11Device, log });
+    const vxi11ProbeBudgetMs = vxi11ProbeBudgetFromEnv(env.UTS_VXI11_PROBE_TIMEOUT_S);
+    const idn = await conn.connect(host, port, { transport, vxi11Device, vxi11ProbeBudgetMs, log });
     log(`Auto-connected to ${host} via ${conn.transportLabel ?? transport}: ${idn}`);
     return true;
   } catch (err) {
