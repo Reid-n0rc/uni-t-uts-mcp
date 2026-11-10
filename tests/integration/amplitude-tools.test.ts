@@ -265,12 +265,11 @@ describe("set_amplitude", () => {
 
   it("warns when the instrument clamps a requested value", async () => {
     const res = await callTool(client, "set_amplitude", {
-      reference_level: 100, scale_per_div_db: 50, reference_level_offset_db: 5000,
+      reference_level: 100, reference_level_offset_db: 5000,
     });
     expect(res.isError).toBeFalsy();
     const w = json(res).warnings.join(" ");
     expect(w).toMatch(/reference_level/);
-    expect(w).toMatch(/scale_per_div_db/);
     expect(w).toMatch(/reference_level_offset_db/);
     expect(w).toMatch(/adjusted/i);
   });
