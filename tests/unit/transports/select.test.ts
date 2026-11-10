@@ -53,9 +53,12 @@ describe("probeVxi11 (the check behind UTS_TRANSPORT=auto)", () => {
   let rpc: FakeRpcServer | undefined;
   let inst: FakeVxi11Instrument | undefined;
   let tcp: net.Server | undefined;
+  const held: net.Socket[] = [];
   afterEach(async () => {
     await rpc?.close();
     await inst?.close();
+    for (const sock of held) sock.destroy();
+    held.length = 0;
     await new Promise<void>((r) => (tcp ? tcp.close(() => r()) : r()));
     rpc = inst = tcp = undefined;
   });
@@ -85,7 +88,7 @@ describe("probeVxi11 (the check behind UTS_TRANSPORT=auto)", () => {
   });
 
   it("gives up when the portmapper port accepts but never answers (deadline enforced)", async () => {
-    tcp = net.createServer(() => {});
+    tcp = net.createServer((sock) => void held.push(sock));
     await new Promise<void>((r) => tcp!.listen(0, "127.0.0.1", r));
     const port = (tcp.address() as net.AddressInfo).port;
     const t0 = Date.now();
