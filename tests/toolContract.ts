@@ -125,7 +125,7 @@ export const CONTRACT: Record<string, ContractEntry> = {
     args: { timeout_s: 0.3 },
     invalid: [{ timeout_s: -1 }],
     skip: {
-      writeFailure: "sends no commands of its own, it only polls *OPC? (the instrument is deaf while sweeping)",
+      writeFailure: "sends no commands of its own, it only polls *OPC? (the instrument ignores commands while sweeping)",
       garbage: "its only query is the *OPC? poll, whose non-1 replies just keep it polling until the timeout",
       empty: "its only query is the *OPC? poll, whose non-1 replies just keep it polling until the timeout",
     },
