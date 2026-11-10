@@ -47,6 +47,7 @@ const fake = vi.hoisted(() => {
     }
   });
   const sendCommand = vi.fn(async (cmd: string) => {
+    if (cmd === "*CLS") { state.errors.length = 0; return; }
     calls.push(cmd);
     if (cmd === ":FREQuency:SPAN:FULL") { state.start = 1e7; state.stop = 3.6e9; fromRange(); return; }
     if (cmd === ":FREQuency:SPAN:ZERO") { state.span = 0; fromCenterSpan(); return; }
@@ -192,12 +193,25 @@ describe("set_frequency", () => {
   });
 
   it("reports instrument errors from the error queue", async () => {
-    fake.sendCommand.mockImplementationOnce(async () => {
-      fake.state.errors.push('-131,"Invalid suffix"');
+    const original = fake.sendCommand.getMockImplementation()!;
+    fake.sendCommand.mockImplementation(async (cmd: string) => {
+      await original(cmd);
+      if (cmd.startsWith(":FREQuency:CENTer ")) fake.state.errors.push('-131,"Invalid suffix"');
     });
+    try {
+      const res = await callTool(client, "set_frequency", { center_hz: 1e9 });
+      expect(res.isError).toBe(true);
+      expect(getText(res)).toContain("Invalid suffix");
+    } finally {
+      fake.sendCommand.mockImplementation(original);
+    }
+  });
+
+  it("clears stale errors with *CLS first, so old errors are not blamed on this call", async () => {
+    fake.state.errors.push('-113,"Undefined header"', '-113,"Undefined header"');
     const res = await callTool(client, "set_frequency", { center_hz: 1e9 });
-    expect(res.isError).toBe(true);
-    expect(getText(res)).toContain("Invalid suffix");
+    expect(res.isError).toBeFalsy();
+    expect(fake.sendCommand.mock.calls[0][0]).toBe("*CLS");
   });
 
   describe("validation (nothing is sent)", () => {
