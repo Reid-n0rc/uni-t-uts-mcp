@@ -7,5 +7,5 @@ export interface SiteGroup {
   tools: SiteTool[];
 }
 export function parseToolsReference(markdown: string): SiteGroup[];
-export function renderToolGroups(groups: SiteGroup[]): string;
-export function renderSite(template: string, groups: SiteGroup[]): string;
+export function renderToolGroups(groups: SiteGroup[], descriptions?: Record<string, string>): string;
+export function renderSite(template: string, groups: SiteGroup[], descriptions?: Record<string, string>): string;

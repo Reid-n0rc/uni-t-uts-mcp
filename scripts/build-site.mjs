@@ -9,7 +9,7 @@ import { parseToolsReference, renderSite } from "./site-tools.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-export function buildSite({ root = resolve(here, ".."), outDir = join(root, "_site") } = {}) {
+export function buildSite({ root = resolve(here, ".."), outDir = join(root, "_site"), descriptions = {} } = {}) {
   const siteDir = join(root, "site");
   const template = readFileSync(join(siteDir, "index.html"), "utf8");
   const groups = parseToolsReference(readFileSync(join(root, "docs", "tools-reference.md"), "utf8"));
@@ -20,7 +20,7 @@ export function buildSite({ root = resolve(here, ".."), outDir = join(root, "_si
     if (entry === "index.html") continue;
     cpSync(join(siteDir, entry), join(outDir, entry), { recursive: true });
   }
-  writeFileSync(join(outDir, "index.html"), renderSite(template, groups));
+  writeFileSync(join(outDir, "index.html"), renderSite(template, groups, descriptions));
   writeFileSync(join(outDir, ".nojekyll"), "");
 
   return {
@@ -30,11 +30,35 @@ export function buildSite({ root = resolve(here, ".."), outDir = join(root, "_si
   };
 }
 
+/** Tool descriptions as registered by the built server (build/server.js), if it has been built. */
+async function loadDescriptions(root) {
+  const serverJs = join(root, "build", "server.js");
+  if (!existsSync(serverJs)) return {};
+  try {
+    const { createServer } = await import(pathToFileURL(serverJs).href);
+    const sdk = (path) => import(pathToFileURL(join(root, "node_modules", "@modelcontextprotocol", "sdk", "dist", "esm", path)).href);
+    const { Client } = await sdk("client/index.js");
+    const { InMemoryTransport } = await sdk("inMemory.js");
+    const server = createServer();
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "site-build", version: "0.0.0" });
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+    const { tools } = await client.listTools();
+    await client.close();
+    return Object.fromEntries(tools.filter((t) => t.description).map((t) => [t.name, t.description]));
+  } catch (err) {
+    console.warn(`Could not read tool descriptions from the built server (${err.message}); using the docs.`);
+    return {};
+  }
+}
+
 const invoked = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 if (invoked) {
   const i = process.argv.indexOf("--out");
   const outDir = i >= 0 ? resolve(process.argv[i + 1]) : undefined;
-  const result = buildSite(outDir ? { outDir } : {});
-  console.log(`Built ${result.outDir}: ${result.toolCount} tools in ${result.groupCount} groups`);
+  const root = resolve(here, "..");
+  const descriptions = await loadDescriptions(root);
+  const result = buildSite({ ...(outDir ? { outDir } : {}), descriptions });
+  console.log(`Built ${result.outDir}: ${result.toolCount} tools in ${result.groupCount} groups (${Object.keys(descriptions).length} descriptions from the server)`);
   if (!existsSync(join(result.outDir, "index.html"))) process.exit(1);
 }
