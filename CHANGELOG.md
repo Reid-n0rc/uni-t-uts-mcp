@@ -24,6 +24,7 @@ The text of a release's section is also used as its GitHub release notes.
   default stays raw. Allow outbound TCP to port 111 and the dynamic VXI-11 port in a firewall.
 
 ### Changed
+- The npm publish workflow supports npm trusted publishing (no token): set the repository variable `NPM_TRUSTED_PUBLISHING` to `true` after registering the workflow as a trusted publisher on npmjs.com; the `NPM_TOKEN` secret is only needed for a package's first publish.
 - README, site and docs now lead with install forms that work today (release tarball, `github:` spec, pinned Docker image, from a clone); `npx -y uni-t-uts-mcp` is labelled coming soon until the package is on npm. A test keeps the install commands in step with the package version.
 
 ## [0.1.0] - 2026-11-10

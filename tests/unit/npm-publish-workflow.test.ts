@@ -39,7 +39,8 @@ describe("npm-publish.yml (token or trusted publishing)", () => {
   });
 
   it("runs every other step when either the token or trusted publishing is enabled", () => {
-    const others = steps.filter((s) => !s.split("\n")[0].includes("Skip when"));
+    // The two Publish steps have their own, narrower conditions (tested below).
+    const others = steps.filter((s) => !s.split("\n")[0].includes("Skip when") && !s.split("\n")[0].includes("Publish ("));
     expect(others.length).toBeGreaterThan(5);
     for (const s of others) {
       const condition = s.split("\n").find((l) => l.trim().startsWith("if:")) ?? "";
