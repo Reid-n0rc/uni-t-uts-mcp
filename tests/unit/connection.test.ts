@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
 import { UtsConnection } from "../../src/connection.js";
 import { startFakeScpi, idnHandler, IDN, type FakeScpi } from "../fakeScpiServer.js";
 
@@ -161,6 +162,58 @@ describe("queryBinary", () => {
     });
     expect(await conn.queryBinary("BIN?")).toEqual(payload);
     expect(await conn.query("Q?")).toBe("next");
+  });
+
+  describe("CRLF terminated replies (as sent by the UTS3036B)", () => {
+    const real32 = readFileSync(new URL("../fixtures/p2/trace1-real32.bin", import.meta.url));
+
+    it("reads the real REAL32 trace capture and leaves nothing behind for the next query", async () => {
+      await setup((line, s) => {
+        if (line === "TRACE?") s.write(real32);
+        if (line === "Q?") s.write("next\r\n");
+      });
+      const data = await conn.queryBinary("TRACE?");
+      expect(data.length).toBe(4004);
+      expect(data.readFloatBE(0)).toBeLessThan(0);
+      expect(await conn.query("Q?")).toBe("next");
+    });
+
+    it("swallows CR and LF that arrive in separate later chunks", async () => {
+      await setup(async (line, s) => {
+        if (line === "BIN?") {
+          s.write(Buffer.concat([Buffer.from("#16"), payload]));
+          await sleep(25);
+          s.write("\r");
+          await sleep(25);
+          s.write("\n");
+        }
+        if (line === "Q?") s.write("next\r\n");
+      });
+      expect(await conn.queryBinary("BIN?")).toEqual(payload);
+      await sleep(10); // next query is issued while the terminator is still in flight
+      const q = conn.query("Q?");
+      expect(await q).toBe("next");
+    });
+
+    it("swallows a whole CRLF that arrives after the payload", async () => {
+      await setup(async (line, s) => {
+        if (line === "BIN?") {
+          s.write(Buffer.concat([Buffer.from("#16"), payload]));
+          await sleep(25);
+          s.write("\r\n");
+        }
+        if (line === "Q?") s.write("next\r\n");
+      });
+      expect(await conn.queryBinary("BIN?")).toEqual(payload);
+      expect(await conn.query("Q?")).toBe("next");
+    });
+
+    it("trims CRLF terminated text replies", async () => {
+      await setup((line, s) => {
+        if (line === "Q?") s.write("-6.1e+01,-9.1e+01\r\n");
+      });
+      expect(await conn.query("Q?")).toBe("-6.1e+01,-9.1e+01");
+    });
   });
 
   it("rejects when the reply is not a block", async () => {
