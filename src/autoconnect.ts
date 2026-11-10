@@ -1,12 +1,18 @@
+import type { ConnectOptions } from "./connection.js";
 import { isValidHost, portFromEnv } from "./target.js";
+import { transportFromEnv, vxi11DeviceFromEnv } from "./transports/select.js";
 
 /**
- * Connect at startup from UTS_IP / UTS_PORT. Never throws: failures are logged and
+ * Connect at startup from UTS_IP / UTS_PORT / UTS_TRANSPORT / UTS_VXI11_DEVICE. Never throws: failures are logged and
  * the user can still call the `connect` tool. Returns whether a connection was made.
  */
 export async function autoConnectFromEnv(
   env: Record<string, string | undefined>,
-  conn: { connect(host: string, port: number): Promise<string> },
+  conn: {
+    connect(host: string, port: number, options: ConnectOptions): Promise<string>;
+    /** Description of the transport in use, logged after connecting (optional for fakes). */
+    transportLabel?: string;
+  },
   rawLog: (...args: unknown[]) => void
 ): Promise<boolean> {
   // The caller does not await this: a throwing logger (for example a closed stderr) must not become an unhandled rejection.
@@ -23,8 +29,10 @@ export async function autoConnectFromEnv(
   try {
     if (!isValidHost(host)) throw new Error("UTS_IP is not a valid hostname or IP address");
     const port = portFromEnv(env.UTS_PORT);
-    const idn = await conn.connect(host, port);
-    log(`Auto-connected to ${host}:${port}: ${idn}`);
+    const transport = transportFromEnv(env.UTS_TRANSPORT);
+    const vxi11Device = vxi11DeviceFromEnv(env.UTS_VXI11_DEVICE);
+    const idn = await conn.connect(host, port, { transport, vxi11Device, log });
+    log(`Auto-connected to ${host} via ${conn.transportLabel ?? transport}: ${idn}`);
     return true;
   } catch (err) {
     log(`Auto-connect failed: ${err instanceof Error ? err.message : String(err)}`);

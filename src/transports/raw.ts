@@ -22,6 +22,8 @@ export const RAW_CAPABILITIES: TransportCapabilities = {
 };
 
 export class RawTransport implements Transport {
+  readonly name = "raw" as const;
+  readonly label = "raw SCPI over TCP";
   readonly capabilities: TransportCapabilities = RAW_CAPABILITIES;
   private socket: net.Socket | null = null;
   private buffer = Buffer.alloc(0);

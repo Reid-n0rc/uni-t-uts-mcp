@@ -50,7 +50,13 @@ export class TransportTimeout extends Error {
   }
 }
 
+export type TransportName = "raw" | "vxi11";
+
 export interface Transport {
+  /** Which wire this is; error messages name it for every transport except raw. */
+  readonly name: TransportName;
+  /** Human readable description for `connect`/`identify` output, e.g. "VXI-11 (device inst0)". */
+  readonly label: string;
   readonly capabilities: TransportCapabilities;
   /** Rejects with a message starting `Connection failed:`. */
   open(options: OpenOptions): Promise<void>;

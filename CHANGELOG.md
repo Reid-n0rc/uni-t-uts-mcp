@@ -11,6 +11,16 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+
+- VXI-11 as a selectable transport (`UTS_TRANSPORT=raw|vxi11|auto`, default `raw`; `UTS_VXI11_DEVICE`,
+  default `inst0`; an optional `transport` parameter on `connect`). `auto` uses VXI-11 when the
+  analyzer registers it with the portmapper on port 111 and falls back to raw with a logged reason.
+  Over VXI-11 commands sent during a sweep are queued instead of dropped, and `single_sweep` waits
+  with one blocking `*OPC?` read instead of staying silent and polling. `connect` and `identify` name
+  the transport in use. Hardware verification of every tool over VXI-11 is still pending, so the
+  default stays raw. Allow outbound TCP to port 111 and the dynamic VXI-11 port in a firewall.
+
 ## [0.1.0] - 2026-11-10
 
 First release. Every tool listed here was tested against a real UNI-T UTS3036B (firmware V1.04.0040, the

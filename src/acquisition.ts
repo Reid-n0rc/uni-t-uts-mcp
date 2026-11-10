@@ -6,10 +6,23 @@ import { queryNumber } from "./instrument.js";
 // `*OPC?` sent then never gets a reply, not even after the sweep ends), and `*OPC?` does not block.
 // The sweep takes about `:SENSe:SWEep:TIME?`. So: send `:INITiate:IMMediate` without the usual
 // `*OPC?` sync, stay silent for the sweep time, then poll `*OPC?`; the first reply means the sweep ended.
+//
+// Over VXI-11 the instrument QUEUES commands during a sweep and a blocking `*OPC?` read answers `1`
+// when the sweep ends (docs/verified-hardware.md, "VXI-11"). The method is chosen by the transport's
+// `dropsInputDuringSweep` capability flag, never by the transport name: a transport that drops input
+// uses the silent-then-poll method above, one that queues input writes `*OPC?` once and reads with
+// timeout = remaining sweep time + margin.
 
 export class SweepTimeoutError extends Error {
-  constructor(public readonly timeoutMs: number) {
-    super(`Timed out: the sweep did not complete within ${(timeoutMs / 1000).toFixed(1)} s (no reply to the *OPC? polling)`);
+  constructor(
+    public readonly timeoutMs: number,
+    /** Set for the blocking `*OPC?` method: names the transport in the message. */
+    blockingOver?: string
+  ) {
+    super(
+      `Timed out: the sweep did not complete within ${(timeoutMs / 1000).toFixed(1)} s ` +
+        (blockingOver ? `(no reply to the blocking *OPC? read over ${blockingOver})` : "(no reply to the *OPC? polling)")
+    );
     this.name = "SweepTimeoutError";
   }
 }
@@ -70,10 +83,12 @@ export async function waitForSweepComplete(options: WaitOptions = {}): Promise<{
   const remaining = Math.max(0, startedAt + expectedMs - called);
   const timeoutMs = options.timeoutMs ?? remaining + 10_000;
   const deadline = called + timeoutMs;
+  const blocking = !connection.capabilities.dropsInputDuringSweep;
   const pollTimeoutMs = options.pollTimeoutMs ?? 300;
   const settleMs = options.settleMs ?? 100;
 
   try {
+    if (blocking) return await waitBlocking(called, timeoutMs);
     // Stay silent: anything sent during the sweep is lost.
     await sleep(Math.max(0, Math.min(remaining - 50, timeoutMs)));
     for (;;) {
@@ -91,4 +106,23 @@ export async function waitForSweepComplete(options: WaitOptions = {}): Promise<{
   } finally {
     pending = null;
   }
+}
+
+/**
+ * Blocking `*OPC?` sweep wait for transports that queue input during a sweep (VXI-11): one query with
+ * a timeout of the whole wait; the instrument answers `1` when the sweep ends. No silent period, no
+ * polling, no settle time (nothing late can arrive).
+ */
+async function waitBlocking(called: number, timeoutMs: number): Promise<{ waitedMs: number }> {
+  let reply: string;
+  try {
+    reply = await connection.query("*OPC?", Math.max(1, Math.ceil(timeoutMs)), { expectSilence: true });
+  } catch (err) {
+    if (err instanceof Error && /timeout/i.test(err.message)) throw new SweepTimeoutError(timeoutMs, "VXI-11");
+    throw err;
+  }
+  if (reply.trim() !== "1") {
+    throw new Error(`Unexpected reply to *OPC? while waiting for the sweep: ${JSON.stringify(reply)} (expected 1)`);
+  }
+  return { waitedMs: Date.now() - called };
 }
