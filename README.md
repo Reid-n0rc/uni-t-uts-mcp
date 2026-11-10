@@ -37,7 +37,7 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 - `src/tools/screenshot.ts` – the `screenshot` tool (PNG via `:DISPlay:DATA?`, picture format restored in a `finally`)
 - `src/blocks.ts`, `src/scpi.ts` – binary block parser; SCPI helpers and the safety denylist
 - `src/instrument.ts`, `src/errors.ts`, `src/acquisition.ts` – applying settings with error-queue checks, sweep synchronization
-- `src/vxi11/` – dependency-free ONC RPC/XDR client, portmapper and VXI-11 core-channel client (used by the VXI-11 transport)
+- `src/vxi11/` – dependency-free ONC RPC/XDR client, portmapper, VXI-11 core-channel client (used by the VXI-11 transport) and the interrupt-channel listener (`interrupt.ts`, SRQ client; not used by any tool)
 - `src/tools/` – one file per tool group, registered in `src/server.ts`
 - `tests/` – unit and mocked integration tests, a fake SCPI server, a transport contract suite (`transportContract.ts`), and captured instrument fixtures
 - `mcpb/manifest.json`, `scripts/build-mcpb.mjs` – the Claude Desktop MCP bundle (`.mcpb`): manifest and the Node-only build script (`npm run build:mcpb`)
