@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "uni-t-uts-mcp",
   "display_name": "UNI-T UTS Spectrum Analyzer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for UNI-T UTS series spectrum analyzers via SCPI over LAN",
   "long_description": "Lets Claude read and set a UNI-T UTS1000B/UTS3000B spectrum analyzer over your local network: frequency, amplitude, bandwidth, sweep, detector and traces. Enter the analyzer address in the settings, or leave it empty and ask Claude to connect to the analyzer at an address. The analyzer must be reachable on your network (raw SCPI, TCP port 5025). Nothing leaves your computer except the connection to the analyzer.",
   "author": {

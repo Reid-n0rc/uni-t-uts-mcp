@@ -18,7 +18,7 @@ The server is pure Node (no native modules, no VISA).
 
 ## Install
 
-Release v0.1.0 is out. Pick one of these; each registers the server under the name `uni-t-uts`. `UTS_IP` is optional: without it, tell the assistant "connect to the analyzer at 192.168.1.100" and it uses the `connect` tool.
+Release v0.2.0 is out. Pick one of these; each registers the server under the name `uni-t-uts`. `UTS_IP` is optional: without it, tell the assistant "connect to the analyzer at 192.168.1.100" and it uses the `connect` tool.
 
 ### Claude Code
 
@@ -27,13 +27,13 @@ Release v0.1.0 is out. Pick one of these; each registers the server under the na
 claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp
 
 # From the release tarball (same files as npm, fetched from GitHub: no build step, no install scripts)
-claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.2.0/uni-t-uts-mcp-0.2.0.tgz
 
 # From the git tag (npm clones the repository and builds it; needs git)
-claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y github:Reid-n0rc/uni-t-uts-mcp#v0.1.0
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y github:Reid-n0rc/uni-t-uts-mcp#v0.2.0
 
 # Docker (Linux image, amd64 and arm64)
-claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:0.1.0
+claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:0.2.0
 ```
 
 On Windows, where `npx` is a `.cmd` file that clients cannot launch directly, put `cmd /c` in front of it:
@@ -42,8 +42,12 @@ On Windows, where `npx` is a `.cmd` file that clients cannot launch directly, pu
 claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y uni-t-uts-mcp
 
 # or from the release tarball
-claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz
+claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.2.0/uni-t-uts-mcp-0.2.0.tgz
 ```
+
+### Claude Desktop: the .mcpb bundle
+
+Download `uni-t-uts-mcp-0.2.0.mcpb` from the [v0.2.0 release](https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v0.2.0) and double-click it; Claude Desktop asks for the analyzer address (optional), port and transport. Installing it in Claude Desktop itself has not been verified yet; the JSON configuration below always works.
 
 ### Claude Desktop, Cursor, VS Code and other clients
 
@@ -58,7 +62,7 @@ macOS / Linux:
 Or from the release tarball:
 
 ```json
-{ "mcpServers": { "uni-t-uts": { "command": "npx", "args": ["-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
+{ "mcpServers": { "uni-t-uts": { "command": "npx", "args": ["-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.2.0/uni-t-uts-mcp-0.2.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
 ```
 
 Windows:
@@ -70,13 +74,13 @@ Windows:
 Or from the release tarball:
 
 ```json
-{ "mcpServers": { "uni-t-uts": { "command": "cmd", "args": ["/c", "npx", "-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
+{ "mcpServers": { "uni-t-uts": { "command": "cmd", "args": ["/c", "npx", "-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.2.0/uni-t-uts-mcp-0.2.0.tgz"], "env": { "UTS_IP": "192.168.1.100" } } } }
 ```
 
 Docker (any OS with Docker):
 
 ```json
-{ "mcpServers": { "uni-t-uts": { "command": "docker", "args": ["run", "-i", "--rm", "-e", "UTS_IP=192.168.1.100", "ghcr.io/reid-n0rc/uni-t-uts-mcp:0.1.0"] } } }
+{ "mcpServers": { "uni-t-uts": { "command": "docker", "args": ["run", "-i", "--rm", "-e", "UTS_IP=192.168.1.100", "ghcr.io/reid-n0rc/uni-t-uts-mcp:0.2.0"] } } }
 ```
 
 The `github:` spec works in the same place as the tarball URL (replace the last argument).

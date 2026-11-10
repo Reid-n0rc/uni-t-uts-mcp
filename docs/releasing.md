@@ -48,8 +48,8 @@ Users double-click it in Claude Desktop; see the README for the settings dialog.
   point over stdio (`initialize` and `tools/list`, via `scripts/smoke-mcp.mjs`).
 - CI: the `mcpb bundle` job does the same on Ubuntu, macOS and Windows for every pull request.
 - The bundle is not signed (signing needs a code-signing certificate; the packer's `sign` command can add one later).
-- Releases made before the PR for #86 (v0.1.0) have no `.mcpb`. The README and site say "available from the next
-  release"; change that to the real download instructions once a release carries the file.
+- v0.1.0 has no `.mcpb`; v0.2.0 is the first release that carries `uni-t-uts-mcp-0.2.0.mcpb`, and the README, site and
+  wiki point at it.
 - Manual check before announcing it (CI cannot run Claude Desktop): on macOS and on Windows, double-click the downloaded
   file, confirm the settings dialog shows Analyzer address (empty is allowed), Port (5025) and Transport (raw), install,
   start a new chat, check that the tools are listed under the extension, and ask "connect to the analyzer at
@@ -58,11 +58,14 @@ Users double-click it in Claude Desktop; see the README for the settings dialog.
 
 ## Version policy
 
-- [Semantic Versioning](https://semver.org/). The first release is **0.1.0**.
-- Pre-1.0 (`0.y.z`): the public surface (tool names, parameters, result shapes, environment variables) may
-  still change in a minor release (`0.y.0`); patch releases (`0.y.z`) are fixes only. Breaking changes are
-  called out under "Changed" or "Removed" in the changelog. 1.0.0 is cut when the tool set and its
-  results are considered stable.
+- [Semantic Versioning](https://semver.org/). The first release was **0.1.0**.
+- Pre-1.0 (`0.y.z`) policy:
+  - **New tools ship in minor releases** (0.2.0, 0.3.0, ...).
+  - **Fixes, documentation-only and internal changes ship in patch releases** (0.2.1).
+  - **Breaking changes** to tool names or parameters are announced under "Changed" in the changelog and also raise the
+    minor version (never a patch release). Result shapes and environment variables follow the same rule.
+  - The next minor, 0.3.0, is planned to carry the trace data download tool (#15) and the screenshot tool (#20).
+  - 1.0.0 is cut when the tool set and its results are considered stable.
 - The version lives only in `package.json` (`src/server.ts` reads it at runtime). The git tag is `v<version>`,
   for example `v0.1.0`. Pre-release tags use a hyphen (`v0.2.0-rc.1`): they create a GitHub pre-release and do not move the Docker
   `latest` tag.

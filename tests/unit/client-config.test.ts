@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   NPM_PUBLISHED,
   buildServerConfig,
@@ -11,16 +12,17 @@ import {
   validateHost,
 } from "../../scripts/client-config.mjs";
 
-const V = "0.1.0";
+const pkgVersion = (JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version: string }).version;
+const V = pkgVersion;
 const HOST = "192.168.1.100";
 const POSIX_ENTRY = "/home/user/uni-t-uts-mcp/build/index.js";
 const WIN_ENTRY = "C:\\Users\\user\\uni-t-uts-mcp\\build\\index.js";
 
 describe("client config printer", () => {
   it("builds the release URLs from the version", () => {
-    expect(tarballUrl(V)).toBe("https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.1.0/uni-t-uts-mcp-0.1.0.tgz");
-    expect(githubSpec(V)).toBe("github:Reid-n0rc/uni-t-uts-mcp#v0.1.0");
-    expect(dockerImage(V)).toBe("ghcr.io/reid-n0rc/uni-t-uts-mcp:0.1.0");
+    expect(tarballUrl(V)).toBe(`https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v${V}/uni-t-uts-mcp-${V}.tgz`);
+    expect(githubSpec(V)).toBe(`github:Reid-n0rc/uni-t-uts-mcp#v${V}`);
+    expect(dockerImage(V)).toBe(`ghcr.io/reid-n0rc/uni-t-uts-mcp:${V}`);
   });
 
   it("local config on posix runs node on the absolute path", () => {
