@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "license": "MIT",
   "keywords": ["mcp", "model-context-protocol", "uni-t", "spectrum-analyzer", "scpi"],
   "repository": { "type": "git", "url": "https://github.com/Reid-n0rc/uni-t-uts-mcp.git" },
   "dependencies": {

@@ -14,4 +14,4 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 
 ## License
 
-Not yet chosen.
+[MIT](LICENSE)
