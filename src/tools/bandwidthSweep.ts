@@ -154,7 +154,7 @@ export function registerBandwidthSweepTools(server: McpServer): void {
         ];
         for (const [name, requested, actual, unit] of checks) {
           if (requested !== undefined && !close(requested, actual)) {
-            warnings.push(`${name} adjusted by the instrument: requested ${requested} ${unit}, now ${actual} ${unit}`.trim());
+            warnings.push(`${name} adjusted by the instrument: requested ${[requested, unit].join(" ").trim()}, now ${[actual, unit].join(" ").trim()}`);
           }
         }
         if (args.filter_shape !== undefined && args.filter_shape !== state.filter_shape) {
@@ -228,7 +228,7 @@ export function registerBandwidthSweepTools(server: McpServer): void {
         ];
         for (const [name, requested, actual, unit] of checks) {
           if (requested !== undefined && !close(requested, actual)) {
-            warnings.push(`${name} adjusted by the instrument: requested ${requested} ${unit}, now ${actual} ${unit}`.trim());
+            warnings.push(`${name} adjusted by the instrument: requested ${[requested, unit].join(" ").trim()}, now ${[actual, unit].join(" ").trim()}`);
           }
         }
         for (const [name, requested, actual] of [

@@ -91,6 +91,8 @@ export class UtsConnection {
   private holdUntil = 0;
   private lastQueryTimeoutAt = 0;
   private holdTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Why the socket went away unexpectedly (null after connect() or an explicit disconnect()). */
+  private lostReason: string | null = null;
 
   async connect(
     host: string,
@@ -123,13 +125,16 @@ export class UtsConnection {
     });
 
     this.socket = socket;
+    this.lostReason = null;
     socket.setNoDelay(true);
     this.buffer = Buffer.alloc(0);
     this.pendingTerminator = "none";
     socket.on("data", (chunk) => this.onData(chunk));
-    socket.on("error", (err) => this.failActive(new Error(`Socket error: ${err.message}`)));
+    socket.on("error", (err) => {
+      if (this.socket === socket) this.lose(err.message);
+    });
     socket.on("close", () => {
-      if (this.socket === socket) this.closeAll("Connection closed unexpectedly");
+      if (this.socket === socket) this.lose("closed by the instrument or the network");
     });
 
     try {
@@ -143,6 +148,7 @@ export class UtsConnection {
   }
 
   disconnect(): void {
+    this.lostReason = null;
     this.closeAll("Connection closed");
   }
 
@@ -188,7 +194,15 @@ export class UtsConnection {
     sync = false,
     expectSilence = false
   ): Promise<Buffer | string | void> {
-    if (!this.isConnected()) return Promise.reject(new Error(NOT_CONNECTED));
+    if (!this.isConnected()) {
+      return Promise.reject(
+        new Error(
+          this.lostReason !== null
+            ? `Connection to the spectrum analyzer was lost (${this.lostReason}). Use the 'connect' tool to reconnect.`
+            : NOT_CONNECTED
+        )
+      );
+    }
     try {
       validateCommand(cmd);
     } catch (err) {
@@ -275,7 +289,18 @@ export class UtsConnection {
     this.pump();
   }
 
-  private closeAll(message: string): void {
+  /** The socket failed or was closed by the other side: fail everything, naming the command in flight. */
+  private lose(reason: string): void {
+    const job = this.active;
+    const message = `Connection to the spectrum analyzer was lost (${reason})`;
+    this.lostReason = reason;
+    this.closeAll(
+      message,
+      job ? `${message} while ${job.kind === "command" ? "sending" : "querying"} ${job.cmd}` : undefined
+    );
+  }
+
+  private closeAll(message: string, activeMessage?: string): void {
     const pending = this.jobs.splice(0);
     const job = this.active;
     this.active = null;
@@ -291,7 +316,7 @@ export class UtsConnection {
       socket.on("error", () => {});
       socket.destroy();
     }
-    job?.reject(new Error(message));
+    job?.reject(new Error(activeMessage ?? message));
     for (const j of pending) j.reject(new Error(message));
   }
 
