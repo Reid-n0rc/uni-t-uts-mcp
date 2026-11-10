@@ -10,6 +10,7 @@ import { registerTraceTools } from "./tools/trace.js";
 import { registerScreenshotTools } from "./tools/screenshot.js";
 import { registerTraceDataTools } from "./tools/traceData.js";
 import { registerMarkerTools } from "./tools/marker.js";
+import { registerMarkerFunctionTools } from "./tools/markerFunctions.js";
 import { guardToolRegistration } from "./tools/util.js";
 
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -28,5 +29,6 @@ export function createServer(): McpServer {
   registerScreenshotTools(server);
   registerTraceDataTools(server);
   registerMarkerTools(server);
+  registerMarkerFunctionTools(server);
   return server;
 }

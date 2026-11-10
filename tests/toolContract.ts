@@ -187,6 +187,27 @@ export const CONTRACT: Record<string, ContractEntry> = {
     invalid: [{}, { threshold_dbm: 31 }, { excursion_db: 101 }, { threshold_dbm: -50, threshold_auto: true }],
     warn: [{ threshold_dbm: -50 }, { excursion_db: 3 }, { threshold_auto: false }, { excursion_auto: false }],
   },
+  get_marker_function: { kind: "getter", args: { marker: 2 }, invalid: [{ marker: 0 }, { marker: 11 }] },
+  set_marker_function: {
+    kind: "setter",
+    args: { marker: 1, function: "noise" },
+    invalid: [{}, { marker: 1 }, { marker: 11, function: "noise" }, { marker: 1, function: "bogus" }, { marker: 1, band_span_hz: -1 }],
+    warn: [{ marker: 1, function: "noise" }, { marker: 1, band_span_hz: 2e6 }],
+  },
+  get_marker_ndb: { kind: "getter", args: { marker: 2 }, invalid: [{ marker: 0 }, { marker: 11 }] },
+  set_marker_ndb: {
+    kind: "setter",
+    args: { marker: 1, enabled: true, ndb: -3 },
+    invalid: [{}, { marker: 1 }, { marker: 1, ndb: 3 }, { marker: 1, ndb: -141 }, { marker: 11, enabled: true }],
+    warn: [{ marker: 1, enabled: false }, { marker: 1, ndb: -6 }],
+  },
+  get_frequency_counter: { kind: "getter", args: {} },
+  set_frequency_counter: {
+    kind: "setter",
+    args: { enabled: true },
+    invalid: [{}, { gate_time_s: 0 }, { gate_time_s: 1 }],
+    warn: [{ enabled: false }, { gate_time_s: 0.01 }],
+  },
 };
 
 // ---------- canned replies ----------
@@ -199,6 +220,7 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/MARKer\d+:MODE\?$/, "POSition"],
   [/MARKer\d+:TRACe\?$/, "1"],
   [/MARKer\d+:REFerence\?$/, "2"],
+  [/MARKer\d+:FUNCtion\?$/, "OFF"],
   [/:SPACing\?$/, "LOGarithmic"],
   [/BANDwidth:SHAPe\?$/, "GAUSsian"],
   [/SWEep:TIME:AUTO:RULes\?$/, "NORMal"],

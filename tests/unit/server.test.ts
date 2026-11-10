@@ -18,6 +18,6 @@ describe("createServer", () => {
     await Promise.all([client.connect(ct), server.connect(st)]);
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
-    for (const n of ["connect", "disconnect", "identify", "scpi_query", "scpi_command", "get_frequency", "set_frequency", "get_amplitude", "set_amplitude", "get_bandwidth", "set_bandwidth", "get_sweep", "set_sweep", "get_detector", "set_detector", "get_acquisition", "set_acquisition", "start_sweep", "single_sweep", "wait_for_sweep_complete", "get_trace", "set_trace", "set_trace_math", "restart_trace", "get_trace_data", "screenshot", "get_marker", "set_marker", "marker_search", "marker_to_instrument", "markers_all_off", "get_peak_criteria", "set_peak_criteria"]) expect(names).toContain(n);
+    for (const n of ["connect", "disconnect", "identify", "scpi_query", "scpi_command", "get_frequency", "set_frequency", "get_amplitude", "set_amplitude", "get_bandwidth", "set_bandwidth", "get_sweep", "set_sweep", "get_detector", "set_detector", "get_acquisition", "set_acquisition", "start_sweep", "single_sweep", "wait_for_sweep_complete", "get_trace", "set_trace", "set_trace_math", "restart_trace", "get_trace_data", "screenshot", "get_marker", "set_marker", "marker_search", "marker_to_instrument", "markers_all_off", "get_peak_criteria", "set_peak_criteria", "get_marker_function", "set_marker_function", "get_marker_ndb", "set_marker_ndb", "get_frequency_counter", "set_frequency_counter"]) expect(names).toContain(n);
   });
 });
