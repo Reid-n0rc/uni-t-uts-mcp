@@ -122,6 +122,22 @@ Command syntax: [programming-guide.md](programming-guide.md) section 2. Verified
 
 Uses `:SENSe:DETector:TRACe<n>` (the plain `:DETector[:FUNCtion]` is for measurements). `get_detector` (read-only) takes an optional `trace` (1-6) and returns `{traces: [{trace, detector, auto}]}`. `set_detector` takes `trace` plus `detector` (`sample`, `positive`, `negative`, `normal`, `average`; turns auto off for that trace) or `auto`.
 
+## Acquisition
+
+Command syntax: [programming-guide.md](programming-guide.md) sections 2 and 9. Verified on the UTS3036B: see [verified-hardware.md](verified-hardware.md). Important: while a single sweep is running the instrument ignores every command (and `*OPC?` does not block), so these tools stay silent for the sweep time and then poll `*OPC?` (`src/acquisition.ts`, `waitForSweepComplete`). `:INITiate:STOP/PAUSe/RESume` are rejected by the instrument and are not offered.
+
+### `get_acquisition` / `set_acquisition`
+
+`get_acquisition` (read-only) returns `continuous` (true = continuous sweep, false = single), `sweep_time_s` and `sweep_time_auto`. `set_acquisition` takes `continuous` (boolean; sends `:INITiate:CONTinuous ON|OFF`), re-reads, and reports a mismatch in `warnings`.
+
+### `single_sweep`
+
+Switches to single mode, runs one sweep and waits until it is complete, so the trace can be read. Optional `timeout_s` (default sweep time + 10 s; a timeout returns an error result). Leaves the instrument in single mode.
+
+### `start_sweep` / `wait_for_sweep_complete`
+
+`start_sweep` sends `:INITiate:IMMediate` (`method: "immediate"`, default) or `:INITiate:RESTart`. In single mode `wait` (default true) waits for completion; with `wait: false` call `wait_for_sweep_complete` next (nothing else can be sent meanwhile). In continuous mode the sweep is restarted, not awaited, and a warning says so. `timeout_s` is optional on all three tools.
+
 ## Environment variables
 
 | Variable | Description |

@@ -1,0 +1,152 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { connection } from "../connection.js";
+import { InstrumentError, applyCommands, checkInstrumentErrors } from "../instrument.js";
+import { onOff, parseBool, parseNumber } from "../scpi.js";
+import { SweepTimeoutError, hasPendingSweep, startSweep, waitForSweepComplete, type StartMethod } from "../acquisition.js";
+import { errorResult, textResult } from "./util.js";
+
+// Commands: docs/programming-guide.md sections 2 and 9 (ambiguities 6-8). Verified on the UTS3036B:
+// :INITiate:CONTinuous accepts ON/OFF/1/0; :INITiate:IMMediate and :RESTart work in spectrum-analyzer mode;
+// :INITiate:STOP/PAUSe/RESume are rejected (-113) so they are not offered. While a single sweep runs
+// the instrument ignores all input, see src/acquisition.ts.
+
+async function readAcquisition() {
+  return {
+    continuous: parseBool(await connection.query(":INITiate:CONTinuous?")),
+    sweep_time_s: parseNumber(await connection.query(":SENSe:SWEep:TIME?")),
+    sweep_time_auto: parseBool(await connection.query(":SENSe:SWEep:TIME:AUTO?")),
+  };
+}
+
+const TIMEOUT = z.number().finite().optional().describe("Give up after this many seconds (default: sweep time + 10 s)");
+
+function timeoutMsOf(timeout_s: number | undefined): number | undefined | Error {
+  if (timeout_s === undefined) return undefined;
+  if (!(timeout_s > 0)) return new Error("timeout_s must be greater than 0.");
+  return timeout_s * 1000;
+}
+
+function failure(err: unknown) {
+  if (err instanceof SweepTimeoutError) {
+    return errorResult(`${err.message}. The instrument may still be sweeping (for example waiting for a video trigger); check get_sweep.`);
+  }
+  if (err instanceof InstrumentError) return errorResult(`${err.message}. Use get_acquisition to check the state.`);
+  return errorResult(err);
+}
+
+async function finish(timeoutMs: number | undefined) {
+  const { waitedMs } = await waitForSweepComplete({ timeoutMs });
+  await checkInstrumentErrors();
+  return waitedMs;
+}
+
+export function registerAcquisitionTools(server: McpServer): void {
+  server.tool(
+    "get_acquisition",
+    "Get the acquisition mode: continuous (true) or single sweep (false), plus the sweep time (s) and its auto flag. Note: while a single sweep is running the instrument ignores all commands.",
+    {},
+    { readOnlyHint: true },
+    async () => {
+      try {
+        return textResult(JSON.stringify(await readAcquisition(), null, 2));
+      } catch (err) {
+        return errorResult(err);
+      }
+    }
+  );
+
+  server.tool(
+    "set_acquisition",
+    "Switch between continuous sweep (continuous=true, the instrument's normal state) and single sweep mode (continuous=false, :INITiate:CONTINUOUS OFF). In single mode the instrument sweeps only when start_sweep or single_sweep is used.",
+    { continuous: z.boolean().describe("true = continuous sweep, false = single sweep") },
+    { readOnlyHint: false, idempotentHint: true },
+    async ({ continuous }) => {
+      try {
+        await applyCommands([`:INITiate:CONTinuous ${onOff(continuous)}`]);
+        const state = await readAcquisition();
+        const warnings: string[] = [];
+        if (state.continuous !== continuous) {
+          warnings.push(`continuous adjusted by the instrument: requested ${continuous}, now ${state.continuous}`);
+        }
+        return textResult(JSON.stringify({ state, warnings }, null, 2));
+      } catch (err) {
+        return failure(err);
+      }
+    }
+  );
+
+  server.tool(
+    "start_sweep",
+    "Start (:INITiate:IMMediate) or restart (:INITiate:RESTart) a sweep. In single mode, wait=true (default) blocks until the sweep is complete; with wait=false " +
+      "call wait_for_sweep_complete next, because the instrument ignores every command while it sweeps. In continuous mode the sweep is restarted and not awaited. " +
+      "There is no stop/pause/resume: the instrument rejects :INITiate:STOP/PAUSe/RESume.",
+    {
+      method: z.enum(["immediate", "restart"]).optional().describe("immediate (default) or restart"),
+      wait: z.boolean().optional().describe("Wait for completion in single mode (default true)"),
+      timeout_s: TIMEOUT,
+    },
+    { readOnlyHint: false },
+    async ({ method, wait, timeout_s }) => {
+      try {
+        const timeoutMs = timeoutMsOf(timeout_s);
+        if (timeoutMs instanceof Error) return errorResult(timeoutMs);
+        const continuous = parseBool(await connection.query(":INITiate:CONTinuous?"));
+        const { sweepTimeS } = await startSweep((method ?? "immediate") as StartMethod);
+        const warnings: string[] = [];
+        let completed = false;
+        let waited_ms: number | undefined;
+        if (continuous) {
+          // Continuous sweeps never "complete"; just make sure the command was accepted.
+          await waitForSweepComplete({ timeoutMs });
+          await checkInstrumentErrors();
+          warnings.push("Instrument is in continuous mode: the sweep was restarted but completion cannot be awaited; use set_acquisition continuous=false or single_sweep.");
+        } else if (wait ?? true) {
+          waited_ms = await finish(timeoutMs);
+          completed = true;
+        }
+        return textResult(JSON.stringify({ started: true, method: method ?? "immediate", continuous, sweep_time_s: sweepTimeS, completed, waited_ms, warnings }, null, 2));
+      } catch (err) {
+        return failure(err);
+      }
+    }
+  );
+
+  server.tool(
+    "single_sweep",
+    "Switch to single sweep mode, run exactly one sweep and wait until it is complete, so the trace is final and can be read. Leaves the instrument in single mode; use set_acquisition continuous=true to resume normal sweeping.",
+    { timeout_s: TIMEOUT },
+    { readOnlyHint: false },
+    async ({ timeout_s }) => {
+      try {
+        const timeoutMs = timeoutMsOf(timeout_s);
+        if (timeoutMs instanceof Error) return errorResult(timeoutMs);
+        await applyCommands([":INITiate:CONTinuous OFF"]);
+        const { sweepTimeS } = await startSweep("immediate");
+        const waited_ms = await finish(timeoutMs);
+        return textResult(JSON.stringify({ completed: true, continuous: false, sweep_time_s: sweepTimeS, waited_ms }, null, 2));
+      } catch (err) {
+        return failure(err);
+      }
+    }
+  );
+
+  server.tool(
+    "wait_for_sweep_complete",
+    "Wait for a sweep started with start_sweep(wait=false) to finish: stays silent for the remaining sweep time (the instrument ignores input while sweeping), then polls *OPC? until it answers.",
+    { timeout_s: TIMEOUT },
+    { readOnlyHint: false },
+    async ({ timeout_s }) => {
+      try {
+        const timeoutMs = timeoutMsOf(timeout_s);
+        if (timeoutMs instanceof Error) return errorResult(timeoutMs);
+        const hadPending = hasPendingSweep();
+        const waited_ms = await finish(timeoutMs);
+        const warnings = hadPending ? [] : ["No sweep was started by this server; waited only until the instrument answered."];
+        return textResult(JSON.stringify({ completed: true, waited_ms, warnings }, null, 2));
+      } catch (err) {
+        return failure(err);
+      }
+    }
+  );
+}

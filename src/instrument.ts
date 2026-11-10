@@ -27,6 +27,11 @@ function isUndefinedHeader(error: string): boolean {
 export async function applyCommands(commands: string[]): Promise<void> {
   await connection.sendCommand("*CLS");
   for (const command of commands) await connection.sendCommand(command);
+  await checkInstrumentErrors();
+}
+
+/** Drain the error queue and throw InstrumentError for real errors (stale `-113`s are ignored, see applyCommands). */
+export async function checkInstrumentErrors(): Promise<void> {
   let errors = await drainErrorQueue();
   if (connection.msSinceQueryTimeout() < STALE_ERROR_WINDOW_MS) {
     errors = errors.filter((error) => !isUndefinedHeader(error));
