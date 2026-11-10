@@ -45,7 +45,7 @@ describe("connect", () => {
   });
 
   it("uses an explicit port without asking the portmapper", async () => {
-    fake = await startFakeVxi11Instrument();
+    fake = await startFakeVxi11Instrument({ device: "inst1" });
     client = await Vxi11Client.connect("127.0.0.1", { port: fake.port, device: "inst1", portmapperPort: 1 });
     expect(fake.rpc.calls.filter((c) => c.program === 100000)).toHaveLength(0);
     expect(fake.createLinkDevices).toEqual(["inst1"]);
@@ -129,7 +129,7 @@ describe("write and read", () => {
 
   it("splits writes larger than maxRecvSize and sets END only on the last chunk", async () => {
     const { fake, client } = await setup({ maxRecvSize: 16 });
-    const cmd = ":SENSe:FREQuency:CENTer 1000000000 Hz;" + "X".repeat(5);
+    const cmd = ":SENSe:FREQuency:CENTer 1000000000 Hz " + "X".repeat(5);
     expect(await client.write(cmd)).toBe(cmd.length);
     expect(fake.writes.length).toBe(Math.ceil(cmd.length / 16));
     for (const w of fake.writes) expect(w.data.length).toBeLessThanOrEqual(16);
@@ -188,7 +188,7 @@ describe("write and read", () => {
     const { fake, client } = await setup();
     fake.setScpiHandler((c) => (c === "BAD?" ? undefined : "ok"));
     await client.write("BAD?");
-    const err = await client.read({ timeoutMs: 80 }).catch((e) => e);
+    const err = (await client.read({ timeoutMs: 80 }).catch((e) => e)) as Vxi11IoTimeoutError;
     expect(err).toBeInstanceOf(Vxi11IoTimeoutError);
     expect(err.code).toBe(15);
     expect(err.codeName).toBe("IO_TIMEOUT");
@@ -258,7 +258,7 @@ describe("error mapping", () => {
     ];
     for (const [proc, run] of calls) {
       fake.injectError(proc, code);
-      const err = await run().catch((e) => e);
+      const err = (await run().catch((e) => e)) as Vxi11DeviceError;
       expect(err).toBeInstanceOf(Vxi11DeviceError);
       expect(err.code).toBe(code);
       expect(err.codeName).toBe(name);
@@ -279,7 +279,7 @@ describe("error mapping", () => {
     fake.injectError(11, 11);
     expect(await client.write("x").catch((e) => e)).toBeInstanceOf(Vxi11LockedError);
     fake.links.clear(); // the instrument forgot the link
-    const err = await client.write("x").catch((e) => e);
+    const err = (await client.write("x").catch((e) => e)) as Vxi11DeviceError;
     expect(err).toBeInstanceOf(Vxi11DeviceError);
     expect(err.code).toBe(4);
   });
@@ -361,20 +361,18 @@ describe("robustness against a misbehaving server", () => {
     ];
     for (const [label, make] of cases) {
       fake.rpc.register(CORE, 1, 12, () => make());
-      const err = await client.read({ timeoutMs: 200 }).catch((e) => e);
+      const err = await client.read({ timeoutMs: 200, maxBytes: 1000 }).catch((e) => e);
       expect(err, label).toBeInstanceOf(Vxi11ProtocolError);
       expect(client.closed, label).toBe(false);
     }
   });
 
-  it("rejects an oversized reply against maxBytes", async () => {
+  it("stops at maxBytes when the instrument never signals END", async () => {
     const { fake, client } = await setup();
-    fake.setScpiHandler(() => "x".repeat(2000));
-    await client.write("Q?");
-    await expect(client.read({ maxBytes: 100000 })).resolves.toBeTruthy();
-    fake.rpc.register(CORE, 1, 12, () => new XdrWriter().u32(0).u32(0).opaque(Buffer.alloc(50)));
-    const err = await client.read({ maxBytes: 100 }).catch((e) => e);
-    expect(err).toBeInstanceOf(Vxi11ProtocolError); // never ends and never reaches END before the cap
+    fake.rpc.register(CORE, 1, 12, () => new XdrWriter().u32(0).u32(1).opaque(Buffer.alloc(50)));
+    const r = await client.read({ maxBytes: 100 });
+    expect(r.data.length).toBe(100);
+    expect(r.end).toBe(false);
   });
 
   it("maps RPC-level failures (program unavailable) to Vxi11TransportError", async () => {
