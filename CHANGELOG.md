@@ -12,6 +12,9 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Changed
+- Project site: the soundtrack now defaults to 136 BPM (seeded variation 130-142); `?bpm=` still overrides it (clamped 60-180).
+
 ## [0.2.0] - 2026-11-10
 
 ### Added

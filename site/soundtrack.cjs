@@ -20,7 +20,7 @@
   // Tempo: one documented default (DEFAULT_BPM) plus a small seeded variation, always inside
   // MIN_BPM..MAX_BPM. The page can override it with ?bpm=<n> or #bpm=<n> (see parseBpm), clamped to
   // OVERRIDE_MIN_BPM..OVERRIDE_MAX_BPM, so the tempo can be tuned by ear without changing code.
-  var MIN_BPM = 118, MAX_BPM = 132, DEFAULT_BPM = 124;
+  var MIN_BPM = 130, MAX_BPM = 142, DEFAULT_BPM = 136;
   var OVERRIDE_MIN_BPM = 60, OVERRIDE_MAX_BPM = 180;
   var DEFAULT_SEED = 1992;
   var STEPS_PER_BAR = 16; // sixteenth notes
@@ -92,7 +92,7 @@
    */
   function compose(seed, bpmOverride) {
     var rng = mulberry32(seed);
-    var bpm = DEFAULT_BPM + Math.floor(rng() * 9) - 4; // 120..128, always inside MIN_BPM..MAX_BPM
+    var bpm = DEFAULT_BPM + Math.floor(rng() * 13) - 6; // 130..142, always inside MIN_BPM..MAX_BPM
     var forced = clampBpm(bpmOverride);
     if (bpmOverride !== undefined && bpmOverride !== null && forced !== null) bpm = forced; // the draw above is still consumed: the pattern does not change
     var rootMidi = 45 + Math.floor(rng() * 12);
