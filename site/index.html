@@ -73,6 +73,18 @@ code, pre { font-family: var(--font-mono); }
   background: var(--butter); color: #1a0f33; padding: 10px 16px; border: 2px solid #1a0f33; font-weight: 700;
 }
 .skip-link:focus { top: 12px; }
+.sound { position: fixed; left: 12px; bottom: 12px; z-index: 120; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.sound-toggle {
+  font: 700 0.9rem var(--font-mono); color: #1a0f33; background: var(--butter); border: 2px solid #1a0f33;
+  padding: 8px 14px; cursor: pointer; box-shadow: 3px 3px 0 var(--purple);
+}
+.sound-toggle[aria-pressed="true"] { background: var(--mint); }
+.sound-toggle:hover { background: var(--pink); }
+.sound-state { text-transform: uppercase; margin-left: 4px; }
+.sound-prompt {
+  margin: 0; font: 0.85rem var(--font-mono); color: #fff; background: rgba(26, 15, 51, .92);
+  border: 2px solid var(--pink); padding: 6px 10px; max-width: min(300px, calc(100vw - 24px));
+}
 .wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
 
 /* ---------- hero: vaporwave sunset over a teal-and-purple Jazz trace ---------- */
@@ -286,6 +298,13 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
 </style>
 </head>
 <body>
+<!-- Soundtrack control: first in the tab order on purpose (WCAG 2.2 SC 1.4.2: audio that starts by itself needs a way to stop it). -->
+<div class="sound">
+  <button type="button" id="sound-toggle" class="sound-toggle" aria-pressed="false" aria-label="Soundtrack" hidden>
+    <span aria-hidden="true">&#9835;</span> Soundtrack <span id="sound-state" class="sound-state" aria-hidden="true">off</span>
+  </button>
+  <p id="sound-prompt" class="sound-prompt" role="status" hidden>Tap anywhere to start the soundtrack</p>
+</div>
 <a class="skip-link" href="#main">Skip to content</a>
 
 <!-- shared crayon texture for the brush strokes -->
@@ -495,16 +514,24 @@ npm run build</code></pre></div></div>
   <div class="wrap">
     <p class="ja" lang="ja" aria-hidden="true">スペクトラム・アナライザー　ＭＣＰ</p>
     <p>© 2026 Reid Crowe · <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/LICENSE">MIT License</a> · <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp">Source on GitHub</a> · <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/blob/main/SECURITY.md">Security</a></p>
+    <p>Music generated live in your browser, no audio files and no downloads. It starts automatically where your browser allows it, otherwise on your first click, tap or key press. Use the Soundtrack button (bottom left, first in the tab order) to mute it; your choice is remembered.</p>
     <small>The visual style is a love letter to the 1992 "Jazz" cup design and to vaporwave. "Jazz" is a trademark of its owner; this is an original homage and this project is not affiliated with it, with UNI-T, or with UNI-TREND. All product names belong to their owners.</small>
   </div>
 </footer>
 
+<script>
+<!--SOUNDTRACK_JS-->
+</script>
 <script>
 (function () {
   "use strict";
   var root = document.documentElement;
   root.classList.add("js");
   var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---- soundtrack: autoplay attempt, first-gesture fallback, mute control (see site/soundtrack.cjs) ----
+  var sound = null, spec = null;
+  try { if (window.Soundtrack) { sound = window.Soundtrack.init({ win: window, doc: document }); spec = new Uint8Array(sound.binCount); } } catch (e) { sound = null; }
 
   // ---- seeded random so the brush strokes are the same on every visit ----
   function rng(seed) {
@@ -572,7 +599,7 @@ npm run build</code></pre></div></div>
       grainPattern = lctx.createPattern(grain, "repeat");
     }
     function sample(first) {
-      var i, x, p, k, lin, db;
+      var i, x, p, k, lin, db, music = !reduce && sound && sound.getSpectrum(spec);
       for (i = 0; i < N; i++) {
         x = i / (N - 1); lin = Math.pow(10, FLOOR / 10);
         for (k = 0; k < peaks.length; k++) {
@@ -583,6 +610,8 @@ npm run build</code></pre></div></div>
           lin += Math.pow(10, amp / 10) / (1 + d * d);
         }
         db = 10 * Math.log10(lin) + (rand() + rand() + rand() - 1.5) * 3.4;
+        // while the soundtrack plays, its spectrum (low bins on the left) lifts the trace; otherwise unchanged
+        if (music) db = Math.max(db, FLOOR + (spec[Math.floor(Math.pow(x, 1.6) * 70)] / 255) * 68);
         live[i] = db;
         avg[i] = first ? db : avg[i] + (db - avg[i]) * 0.07;
       }
