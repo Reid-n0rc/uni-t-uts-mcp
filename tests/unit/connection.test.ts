@@ -8,10 +8,14 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let server: FakeScpi | undefined;
 let conn: UtsConnection;
 
-async function setup(extra?: Parameters<typeof idnHandler>[0]) {
-  server = await startFakeScpi(idnHandler(extra));
+async function setup(
+  extra?: Parameters<typeof idnHandler>[0],
+  handlerOptions?: Parameters<typeof idnHandler>[1],
+  connectOptions: Parameters<UtsConnection["connect"]>[2] = { recoveryMs: 150 }
+) {
+  server = await startFakeScpi(idnHandler(extra, handlerOptions));
   conn = new UtsConnection();
-  await conn.connect("127.0.0.1", server.port);
+  await conn.connect("127.0.0.1", server.port, connectOptions);
 }
 
 afterEach(async () => {
@@ -121,7 +125,95 @@ describe("sendCommand", () => {
     await q;
     await c;
     await sleep(30);
-    expect(server!.received.slice(before)).toEqual(["Q?", "CMD"]);
+    expect(server!.received.slice(before)).toEqual(["Q?", "CMD", "*OPC?"]);
+  });
+});
+
+describe("command pacing (the UTS3036B mis-parses bursts of lines)", () => {
+  it("syncs each command with *OPC? before anything else is written", async () => {
+    await setup((line, s) => {
+      if (line === "*OPC?") setTimeout(() => s.write("1\r\n"), 80);
+    }, { opc: false });
+    const before = server!.received.length;
+    const started = Date.now();
+    await conn.sendCommand("CMD1");
+    expect(Date.now() - started).toBeGreaterThanOrEqual(70); // waited for the *OPC? reply
+    await conn.sendCommand("CMD2");
+    expect(server!.received.slice(before)).toEqual(["CMD1", "*OPC?", "CMD2", "*OPC?"]);
+  });
+
+  it("queued commands and queries are never written back-to-back without the sync", async () => {
+    await setup((line, s) => {
+      if (line === "Q?") s.write("a\r\n");
+    });
+    const before = server!.received.length;
+    await Promise.all([conn.sendCommand("C1"), conn.sendCommand("C2"), conn.query("Q?")]);
+    expect(server!.received.slice(before)).toEqual(["C1", "*OPC?", "C2", "*OPC?", "Q?"]);
+  });
+
+  it("can skip the sync explicitly", async () => {
+    await setup();
+    const before = server!.received.length;
+    await conn.sendCommand("CMD", { sync: false });
+    await sleep(30);
+    expect(server!.received.slice(before)).toEqual(["CMD"]);
+  });
+
+  it("fails clearly when *OPC? is never answered, and the queue keeps working", async () => {
+    await setup((line, s) => {
+      if (line === "Q?") s.write("a\r\n");
+    }, { opc: false }, { opcTimeoutMs: 80, recoveryMs: 0 });
+    await expect(conn.sendCommand("CMD")).rejects.toThrow(/finish|\*OPC\?|timeout/i);
+    expect(await conn.query("Q?")).toBe("a");
+  });
+});
+
+describe("hold-off after a query timeout (the instrument stalls after an unsupported query)", () => {
+  /** Fake instrument: after the unsupported query "BAD?" it ignores all lines for 200 ms. */
+  function stallingHandler() {
+    let stalledUntil = 0;
+    return (line: string, s: import("node:net").Socket) => {
+      if (Date.now() < stalledUntil) return; // dropped during the stall
+      if (line === "BAD?") stalledUntil = Date.now() + 200;
+      else if (line === "Q?") s.write("ok\r\n");
+    };
+  }
+
+  it("waits out the stall so the next query is not lost", async () => {
+    await setup(stallingHandler(), undefined, { recoveryMs: 300 });
+    await expect(conn.query("BAD?", 50)).rejects.toThrow(/timeout/i);
+    expect(await conn.query("Q?", 1000)).toBe("ok");
+    const badAt = server!.receivedAt[server!.received.indexOf("BAD?")];
+    const qAt = server!.receivedAt[server!.received.indexOf("Q?")];
+    expect(qAt - badAt).toBeGreaterThanOrEqual(280);
+  });
+
+  it("holds off queued commands as well", async () => {
+    await setup(stallingHandler(), undefined, { recoveryMs: 300 });
+    const bad = expect(conn.query("BAD?", 50)).rejects.toThrow(/timeout/i);
+    const cmd = conn.sendCommand("CMD");
+    await bad;
+    await cmd;
+    const badAt = server!.receivedAt[server!.received.indexOf("BAD?")];
+    const cmdAt = server!.receivedAt[server!.received.indexOf("CMD")];
+    expect(cmdAt - badAt).toBeGreaterThanOrEqual(280);
+  });
+
+  it("needs no extra hold when the timeout already exceeded the recovery time", async () => {
+    await setup(stallingHandler(), undefined, { recoveryMs: 100 });
+    await expect(conn.query("BAD?", 150)).rejects.toThrow(/timeout/i);
+    const after = Date.now();
+    await conn.query("Q?", 1000).catch(() => {});
+    const qAt = server!.receivedAt[server!.received.indexOf("Q?")];
+    expect(qAt - after).toBeLessThan(60);
+  });
+
+  it("disconnect cancels a pending hold-off", async () => {
+    await setup(stallingHandler(), undefined, { recoveryMs: 2000 });
+    await expect(conn.query("BAD?", 50)).rejects.toThrow(/timeout/i);
+    const pending = expect(conn.query("Q?", 1000)).rejects.toThrow(/closed/i);
+    conn.disconnect();
+    await pending;
   });
 });
 

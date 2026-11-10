@@ -46,3 +46,10 @@ Raw output (serial redacted): [tests/fixtures/p1-basics-probe.txt](../tests/fixt
 | Sweep state | continuous sweep paused to test the screenshot, then restored to continuous |
 
 Samples (trace data only; screenshots are truncated so only their 48-byte headers are kept): [tests/fixtures/p2/](../tests/fixtures/p2/). Reproduce with `UTS_IP=<host> node scripts/probe-trace.mjs <output-dir>`.
+
+## Command timing and error queue (2026-11-10, issue #45, firmware V1.04.0040)
+
+- **Bursts:** several lines written in the same millisecond (e.g. `*CLS`, two setters, `:SYSTem:ERRor?`) can make the instrument queue spurious `-113 "Undefined header"` errors even though the settings are applied. The connection therefore follows every command with `*OPC?` and waits for the reply before writing again (`sendCommand(cmd, { sync: false })` opts out). 20 consecutive start/stop rounds produced no errors.
+- **Stall after an unsupported query:** after a query the instrument does not recognize (no reply, `-113` queued) it stops responding for about 2.15 s and keeps only the last line received during that time. The connection holds the next job off until 2.5 s after the failed query was sent. Unsupported *commands* (no `?`) and a query sent within a few ms of the bad one are not affected.
+- **`*CLS` clears the error queue**, which is global to the instrument and keeps stale errors from earlier unsupported queries. Tools that apply settings run `*CLS` first so only their own errors are reported.
+- **One reply per burst of queries:** two queries written back-to-back (or joined with `;`) get one reply; send queries one at a time.

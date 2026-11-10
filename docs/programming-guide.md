@@ -303,3 +303,7 @@ Safety notes: `*RST`, `:SYSTem:DEFault`, `:SYSTem:LOCK`, `:KEY:*:LOCK`, LAN sett
 ## Verified query replies (P1, UTS3036B V1.04.0040)
 
 `:INITiate:CONTinuous?` -> `1`; `:SWEep:POINts?` -> `1001`; `:SWEep:TIME?` -> `2.647500e-03 ` (note trailing space); `:FORMat?` -> `ASC8` (so `:FORMat` exists on the 3000B). Raw probe output: `tests/fixtures/p1-basics-probe.txt`.
+
+## Instrument timing behavior (verified on UTS3036B V1.04.0040)
+
+See `docs/verified-hardware.md` (command timing and error queue). Summary: sync every command with `*OPC?`, one query at a time, expect a ~2.15 s stall after an unsupported query, and use `*CLS` before setters so `:SYSTem:ERRor?` only shows errors from the current operation.

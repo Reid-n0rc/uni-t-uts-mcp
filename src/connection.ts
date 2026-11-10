@@ -14,6 +14,12 @@ export const DEFAULT_PORT = 5025;
 const DEFAULT_CONNECT_TIMEOUT = 5000;
 const DEFAULT_IDENT_TIMEOUT = 5000;
 const DEFAULT_QUERY_TIMEOUT = 5000;
+const DEFAULT_OPC_TIMEOUT = 3000;
+/**
+ * After an unsupported query the UTS3036B stalls for about 2.15 s and drops the lines it
+ * receives in that window, so the next job waits until this long after the failed query.
+ */
+const DEFAULT_RECOVERY_MS = 2500;
 const DEFAULT_BINARY_TIMEOUT = 30000;
 const LF = 0x0a;
 const CR = 0x0d;
@@ -24,6 +30,15 @@ const NOT_CONNECTED =
 export interface ConnectOptions {
   connectTimeoutMs?: number;
   identTimeoutMs?: number;
+  /** How long to wait for the `*OPC?` reply that syncs each command (default 3000). */
+  opcTimeoutMs?: number;
+  /** Quiet period after a timed-out query, measured from when it was sent (default 2500). */
+  recoveryMs?: number;
+}
+
+export interface CommandOptions {
+  /** Wait for `*OPC?` after the command so lines are never written back-to-back (default true). */
+  sync?: boolean;
 }
 
 type JobKind = "command" | "text" | "binary";
@@ -32,6 +47,10 @@ interface Job {
   kind: JobKind;
   cmd: string;
   timeoutMs: number;
+  /** Commands only: follow with `*OPC?` and wait for its reply. */
+  sync: boolean;
+  /** Commands only: the `*OPC?` has been written and its reply is awaited. */
+  waitingForSync: boolean;
   resolve: (value: Buffer | string | void) => void;
   reject: (reason: Error) => void;
 }
@@ -58,6 +77,10 @@ export class UtsConnection {
    * resolved. `any`: nothing seen yet; `lf`: a CR was seen, an LF should follow.
    */
   private pendingTerminator: "none" | "any" | "lf" = "none";
+  private opcTimeoutMs = DEFAULT_OPC_TIMEOUT;
+  private recoveryMs = DEFAULT_RECOVERY_MS;
+  private holdUntil = 0;
+  private holdTimer: ReturnType<typeof setTimeout> | null = null;
 
   async connect(
     host: string,
@@ -67,6 +90,8 @@ export class UtsConnection {
     if (this.socket) this.disconnect();
     this.host = host;
     this.port = port;
+    this.opcTimeoutMs = options.opcTimeoutMs ?? DEFAULT_OPC_TIMEOUT;
+    this.recoveryMs = options.recoveryMs ?? DEFAULT_RECOVERY_MS;
 
     const socket = await new Promise<net.Socket>((resolve, reject) => {
       const s = new net.Socket();
@@ -87,6 +112,7 @@ export class UtsConnection {
     });
 
     this.socket = socket;
+    socket.setNoDelay(true);
     this.buffer = Buffer.alloc(0);
     this.pendingTerminator = "none";
     socket.on("data", (chunk) => this.onData(chunk));
@@ -117,8 +143,8 @@ export class UtsConnection {
     return this.isConnected() ? `${this.host}:${this.port}` : "Not connected";
   }
 
-  async sendCommand(cmd: string): Promise<void> {
-    await this.enqueue("command", cmd, 0);
+  async sendCommand(cmd: string, options: CommandOptions = {}): Promise<void> {
+    await this.enqueue("command", cmd, 0, options.sync ?? true);
   }
 
   async query(cmd: string, timeoutMs: number = DEFAULT_QUERY_TIMEOUT): Promise<string> {
@@ -131,7 +157,12 @@ export class UtsConnection {
 
   // ---------- queue ----------
 
-  private enqueue(kind: JobKind, cmd: string, timeoutMs: number): Promise<Buffer | string | void> {
+  private enqueue(
+    kind: JobKind,
+    cmd: string,
+    timeoutMs: number,
+    sync = false
+  ): Promise<Buffer | string | void> {
     if (!this.isConnected()) return Promise.reject(new Error(NOT_CONNECTED));
     try {
       validateCommand(cmd);
@@ -139,19 +170,33 @@ export class UtsConnection {
       return Promise.reject(err);
     }
     return new Promise((resolve, reject) => {
-      this.jobs.push({ kind, cmd, timeoutMs, resolve, reject });
+      this.jobs.push({ kind, cmd, timeoutMs, sync, waitingForSync: false, resolve, reject });
       this.pump();
     });
   }
 
   private pump(): void {
     if (this.active || this.jobs.length === 0 || !this.socket) return;
+
+    const hold = this.holdUntil - Date.now();
+    if (hold > 0) {
+      if (!this.holdTimer) {
+        this.holdTimer = setTimeout(() => {
+          this.holdTimer = null;
+          this.pump();
+        }, hold);
+      }
+      return;
+    }
+
     const job = this.jobs.shift()!;
     this.active = job;
     this.buffer = Buffer.alloc(0);
 
     if (job.kind !== "command") {
       this.timer = setTimeout(() => {
+        // The instrument is probably stalled by an unsupported query; keep clear of it.
+        this.holdUntil = Date.now() + Math.max(0, this.recoveryMs - job.timeoutMs);
         this.failActive(
           new Error(
             `${job.kind === "binary" ? "Binary query" : "Query"} timeout after ${job.timeoutMs}ms for command: ${job.cmd}`
@@ -165,7 +210,20 @@ export class UtsConnection {
       if (err) {
         this.failActive(new Error(`Write failed: ${err.message}`));
       } else if (job.kind === "command") {
-        this.finishActive(undefined);
+        if (!job.sync) {
+          this.finishActive(undefined);
+        } else {
+          // Wait until the instrument has dealt with the command before writing anything else.
+          job.waitingForSync = true;
+          this.timer = setTimeout(() => {
+            this.failActive(
+              new Error(`Timeout waiting for the instrument to finish command (*OPC?): ${job.cmd}`)
+            );
+          }, this.opcTimeoutMs);
+          this.socket?.write("*OPC?\n", (opcErr) => {
+            if (opcErr && this.active === job) this.failActive(new Error(`Write failed: ${opcErr.message}`));
+          });
+        }
       }
     });
   }
@@ -194,6 +252,9 @@ export class UtsConnection {
     const job = this.active;
     this.active = null;
     this.clearTimer();
+    this.holdUntil = 0;
+    if (this.holdTimer) clearTimeout(this.holdTimer);
+    this.holdTimer = null;
     const socket = this.socket;
     this.socket = null;
     this.buffer = Buffer.alloc(0);
@@ -235,7 +296,12 @@ export class UtsConnection {
     const data = this.stripPendingTerminator(chunk);
     this.buffer = Buffer.concat([this.buffer, data]);
     const job = this.active;
-    if (!job || job.kind === "command") return;
+    if (!job) return;
+
+    if (job.kind === "command") {
+      if (job.waitingForSync && this.buffer.indexOf(LF) >= 0) this.finishActive(undefined);
+      return;
+    }
 
     if (job.kind === "text") {
       const end = this.buffer.indexOf(LF);
