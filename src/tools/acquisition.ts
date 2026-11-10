@@ -1,10 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { connection } from "../connection.js";
-import { InstrumentError, applyCommands, checkInstrumentErrors } from "../instrument.js";
-import { onOff, parseBool, parseNumber } from "../scpi.js";
+import { InstrumentError, applyCommands, checkInstrumentErrors, queryBool, queryNumber, readBack } from "../instrument.js";
+import { onOff } from "../scpi.js";
 import { SweepTimeoutError, hasPendingSweep, startSweep, waitForSweepComplete, type StartMethod } from "../acquisition.js";
-import { errorResult, textResult } from "./util.js";
+import { errorResult, setterFailure, textResult } from "./util.js";
 
 // Commands: docs/programming-guide.md sections 2 and 9 (ambiguities 6-8). Verified on the UTS3036B:
 // :INITiate:CONTinuous accepts ON/OFF/1/0; :INITiate:IMMediate and :RESTart work in spectrum-analyzer mode;
@@ -13,9 +12,9 @@ import { errorResult, textResult } from "./util.js";
 
 async function readAcquisition() {
   return {
-    continuous: parseBool(await connection.query(":INITiate:CONTinuous?")),
-    sweep_time_s: parseNumber(await connection.query(":SENSe:SWEep:TIME?")),
-    sweep_time_auto: parseBool(await connection.query(":SENSe:SWEep:TIME:AUTO?")),
+    continuous: await queryBool(":INITiate:CONTinuous?"),
+    sweep_time_s: await queryNumber(":SENSe:SWEep:TIME?"),
+    sweep_time_auto: await queryBool(":SENSe:SWEep:TIME:AUTO?"),
   };
 }
 
@@ -27,17 +26,27 @@ function timeoutMsOf(timeout_s: number | undefined): number | undefined | Error 
   return timeout_s * 1000;
 }
 
-function failure(err: unknown) {
+/**
+ * `sent`: a command that changes the instrument was already sent, so a failure afterwards means the state
+ * may have changed. `note` is added to such errors (for example that the mode was left changed).
+ */
+function failure(err: unknown, sent = false, note = "") {
   if (err instanceof SweepTimeoutError) {
-    return errorResult(`${err.message}. The instrument may still be sweeping (for example waiting for a video trigger); check get_sweep.`);
+    return errorResult(
+      `${err.message}. The instrument may still be sweeping (for example waiting for a video trigger); check get_sweep.${note}`
+    );
   }
-  if (err instanceof InstrumentError) return errorResult(`${err.message}. Use get_acquisition to check the state.`);
+  if (err instanceof InstrumentError) return setterFailure(err, "get_acquisition");
+  if (sent) {
+    const message = err instanceof Error ? err.message : String(err);
+    return errorResult(`${message}. The sweep command was already sent and may be applied; use get_acquisition to check the state.${note}`);
+  }
   return errorResult(err);
 }
 
-async function finish(timeoutMs: number | undefined) {
+async function finish(timeoutMs: number | undefined, sent: string[]) {
   const { waitedMs } = await waitForSweepComplete({ timeoutMs });
-  await checkInstrumentErrors();
+  await checkInstrumentErrors(sent);
   return waitedMs;
 }
 
@@ -64,14 +73,14 @@ export function registerAcquisitionTools(server: McpServer): void {
     async ({ continuous }) => {
       try {
         await applyCommands([`:INITiate:CONTinuous ${onOff(continuous)}`]);
-        const state = await readAcquisition();
+        const state = await readBack(readAcquisition);
         const warnings: string[] = [];
         if (state.continuous !== continuous) {
           warnings.push(`continuous adjusted by the instrument: requested ${continuous}, now ${state.continuous}`);
         }
         return textResult(JSON.stringify({ state, warnings }, null, 2));
       } catch (err) {
-        return failure(err);
+        return setterFailure(err, "get_acquisition");
       }
     }
   );
@@ -88,26 +97,30 @@ export function registerAcquisitionTools(server: McpServer): void {
     },
     { readOnlyHint: false },
     async ({ method, wait, timeout_s }) => {
+      let sent = false;
+      const sentCommands: string[] = [];
       try {
         const timeoutMs = timeoutMsOf(timeout_s);
         if (timeoutMs instanceof Error) return errorResult(timeoutMs);
-        const continuous = parseBool(await connection.query(":INITiate:CONTinuous?"));
+        const continuous = await queryBool(":INITiate:CONTinuous?");
         const { sweepTimeS } = await startSweep((method ?? "immediate") as StartMethod);
+        sent = true;
+        sentCommands.push(method === "restart" ? ":INITiate:RESTart" : ":INITiate:IMMediate");
         const warnings: string[] = [];
         let completed = false;
         let waited_ms: number | undefined;
         if (continuous) {
           // Continuous sweeps never "complete"; just make sure the command was accepted.
           await waitForSweepComplete({ timeoutMs });
-          await checkInstrumentErrors();
+          await checkInstrumentErrors(sentCommands);
           warnings.push("Instrument is in continuous mode: the sweep was restarted but completion cannot be awaited; use set_acquisition continuous=false or single_sweep.");
         } else if (wait ?? true) {
-          waited_ms = await finish(timeoutMs);
+          waited_ms = await finish(timeoutMs, sentCommands);
           completed = true;
         }
         return textResult(JSON.stringify({ started: true, method: method ?? "immediate", continuous, sweep_time_s: sweepTimeS, completed, waited_ms, warnings }, null, 2));
       } catch (err) {
-        return failure(err);
+        return failure(err, sent);
       }
     }
   );
@@ -118,15 +131,17 @@ export function registerAcquisitionTools(server: McpServer): void {
     { timeout_s: TIMEOUT },
     { readOnlyHint: false },
     async ({ timeout_s }) => {
+      let sent = false;
       try {
         const timeoutMs = timeoutMsOf(timeout_s);
         if (timeoutMs instanceof Error) return errorResult(timeoutMs);
         await applyCommands([":INITiate:CONTinuous OFF"]);
+        sent = true;
         const { sweepTimeS } = await startSweep("immediate");
-        const waited_ms = await finish(timeoutMs);
+        const waited_ms = await finish(timeoutMs, [":INITiate:CONTinuous OFF", ":INITiate:IMMediate"]);
         return textResult(JSON.stringify({ completed: true, continuous: false, sweep_time_s: sweepTimeS, waited_ms }, null, 2));
       } catch (err) {
-        return failure(err);
+        return failure(err, sent, sent ? " The instrument was left in single sweep mode; use set_acquisition continuous=true to resume normal sweeping." : "");
       }
     }
   );
@@ -141,11 +156,11 @@ export function registerAcquisitionTools(server: McpServer): void {
         const timeoutMs = timeoutMsOf(timeout_s);
         if (timeoutMs instanceof Error) return errorResult(timeoutMs);
         const hadPending = hasPendingSweep();
-        const waited_ms = await finish(timeoutMs);
+        const waited_ms = await finish(timeoutMs, []);
         const warnings = hadPending ? [] : ["No sweep was started by this server; waited only until the instrument answered."];
         return textResult(JSON.stringify({ completed: true, waited_ms, warnings }, null, 2));
       } catch (err) {
-        return failure(err);
+        return failure(err, false);
       }
     }
   );

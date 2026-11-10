@@ -1,5 +1,5 @@
 import { connection } from "./connection.js";
-import { parseNumber } from "./scpi.js";
+import { queryNumber } from "./instrument.js";
 
 // Sweep synchronisation, verified on the UTS3036B (docs/verified-hardware.md, "Acquisition"):
 // while a single sweep runs the instrument IGNORES every line it receives (nothing is queued, an
@@ -9,7 +9,7 @@ import { parseNumber } from "./scpi.js";
 
 export class SweepTimeoutError extends Error {
   constructor(public readonly timeoutMs: number) {
-    super(`The sweep did not complete within ${(timeoutMs / 1000).toFixed(1)} s (timed out waiting for the instrument to answer)`);
+    super(`Timed out: the sweep did not complete within ${(timeoutMs / 1000).toFixed(1)} s (no reply to the *OPC? polling)`);
     this.name = "SweepTimeoutError";
   }
 }
@@ -35,7 +35,7 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 
 /** Read the sweep time (s) via `:SENSe:SWEep:TIME?` (reply has a trailing space). */
 export async function readSweepTimeS(): Promise<number> {
-  return parseNumber(await connection.query(":SENSe:SWEep:TIME?"));
+  return queryNumber(":SENSe:SWEep:TIME?");
 }
 
 /** True while a sweep started by `startSweep` has not been waited for. */
