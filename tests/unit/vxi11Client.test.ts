@@ -8,6 +8,7 @@ import {
   Vxi11IoTimeoutError,
   Vxi11LockedError,
   Vxi11ProtocolError,
+  Vxi11RpcTimeoutError,
   Vxi11TransportError,
   VXI11_ERROR_NAMES,
 } from "../../src/vxi11/client.js";
@@ -347,6 +348,9 @@ describe("robustness against a misbehaving server", () => {
     const t0 = Date.now();
     const err = await client.readStb({ timeoutMs: 50 }).catch((e) => e);
     expect(err).toBeInstanceOf(Vxi11TransportError);
+    // distinguishable from a lost connection: the link itself is still open
+    expect(err).toBeInstanceOf(Vxi11RpcTimeoutError);
+    expect(client.closed).toBe(false);
     expect(Date.now() - t0).toBeLessThan(2000);
   });
 

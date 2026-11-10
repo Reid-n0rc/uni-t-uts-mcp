@@ -7,6 +7,12 @@ import { portKey, startFakeRpcServer, type FakeRpcCall, type FakeRpcResult, type
  *  - writes are accepted at once; commands issued during a simulated sweep are QUEUED (not dropped)
  *    and executed in order when the sweep ends, so a blocking `*OPC?` read returns `1` only then;
  *  - the serial poll answers immediately with a status byte that stays 0 (see `stb`).
+ * With `firmware: true` it also reproduces what the real analyzer does with reads (issue #75):
+ *  - a device_read with io_timeout 0 always answers error 15, even when a reply is waiting;
+ *  - a device_read with a non-zero io_timeout and nothing to deliver is NEVER answered with error 15: the
+ *    instrument waits io_timeout + 1 s and then drops the request silently, and later calls on the
+ *    link (device_write) wait until it has given up;
+ *  - the output buffer has one slot: a newer reply replaces an unread older one.
  * Scriptable SCPI handler, simulated I/O timeouts (error 15: a read with nothing to deliver waits
  * the io_timeout), injected errors (invalid link, locked, any code) and dropped connections.
  */
@@ -16,6 +22,8 @@ const PROC = { createLink: 10, write: 11, read: 12, readStb: 13, clear: 15, dest
 const FLAG_END = 8;
 const REASON_REQCNT = 1;
 const REASON_END = 4;
+/** Real firmware: how long past its io_timeout a blocked read lasts before the instrument gives up. */
+const FIRMWARE_GRACE_MS = 1000;
 /** Real firmware: `:INITiate:IMMediate` starts a single sweep. */
 const SWEEP_START = /^:?INIT(iate)?(:IMM(ediate)?)?$/i;
 
@@ -33,6 +41,8 @@ export interface FakeVxi11Options {
   sweepMs?: number;
   /** Accept at most this many bytes per device_write (partial writes). */
   writeAcceptLimit?: number;
+  /** Mimic the real firmware's silent read timeouts and single output slot (see above). */
+  firmware?: boolean;
   scpi?: ScpiHandler;
 }
 
@@ -40,6 +50,8 @@ interface LinkState {
   input: Buffer;
   output: Buffer[];
   waiters: Set<() => void>;
+  /** firmware mode: a blocked read that later calls on this link wait for. */
+  busy?: Promise<void>;
 }
 
 export interface FakeVxi11Instrument {
@@ -124,7 +136,8 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
   const pushOutput = (linkId: number, message: Buffer): void => {
     const s = linkState.get(linkId);
     if (!s) return;
-    s.output.push(message);
+    if (options.firmware) s.output = [message];
+    else s.output.push(message);
     for (const w of [...s.waiters]) w();
   };
 
@@ -218,7 +231,8 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
   });
 
   // device_write: (link, io_timeout, lock_timeout, flags, data) -> (error, size)
-  register(PROC.write, (c) => new XdrWriter().u32(c).u32(0), (args, linkId, link) => {
+  register(PROC.write, (c) => new XdrWriter().u32(c).u32(0), async (args, linkId, link) => {
+    if (link.busy) await link.busy;
     args.u32();
     args.u32();
     const flags = args.u32();
@@ -241,8 +255,12 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
     const ioTimeout = args.u32();
     fake.readRequests.push(requestSize);
     const timeoutReply = new XdrWriter().u32(15).u32(0).opaque(Buffer.alloc(0));
+    if (options.firmware && ioTimeout === 0) return timeoutReply;
     if (link.output.length === 0) {
       if (ioTimeout === 0) return timeoutReply;
+      let release: () => void = () => {};
+      if (options.firmware) link.busy = new Promise<void>((resolve) => (release = resolve));
+      const waitMs = options.firmware ? ioTimeout + FIRMWARE_GRACE_MS : ioTimeout;
       const delivered = await new Promise<boolean>((resolve) => {
         const finish = (ok: boolean): void => {
           clearTimeout(timer);
@@ -251,11 +269,14 @@ export async function startFakeVxi11Instrument(options: FakeVxi11Options = {}): 
           resolve(ok);
         };
         const wake = (): void => finish(link.output.length > 0);
-        const timer = setTimeout(() => finish(false), ioTimeout);
+        const timer = setTimeout(() => finish(false), waitMs);
         timers.add(timer);
         link.waiters.add(wake);
       });
+      release();
       if (closed) return undefined;
+      // The real firmware stays silent instead of answering error 15.
+      if (!delivered && options.firmware) return undefined;
       if (!delivered || !linkState.has(linkId)) return timeoutReply;
     }
     const message = link.output[0];

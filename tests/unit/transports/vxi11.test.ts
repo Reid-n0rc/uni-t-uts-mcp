@@ -18,6 +18,7 @@ runTransportContract({
   },
   async startFake(handler: FakeHandler) {
     const fake = await startFakeVxi11Instrument({
+      firmware: true,
       scpi: async (line) => {
         const replies: Array<string | Buffer> = [];
         await handler(line, {
@@ -109,15 +110,6 @@ describe("VXI-11 transport specifics", () => {
     expect(await t.readLine(2000)).toBe("ok");
   });
 
-  it("drains an abandoned reply of a timed-out query before the next write", async () => {
-    const t = await open({}, { scpi: (c: string) => (c === "A?" ? "late" : c === "B?" ? "fresh" : undefined) });
-    await t.write("A?");
-    await new Promise((r) => setTimeout(r, 30));
-    t.discardInput();
-    await t.write("B?");
-    expect(await t.readLine(2000)).toBe("fresh");
-  });
-
   it("does not issue extra device_read calls when nothing is outstanding", async () => {
     const t = await open({}, { scpi: (c: string) => (c === "A?" ? "x" : undefined) });
     await t.write("A?");
@@ -126,6 +118,47 @@ describe("VXI-11 transport specifics", () => {
     t.discardInput();
     await t.write("*CLS");
     expect(fake!.readRequests.length).toBe(reads);
+  });
+
+  describe("real firmware behavior (issue #75): reads never answer error 15 for a silent instrument", () => {
+    const fw = { firmware: true };
+
+    it("an unsupported query times out near the requested timeout, keeps the link and does not report a loss", async () => {
+      const t = await open({}, { ...fw, scpi: (c: string) => (c === "A?" ? "ok" : undefined) });
+      const lost: string[] = [];
+      t.onLost((r) => lost.push(r));
+      await t.write("NOPE?");
+      const t0 = Date.now();
+      await expect(t.readLine(80)).rejects.toBeInstanceOf(TransportTimeout);
+      expect(Date.now() - t0).toBeLessThan(1500);
+      expect(t.isOpen()).toBe(true);
+      expect(lost).toEqual([]);
+      t.discardInput();
+      await t.write("A?");
+      expect(await t.readLine(3000)).toBe("ok");
+    });
+
+    it("sends no device_read to drain after a timeout (a zero-timeout read never returns data on the instrument)", async () => {
+      const t = await open({}, { ...fw, scpi: (c: string) => (c === "A?" ? "ok" : undefined) });
+      await t.write("NOPE?");
+      await expect(t.readLine(50)).rejects.toBeInstanceOf(TransportTimeout);
+      const reads = fake!.readRequests.length;
+      t.discardInput();
+      await t.write("A?");
+      expect(fake!.readRequests.length).toBe(reads);
+      expect(await t.readLine(3000)).toBe("ok");
+    });
+
+    it("a reply that arrives after the client gave up does not become the answer to the next query", async () => {
+      const t = await open({}, { ...fw, sweepMs: 1500 });
+      await t.write(":INITiate:IMMediate");
+      await t.write("*OPC?");
+      await expect(t.readLine(80)).rejects.toBeInstanceOf(TransportTimeout);
+      await new Promise((r) => setTimeout(r, 1700));
+      expect(t.isOpen()).toBe(true);
+      await t.write("*IDN?");
+      expect(await t.readLine(3000)).toMatch(/UTS3036B/);
+    }, 10_000);
   });
 
   it("a blocking read waits for the sweep to end", async () => {
