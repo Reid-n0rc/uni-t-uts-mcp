@@ -186,6 +186,12 @@ describe("set_bandwidth", () => {
     expect(w).toMatch(/vbw_hz/);
     expect(json(res).state.rbw_hz).toBe(3e4);
   });
+  it("a clamped ratio warning has no stray space (live finding, issue #63: it read 'requested 1e-7 , now 0.00001')", async () => {
+    const res = await callTool(client, "set_bandwidth", { vbw_rbw_ratio: 1e-7 });
+    const w = json(res).warnings as string[];
+    expect(w).toHaveLength(1);
+    expect(w[0]).toMatch(/vbw_rbw_ratio adjusted by the instrument: requested 1e-7, now (1e-5|0\.00001)$/);
+  });
   it("lets VBW follow a manual RBW when VBW is auto (re-read state shows it)", async () => {
     const res = await callTool(client, "set_bandwidth", { rbw_hz: 1e5 });
     expect(json(res).state.vbw_hz).toBe(1e5);

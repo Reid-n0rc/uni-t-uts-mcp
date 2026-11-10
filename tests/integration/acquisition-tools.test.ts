@@ -101,6 +101,19 @@ describe("single_sweep", () => {
   });
 });
 
+describe("single_sweep failure that may have switched the mode (live finding, issue #63)", () => {
+  it("says the instrument may be left in single sweep mode when the connection drops while switching to it", async () => {
+    fake.sendCommand.mockImplementation(async (cmd: string) => {
+      if (cmd === ":INITiate:CONTinuous OFF") throw new Error("Connection to the spectrum analyzer was lost (while sending :INITiate:CONTinuous OFF)");
+    });
+    const res = await callTool(client, "single_sweep");
+    fake.sendCommand.mockReset();
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toMatch(/single sweep mode/i);
+    expect(getText(res)).toMatch(/set_acquisition continuous=true/);
+  });
+});
+
 describe("start_sweep / wait_for_sweep_complete", () => {
   it("start_sweep without waiting returns at once; wait_for_sweep_complete then waits for the remainder", async () => {
     fake.state.continuous = false;

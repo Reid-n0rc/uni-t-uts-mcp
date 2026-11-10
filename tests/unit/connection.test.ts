@@ -403,3 +403,44 @@ describe("query with expectSilence (polling a busy instrument)", () => {
     expect(Date.now() - t0).toBeLessThan(500);
   });
 });
+
+describe("lost connection (live finding, issue #63)", () => {
+  it("says the connection was lost, names the command in flight and tells the user to reconnect", async () => {
+    await setup((line, socket) => {
+      if (line === ":TEST:CUT?") socket.destroy();
+    });
+    const err = await conn.query(":TEST:CUT?").catch((e) => e);
+    expect(err.message).toMatch(/connection .*lost/i);
+    expect(err.message).toContain(":TEST:CUT?");
+    // The next call must not look like the user never connected.
+    const next = await conn.query("*IDN?").catch((e) => e);
+    expect(next.message).toMatch(/lost/i);
+    expect(next.message).toMatch(/connect/);
+    expect(next.message).not.toMatch(/^Not connected/);
+  });
+
+  it("a reset socket gives the same lost-connection wording, not a raw socket error", async () => {
+    await setup((line, socket) => {
+      if (line === ":TEST:RST?") socket.resetAndDestroy();
+    });
+    const err = await conn.query(":TEST:RST?").catch((e) => e);
+    expect(err.message).toMatch(/connection .*lost/i);
+    expect(err.message).toContain(":TEST:RST?");
+  });
+
+  it("names a command that was being sent", async () => {
+    await setup((line, socket) => {
+      if (line === ":TEST:CUT 1") socket.destroy();
+    });
+    const err = await conn.sendCommand(":TEST:CUT 1").catch((e) => e);
+    expect(err.message).toMatch(/lost/i);
+    expect(err.message).toContain(":TEST:CUT 1");
+  });
+
+  it("an explicit disconnect gives the plain not-connected message", async () => {
+    await setup();
+    conn.disconnect();
+    const err = await conn.query("*IDN?").catch((e) => e);
+    expect(err.message).toMatch(/^Not connected/);
+  });
+});
