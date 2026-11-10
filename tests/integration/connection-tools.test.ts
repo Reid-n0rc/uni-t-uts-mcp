@@ -54,7 +54,11 @@ describe("connect", () => {
     vi.stubEnv("UTS_IP", "192.168.1.100");
     const res = await callTool(client, "connect", {});
     expect(res.isError).toBeFalsy();
-    expect(mockConnection.connect).toHaveBeenCalledWith("192.168.1.100", 5025, RAW_OPTIONS);
+    expect(mockConnection.connect).toHaveBeenCalledWith(
+      "192.168.1.100",
+      5025,
+      expect.objectContaining({ transport: "auto", vxi11Device: "inst0" })
+    );
     expect(getText(res)).toContain("192.168.1.100:5025");
     expect(getText(res)).toContain("UNI-TREND,UTS0000X");
   });
