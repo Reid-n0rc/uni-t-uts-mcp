@@ -67,7 +67,6 @@ Errors are returned with their code, text and the commands that were sent, and s
 
 - **Screenshots:** the analyzer stops sending screenshot data after 144,800 bytes over LAN ([issue #42](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/42)).
 - **Trace data, markers, measurements:** not implemented yet (the trace tools configure traces but do not read their data); see the [Roadmap](Roadmap).
-- **npm registry install:** not published yet; install from the release tarball, the git tag or Docker (see [Getting Started](Getting-Started)).
 - **VXI-11 on the real analyzer:** not verified yet ([issue #75](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/75)); the default stays raw SCPI.
 
 ## Still stuck?

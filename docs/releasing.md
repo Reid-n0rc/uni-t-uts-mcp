@@ -4,19 +4,21 @@ How releases of `uni-t-uts-mcp` are made. Tagging and creating releases are main
 contributors and agents prepare changes but do not bump versions, tag or release without the
 maintainer's explicit go-ahead (see [AGENTS.md](../AGENTS.md)).
 
-**Release channels.** The package is not on the npm registry yet (the first publish is pending), so a release is:
+**Release channels.** The package is on the npm registry (0.1.0 was published once from CI with provenance), so a
+release is:
 
 1. a **GitHub release** for the tag `v<version>` with the packed tarball `uni-t-uts-mcp-<version>.tgz` and the
    Claude Desktop MCP bundle `uni-t-uts-mcp-<version>.mcpb` attached and the changelog section as notes, and
-2. a **Docker image** `ghcr.io/reid-n0rc/uni-t-uts-mcp:<version>` on GHCR.
-
-npm publishing is wired up but optional (it skips while the `NPM_TOKEN` secret is absent); see
-"Adding npm later".
+2. a **Docker image** `ghcr.io/reid-n0rc/uni-t-uts-mcp:<version>` on GHCR, and
+3. an **npm package** `uni-t-uts-mcp@<version>` published by `npm-publish.yml` for the same tag; see "npm publishing".
 
 ## How users install a release
 
 ```sh
-# From the release tarball (npx downloads and runs it):
+# From the npm registry (npx downloads and runs it):
+npx -y uni-t-uts-mcp
+
+# From the release tarball (the same files, fetched from GitHub):
 npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v<version>/uni-t-uts-mcp-<version>.tgz
 
 # Straight from the git tag (npm clones the repository and builds it through the `prepare` script, which needs git):
@@ -175,35 +177,37 @@ instructions.
 If a workflow fails half-way (for example the release exists but the Docker push failed), fix the cause and re-run only
 the failed workflow from the Actions tab; `release.yml` uploads the tarball to an existing release instead of failing.
 
-## Adding npm later
+## npm publishing
 
-Optional; nothing above depends on it.
+`uni-t-uts-mcp` is on npm: 0.1.0 was published once from CI (the `v0.1.0` tag workflow `npm-publish.yml`, with SLSA
+provenance), and its `dist.shasum` is identical to the GitHub release tarball. Every later `v*` tag publishes the same
+way (`npm publish --provenance --access public`; the workflow already has `id-token: write`).
 
-1. Create a free account on npmjs.com, enable two-factor authentication, and confirm the name is free
-   (`npm view uni-t-uts-mcp` must report 404).
-2. **First publish needs a token** (trusted publishing can only be configured for a package that already exists). Create
-   a *granular access token* (Access Tokens > Generate New Token > Granular): permission *Read and write*, packages
-   scope *All packages* (a not-yet-existing package cannot be selected individually), short expiry (for example 7
-   days), 2FA bypass enabled because CI has no one-time code. In the GitHub repository: Settings > Secrets and
-   variables > Actions > New repository secret, name **`NPM_TOKEN`**. From then on the next `v*` tag publishes with
-   `npm publish --provenance --access public` (the workflow already has `id-token: write`). Alternatively publish
-   the first version by hand (`npm login`, `npm publish --access public`; no provenance outside CI).
-3. **Then switch to trusted publishing**: on npmjs.com open the package > Settings > Trusted Publisher > GitHub Actions
-   and enter organization/user `Reid-n0rc`, repository `uni-t-uts-mcp`, workflow filename `npm-publish.yml`
-   (no environment). Delete the `NPM_TOKEN` secret and revoke the token, and edit `npm-publish.yml` so its steps
-   run without the `HAS_NPM_TOKEN` condition (trusted publishing needs no secret). Optionally set the package to
-   "Require two-factor authentication and disallow tokens".
-4. Once the "coming soon" npm form is real, verify `npx -y uni-t-uts-mcp` from a clean folder, then flip the install docs (next section).
+- **Token (current).** The workflow authenticates with the repository secret `NPM_TOKEN` through `NODE_AUTH_TOKEN` and
+  skips with a notice while the secret is absent. Use a short-lived granular token (permission *Read and write*, 2FA
+  bypass enabled because CI has no one-time code) and replace it before it expires.
+- **Switch to trusted publishing (recommended).** On npmjs.com open the package > Settings > Trusted Publisher >
+  GitHub Actions and enter organization/user `Reid-n0rc`, repository `uni-t-uts-mcp`, workflow filename
+  `npm-publish.yml`, and leave the environment empty. Then confirm it with the next release: the publish step works
+  through OIDC with no token. After that succeeds, delete the `NPM_TOKEN` secret and revoke the token on npmjs.com,
+  remove the `NODE_AUTH_TOKEN` line and the `HAS_NPM_TOKEN` conditions from `npm-publish.yml` (the workflow then
+  relies on OIDC alone), and optionally set the package to "Require two-factor authentication and disallow tokens".
+- **Publishing is asynchronous.** npm now processes first publishes in the background: the CLI may print "Your package
+  is being processed" and the registry may show a placeholder version `0.0.0-stage` for a few minutes. Verification must
+  therefore poll `npm view uni-t-uts-mcp version` until the new version appears (for example once every 15 seconds for
+  up to 10 minutes) instead of checking once.
+- **Verify a release.** From a clean folder with an empty npm cache: `npm view uni-t-uts-mcp dist.shasum` must equal the
+  shasum of the GitHub release tarball, and `npx -y uni-t-uts-mcp` must start the server (it logs
+  `uni-t-uts-mcp <version>` on stderr and waits on stdio).
 
-## Flipping the install docs when npm goes live
+## Install docs after the npm go-live
 
-Until the package exists on npm, the bare `npx -y uni-t-uts-mcp` form is labelled "coming soon" everywhere and
-`npm run client-config -- --from npm` refuses. `tests/unit/install-docs.test.ts` fails if an unlabelled bare npm form
-appears while the switch is off, and if the labels remain once it is on. To flip:
+The install docs were flipped from "coming soon" to the real npm commands in #105. The places that carry the npm
+command, all kept in step by `tests/unit/install-docs.test.ts` (which requires the unmarked `npx -y uni-t-uts-mcp`
+form and fails on any stale wording that says npm is not available):
 
-1. `scripts/client-config.mjs`: set `NPM_PUBLISHED = true`.
-2. `README.md`: in "Install", rename the section "From the npm registry (coming soon, after the first npm publish)"
-   to a normal heading, delete the "has not been published" sentence, and move the npm one-liner and JSON to the top.
-3. `site/index.html`: in the quick start, remove the "coming soon" badge on the npm option.
-4. `CHANGELOG.md`: add a line under Unreleased.
-5. Run `npm test`, then verify the npm form from a clean folder.
+1. `scripts/client-config.mjs`: `NPM_PUBLISHED = true`, so `npm run client-config -- --from npm` prints it.
+2. `README.md`: "Install", npm one-liner and JSON first, the tarball, `github:`, Docker and clone forms as alternatives.
+3. `site/index.html`: the quick start.
+4. `CHANGELOG.md`: the `[Unreleased]` section (a released section is never edited).
+5. `docs/wiki/Getting-Started.md` (and Home, Roadmap, Development, Troubleshooting), which sync to the wiki automatically.

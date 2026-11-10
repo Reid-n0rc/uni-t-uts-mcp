@@ -6,8 +6,8 @@ import { readFileSync } from "node:fs";
 import { resolve, win32, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// FLIP THIS to true after the first successful `npm publish` (see docs/releasing.md, "Adding npm later").
-export const NPM_PUBLISHED = false;
+// true since uni-t-uts-mcp 0.1.0 went live on npm (see docs/releasing.md, "npm publishing").
+export const NPM_PUBLISHED = true;
 export const REPO = "Reid-n0rc/uni-t-uts-mcp";
 export const IMAGE = "ghcr.io/reid-n0rc/uni-t-uts-mcp";
 
