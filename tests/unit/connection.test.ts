@@ -443,4 +443,13 @@ describe("lost connection (live finding, issue #63)", () => {
     const err = await conn.query("*IDN?").catch((e) => e);
     expect(err.message).toMatch(/^Not connected/);
   });
+
+  it("reconnecting clears the lost state", async () => {
+    await setup((line, socket) => {
+      if (line === ":TEST:CUT?") socket.destroy();
+    });
+    await conn.query(":TEST:CUT?").catch(() => {});
+    await conn.connect("127.0.0.1", server!.port, { recoveryMs: 150 });
+    expect(await conn.query("*IDN?")).toBe(IDN);
+  });
 });
