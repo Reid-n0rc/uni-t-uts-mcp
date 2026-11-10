@@ -25,6 +25,7 @@ Use `npm run inspector` to try the server interactively with the MCP Inspector.
 3. Add or update tests (vitest). Integration tests mock the connection; no hardware is needed to run them.
 4. Document new or changed tools in `docs/tools-reference.md`.
 5. Make sure `npm run build` and `npm test` pass.
+6. Signed commits are encouraged but not required.
 
 ## Tool guidelines
 

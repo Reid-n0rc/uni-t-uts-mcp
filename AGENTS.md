@@ -17,6 +17,7 @@ Commands: `npm run build`, `npm test`, `npm run inspector`.
 ## Rules
 
 - Commit as reid@malmoset.com (repo-local git config; check before committing).
+- Sign commits (already configured globally); signing is encouraged but not required of contributors.
 - Commit locally. Do not push, tag, or release without explicit go-ahead.
 - Do not bump version numbers unless asked.
 - Never commit secrets, device IPs/serials, or `.mcp.json`.
