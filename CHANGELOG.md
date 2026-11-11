@@ -14,6 +14,7 @@ The text of a release's section is also used as its GitHub release notes.
 
 ### Changed
 
+- Docs and test: the 21 required status checks of the `protect-main` ruleset, how to keep them in step with workflow job names and matrices, and the no-bypass-for-red-PRs rule (docs/releasing.md, AGENTS.md, CONTRIBUTING.md); `tests/unit/required-checks.test.ts` fails when the documented list drifts from the workflows (#148).
 - Tests: a stateful fake UTS analyzer (`tests/fakeUts.ts`) and an end-to-end suite that drives the built server over stdio and calls every tool against it (`tests/e2e/`); the measurement tools follow in #150 (#146, part of #35).
 - CI: a dependency audit job (also weekly), Dependabot for npm, and a written flaky-test policy in CONTRIBUTING.md (#145, part of #35).
 

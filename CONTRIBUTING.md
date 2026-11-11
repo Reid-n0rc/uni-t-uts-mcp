@@ -26,7 +26,8 @@ Use `npm run inspector` to try the server interactively with the MCP Inspector.
 3. Add or update tests (vitest). Integration tests mock the connection; no hardware is needed to run them. `tests/e2e/` starts the built server (`npm run build` first) against the stateful fake analyzer in `tests/fakeUts.ts`; a new tool needs an entry in `tests/e2e/e2eTable.ts`, and a newly verified instrument behavior goes into both `docs/verified-hardware.md` and the fake.
 4. Document new or changed tools in `docs/tools-reference.md`.
 5. Make sure `npm run build` and `npm test` pass.
-6. Signed commits are encouraged but not required.
+6. Every required check must be green before merge: the `test` matrix (Ubuntu, macOS, Windows x Node 22, 24), the smoke, bundle, audit and wiki jobs, CodeQL and both `Analyze` jobs, with zero open code-scanning alerts. The list is in [docs/releasing.md](docs/releasing.md#required-status-checks-on-main) (`codecov/*` and CodeRabbit are not required). Changing a workflow job name or matrix also means updating that list and the repository ruleset.
+7. Signed commits are encouraged but not required.
 
 ## Tool guidelines
 
