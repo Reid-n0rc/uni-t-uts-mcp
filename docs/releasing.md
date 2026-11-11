@@ -7,6 +7,8 @@ maintainer's explicit go-ahead (see [AGENTS.md](../AGENTS.md)).
 **Release channels.** The package is on the npm registry (0.1.0 was published once from CI with provenance), so a
 release is:
 
+> After bumping the version, run `npm run clients:sync` (the per-client snippets in the README, site and wiki embed the version); `npm test` fails while they are out of date.
+
 1. a **GitHub release** for the tag `v<version>` with the packed tarball `uni-t-uts-mcp-<version>.tgz` and the
    Claude Desktop MCP bundle `uni-t-uts-mcp-<version>.mcpb` attached and the changelog section as notes, and
 2. a **Docker image** `ghcr.io/reid-n0rc/uni-t-uts-mcp:<version>` on GHCR, and
