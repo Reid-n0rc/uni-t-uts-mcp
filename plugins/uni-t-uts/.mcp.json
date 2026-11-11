@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "uni-t-uts": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "uni-t-uts-mcp@0.3.0"
+      ],
+      "env": {
+        "UTS_IP": "${user_config.analyzer_host}",
+        "UTS_PORT": "${user_config.analyzer_port}",
+        "UTS_TRANSPORT": "${user_config.transport}"
+      }
+    }
+  }
+}
