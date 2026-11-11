@@ -16,6 +16,11 @@ const NT = ":CALCulate:NTData:STATe";
 const NRL = ":DISPlay:WINDow:TRACe:Y:SCALe:NRLevel";
 const RBW_AUTO = ":SENSe:BANDwidth:RESolution:AUTO";
 const VBW_AUTO = ":SENSe:BANDwidth:VIDeo:AUTO";
+const RBW = ":SENSe:BANDwidth:RESolution";
+
+/** Pause between the output going off and re-asserting the automatic bandwidths (measured: re-asserting at once is overtaken). */
+const SETTLE_MS = 600;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** Output level range the UTS3036B accepts (it clamps silently outside it). */
 const LEVEL_MIN = -40;
@@ -118,9 +123,11 @@ export function registerTrackingGeneratorTools(server: McpServer): void {
         await readEnabled();
         let reassertRbw = false;
         let reassertVbw = false;
+        let rbwBefore = 0;
         if (a.enabled === false) {
           reassertRbw = await queryBool(`${RBW_AUTO}?`);
           reassertVbw = await queryBool(`${VBW_AUTO}?`);
+          if (reassertRbw) rbwBefore = await queryNumber(`${RBW}?`);
         }
 
         const commands: string[] = [];
@@ -130,16 +137,30 @@ export function registerTrackingGeneratorTools(server: McpServer): void {
         if (a.reference_trace !== undefined) commands.push(`${REF} ${onOff(a.reference_trace)}`);
         if (a.normalize_ref_level_db !== undefined) commands.push(`${NRL} ${formatNumber(a.normalize_ref_level_db)}`);
         if (a.normalize !== undefined) commands.push(`${NT} ${onOff(a.normalize)}`);
-        if (a.enabled === false) {
-          commands.push(`${OUT} ${onOff(false)}`);
-          // Quirk: after the output goes off the automatic RBW stays at 300 kHz until auto is sent again.
-          if (reassertRbw) commands.push(`${RBW_AUTO} ON`);
-          if (reassertVbw) commands.push(`${VBW_AUTO} ON`);
-        }
+        if (a.enabled === false) commands.push(`${OUT} ${onOff(false)}`);
         await applyCommands(commands);
 
-        const state = await readBack(readState);
         const warnings: string[] = [];
+        if (a.enabled === false && (reassertRbw || reassertVbw)) {
+          // Quirk: shortly after the output goes off the automatic RBW drops to 300 kHz and stays there (both auto flags still
+          // read 1) until auto is sent again; sent at once, the command is overtaken by the drop. So wait, then re-assert.
+          const reassert = [...(reassertRbw ? [`${RBW_AUTO} ON`] : []), ...(reassertVbw ? [`${VBW_AUTO} ON`] : [])];
+          await sleep(SETTLE_MS);
+          await applyCommands(reassert);
+          if (reassertRbw) {
+            let rbw = await readBack(() => queryNumber(`${RBW}?`));
+            if (!close(rbwBefore, rbw)) {
+              await sleep(SETTLE_MS * 2);
+              await applyCommands(reassert);
+              rbw = await readBack(() => queryNumber(`${RBW}?`));
+            }
+            if (!close(rbwBefore, rbw)) {
+              warnings.push(`RBW did not return to ${rbwBefore} Hz after the output was switched off (now ${rbw} Hz); set it with set_bandwidth`);
+            }
+          }
+        }
+
+        const state = await readBack(readState);
         const numeric: Array<[keyof TrackingGeneratorState, number | undefined, string]> = [
           ["level_dbm", a.level_dbm, "dBm"],
           ["level_offset_db", a.level_offset_db, "dB"],

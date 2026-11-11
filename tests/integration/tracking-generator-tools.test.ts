@@ -7,13 +7,13 @@ import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 const fake = vi.hoisted(() => {
   const state = {
     out: false, level: -30, offset: 0, ref: false, nt: false, nrl: 10,
-    rbwAuto: true, vbwAuto: true, errors: [] as string[], optionAbsent: false,
+    rbwAuto: true, vbwAuto: true, rbw: 3e6, ignoreAutoOn: false, errors: [] as string[], optionAbsent: false,
   };
   const calls: string[] = [];
   const sci = (n: number) => n.toExponential(6);
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   function reset() {
-    Object.assign(state, { out: false, level: -30, offset: 0, ref: false, nt: false, nrl: 10, rbwAuto: true, vbwAuto: true, errors: [], optionAbsent: false });
+    Object.assign(state, { out: false, level: -30, offset: 0, ref: false, nt: false, nrl: 10, rbwAuto: true, vbwAuto: true, rbw: 3e6, ignoreAutoOn: false, errors: [], optionAbsent: false });
     calls.length = 0;
   }
   const query = vi.fn(async (cmd: string, _t?: number): Promise<string> => {
@@ -27,6 +27,7 @@ const fake = vi.hoisted(() => {
       case ":CALCulate:NTData:STATe?": return state.nt ? "1" : "0";
       case ":DISPlay:WINDow:TRACe:Y:SCALe:NRLevel?": return sci(state.nrl);
       case ":SENSe:BANDwidth:RESolution:AUTO?": return state.rbwAuto ? "1" : "0";
+      case ":SENSe:BANDwidth:RESolution?": return sci(state.rbw);
       case ":SENSe:BANDwidth:VIDeo:AUTO?": return state.vbwAuto ? "1" : "0";
       default: throw new Error(`unexpected query ${cmd}`);
     }
@@ -35,13 +36,13 @@ const fake = vi.hoisted(() => {
     if (cmd === "*CLS") { state.errors.length = 0; return; }
     calls.push(cmd);
     let m = /^:OUTPut:STATe (ON|OFF)$/.exec(cmd);
-    if (m) { state.out = m[1] === "ON"; return; }
+    if (m) { state.out = m[1] === "ON"; if (!state.out) state.rbw = 3e5; return; } // the stale 300 kHz RBW quirk
     m = /^:SOURce:TRACe:REFerence:STATe (ON|OFF)$/.exec(cmd);
     if (m) { if (state.out) state.ref = m[1] === "ON"; return; } // only takes while the output is on
     m = /^:CALCulate:NTData:STATe (ON|OFF)$/.exec(cmd);
     if (m) { state.nt = m[1] === "ON"; return; }
     m = /^:SENSe:BANDwidth:RESolution:AUTO ON$/.exec(cmd);
-    if (m) { state.rbwAuto = true; return; }
+    if (m) { state.rbwAuto = true; if (!state.ignoreAutoOn) state.rbw = 3e6; return; }
     m = /^:SENSe:BANDwidth:VIDeo:AUTO ON$/.exec(cmd);
     if (m) { state.vbwAuto = true; return; }
     m = /^(:SOURce:POWer|:SOURce:CORRection:OFFSet|:DISPlay:WINDow:TRACe:Y:SCALe:NRLevel) (\S+)$/.exec(cmd);
@@ -133,7 +134,17 @@ describe("set_tracking_generator", () => {
     const res = await callTool(client, "set_tracking_generator", { enabled: false });
     expect(res.isError).toBeFalsy();
     expect(fake.calls).toEqual([":OUTPut:STATe OFF", ":SENSe:BANDwidth:RESolution:AUTO ON", ":SENSe:BANDwidth:VIDeo:AUTO ON"]);
+    expect(fake.state.rbw).toBe(3e6);
+    expect(json(res).warnings).toEqual([]);
   });
+
+  it("warns when the RBW did not return to its value after switching off", async () => {
+    fake.state.out = true;
+    fake.state.ignoreAutoOn = true;
+    const res = await callTool(client, "set_tracking_generator", { enabled: false });
+    expect(res.isError).toBeFalsy();
+    expect(json(res).warnings.join(" ")).toMatch(/RBW/);
+  }, 15000);
 
   it("switching off leaves a manual RBW/VBW alone", async () => {
     fake.state.out = true; fake.state.rbwAuto = false; fake.state.vbwAuto = false;
