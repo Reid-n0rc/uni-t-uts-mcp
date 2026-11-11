@@ -29,7 +29,8 @@ The first ordinary SCPI query puts the analyzer in remote mode, and in remote mo
 - `:SYSTem:LOCK 0`, VXI-11 `device_local` / `device_unlock` and `:KEY:ESC` do not return the analyzer to local mode on this firmware. Only the physical **Esc** key does (power cycling works but resets settings).
 - SRQ is unavailable on this firmware: status polling with `*ESE`/`*SRE` and `*OPC` followed by `*ESR?`/`*STB?` never sets the OPC bit, and VXI-11 SRQ was not delivered. The tools wait for a sweep with `*OPC?` instead.
 - Because the panel is locked while you test, the checks that need your eyes on the screen (marker position, trace type) use `screenshot` over VXI-11 or the readbacks.
-- **At the very end, press Esc on the analyzer.** Then confirm the panel responds. If it does not, record the model and firmware and report it (see [Reporting template](#reporting-template)).
+- **Check the lock automatically.** `node scripts/check-panel-lock.mjs` (after `npm run build`, with `UTS_IP` set) takes one VXI-11 screenshot and looks for the padlock icon in the status bar: exit 0 "unlocked", exit 1 "LOCKED: press Esc", exit 2 "unknown" (could not take or read the screenshot; look at the analyzer). It sends only `:DISPlay:DATA?`, changes no setting and does not itself lock the panel. `node scripts/check-panel-lock.mjs --file shot.png` classifies a saved PNG/BMP.
+- **At the very end, run that check and press Esc on the analyzer only if it says LOCKED.** Then confirm the panel responds. If it does not, record the model and firmware and report it (see [Reporting template](#reporting-template)).
 
 ## Conventions
 
@@ -235,7 +236,7 @@ Do this at the end of each transport pass (and again at the end of the day). Use
 | R5 | `exit_measurement` if a measurement is active; confirm `get_measurement` returns `spectrum_analyzer` | Spectrum analyzer mode |
 | R6 | `scpi_query` with `command: ":SYSTem:ERRor?"` | `0,"No error"` (a stale `-113` from an unsupported-query step is expected: query it again until it clears) |
 | R7 | `disconnect` | Disconnected |
-| R8 | **Press Esc on the analyzer** | The touch screen and buttons respond again |
+| R8 | `node scripts/check-panel-lock.mjs`; **press Esc on the analyzer only if it reports LOCKED** (exit 1) | The check reports unlocked, or after Esc the touch screen and buttons respond again |
 
 The settings the guide never touches (display and system settings, the LAN configuration) are not changed by any step.
 

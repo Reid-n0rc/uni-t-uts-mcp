@@ -182,7 +182,7 @@ To set the address in a shell instead of the client configuration:
 | PowerShell (Windows) | `$env:UTS_IP = "192.168.1.100"` |
 | cmd (Windows) | `set UTS_IP=192.168.1.100` |
 
-Probe scripts take the host as an argument or from `UTS_IP`: `node scripts/probe-basics.mjs 192.168.1.100`.
+Probe scripts take the host as an argument or from `UTS_IP`: `node scripts/probe-basics.mjs 192.168.1.100`. `node scripts/check-panel-lock.mjs` (after `npm run build`) reports from a screenshot whether the analyzer's front panel is locked (remote mode) and so whether Esc must be pressed.
 
 ## Project site
 
