@@ -326,7 +326,20 @@ Recovery was the physical [Esc] key (user manual: "If the instrument is in remot
 
 **Recovery.** Press the physical Esc key on the analyzer (leaves remote mode). [Touch/Lock] alone also freed the panel once. Power-cycling is a last resort and resets settings. The remote ways back to local do not work (above).
 
-**Rule for live runs.** Do not send `:KEY:` commands or queries and do not use the lock readbacks as checks. At the end of every live run tell the owner: "press Esc on the analyzer to return it to local mode". See AGENTS.md and docs/releasing.md.
+**Detecting the lock automatically (2026-11-11, issue #172).** A screenshot over VXI-11 shows the state in the status bar of the 1280x800 screen (the area around x 765-820, y 755-770): unlocked it holds only the connection (monitor) icon at x=785; locked, a padlock icon appears at x=787 and the connection icon moves to x=767, followed by a mouse/arrow icon at about x=803. `src/panelLock.ts` matches those two icons against reference crops from real captures (zero-dependency PNG/BMP decoding, a few pixels of shift tolerated) and answers locked, unlocked or unknown; `scripts/check-panel-lock.mjs` takes the screenshot (one `:DISPlay:DATA?`, no setter, any picture format; BMP is 4,096,054 bytes and arrives complete over VXI-11) and exits 0, 1 or 2. Measured live: with the panel just returned to local by Esc, a VXI-11 link plus `:DISPlay:DATA?` alone did not lock it (screenshot shows the connection icon only); after one `:SENSe:FREQuency:CENTer?` the same screenshot shows the padlock, so a screenshot is a safe check that does not itself cause remote mode.
+
+**Ways back to local tried over VXI-11 (2026-11-11, issue #172), padlock checked from a screenshot after each; none worked.** Starting state: locked (after one ordinary query).
+
+| Tried | Result | Padlock after |
+|-------|--------|---------------|
+| close the link and open a new one (done several times between the steps) | accepted | still locked |
+| `device_remote` (16) then `device_local` (17) | both returned error 0 | still locked |
+| `device_clear` (15) | returned success | still locked |
+| `create_link` with `lockDevice` true, then `device_unlock` (19), `destroy_link` | all error 0 | still locked |
+
+Together with the earlier results (`:SYSTem:LOCK 0`/`OFF`, `device_local`, `device_unlock`, a simulated `:KEY:ESC`) there is no known automatic way back to local on V1.04.0040; only the physical Esc key works. Not tried, by rule: `*RST`, `:SYSTem:DEFault`, any `:KEY:` command, LAN setters, `:SYSTem:LOCK ON`. The server therefore keeps telling the user to press Esc, but a live run should first check the screenshot and say "press Esc" only when the panel is locked.
+
+**Rule for live runs.** Do not send `:KEY:` commands or queries and do not use the lock readbacks as checks. At the end of every live run run `node scripts/check-panel-lock.mjs` (a screenshot check, no setters) and tell the owner "press Esc on the analyzer to return it to local mode" only if it reports LOCKED. See AGENTS.md and docs/releasing.md.
 
 ## Simulator conformance and the live gap list (2026-11-11, issues #147 and #25, firmware V1.04.0040)
 
