@@ -169,6 +169,17 @@ Probed by hand over raw SCPI with the tracking generator on (the trace is nearly
 - **Frequency counter** (`:CALCulate:MARKer:FCOunt:STATe`, `:GATetime`): the counter is global (not per marker). Default off, gate 0.1 s. The gate is **clamped** to 1 us to 500 ms (9 reads 0.5, 1e-9 reads 1e-6). The result query is `:CALCulate:MARKer:FCOunt:X?` (not in the manual): it answers `9.910000000000e+37` while the counter is off and 0 with the counter on and no usable signal (the bench has none at the marker); `:CALCulate:MARKer1:FCOunt:X?` (with a marker number) is rejected with `-113`, and `:FCOunt:Y?` gets no reply. A real count was not seen for lack of a carrier, so the tool reports the value as returned.
 - **Delta markers** were covered with the marker tools (X and Y relative to the reference marker); nothing different for these functions.
 
+## Limit lines (2026-11-11, issue #21, firmware V1.04.0040)
+
+Probed by hand over raw SCPI and then through the built tools, one command at a time. Line 1 was used for the experiments; afterwards all six lines were back to display off, type UPPer, margin off and no points, and `:SYSTem:ERRor?` was clean.
+
+- **Reads:** `:CALCulate:LLINe<n>:DISPlay?`, `:TYPE?` (`UPPer`/`LOWer`), `:TRACe?`, `:MARGin?`, `:MARGin:STATe?` and `:DATA?` all answer. Defaults: display 0, UPPer, trace equal to the line number, margin 0 with state 0. Lines 1 to 6 exist; line 7 gives no reply and a `-108`.
+- **Points:** `:DATA f,a,c,...` reads back as `f,a,c` triplets in scientific notation, the first point always with connect 1 whatever was sent, sorted by frequency. One point is accepted, and two points with the same frequency (a vertical step) are accepted. **At most 10 points**: a longer list is silently ignored (the old points stay, no error). A list that is not a multiple of three gave `-200` ("Execution error") and changed nothing. **`:DATA?` on a line without points gets no reply at all and no error**, so the tool treats its timeout as an empty line.
+- **Side effects:** setting `:DATA` turns `:DISPlay` on; setting `:MARGin` turns `:MARGin:STATe` on (so the state is sent after the margin).
+- **Clamping:** `:MARGin 99` reads 40 (clamped to the documented -40 to 40). `:TRACe 9` is silently ignored (stays as it was, no error); `:TRACe 2` is accepted.
+- **Delete:** `:DELete` is acknowledged by `*OPC?` before it has finished: a `:DATA?` right after still returned the old 10 points, and in one run a late delete erased points set by the next call. `delete_limit_line` therefore re-reads until the line is empty. `:DELete` does not reset type, trace, margin or display. `:ALL:DELete` emptied every line.
+- **Pass/fail:** none documented and none probed (the brief for this work allows only documented commands); see the tools reference.
+
 ## VXI-11 transport (issues #64, #74; verified on hardware for issue #75, firmware V1.04.0040)
 
 Everything below was measured on the real analyzer, through the built server over stdio where a tool is named, and with a small client on the VXI-11 core channel where the wire behavior is the point. Raw and VXI-11 were compared side by side.
