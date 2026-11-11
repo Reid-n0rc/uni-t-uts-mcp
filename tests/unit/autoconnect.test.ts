@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { autoConnectFromEnv } from "../../src/autoconnect.js";
+import { autoConnectAll, autoConnectFromEnv } from "../../src/autoconnect.js";
 
 function fakeConnection(impl?: () => Promise<string>) {
   return { connect: vi.fn(impl ?? (async (_h: string, _p: number, _o?: unknown) => "UNI-TREND,UTS0000X,<serial>,V0.0.0")) };
@@ -123,5 +123,56 @@ describe("autoConnectFromEnv transport selection (#74)", () => {
     expect(await autoConnectFromEnv({ UTS_IP: "auto" }, conn, log, async () => ({ instruments: [], notes: [] }))).toBe(false);
     expect(conn.connect).not.toHaveBeenCalled();
     expect(log.mock.calls.join(" ")).toMatch(/no .*analyzer/i);
+  });
+});
+
+describe("autoConnectAll (UTS_INSTRUMENTS)", () => {
+  const registry = () => {
+    const conns = new Map<string, ReturnType<typeof fakeConnection>>();
+    return {
+      conns,
+      declare: (name: string) => {
+        if (!conns.has(name)) conns.set(name, fakeConnection());
+        return conns.get(name)!;
+      },
+    };
+  };
+
+  it("connects the default from UTS_IP and every UTS_INSTRUMENTS entry, each on its own connection", async () => {
+    const r = registry();
+    const ok = await autoConnectAll({ UTS_IP: "192.168.1.100", UTS_INSTRUMENTS: "sa1=192.168.1.101:5026,sa2=192.168.1.102" }, r, vi.fn());
+    expect(ok).toEqual({ default: true, sa1: true, sa2: true });
+    expect(r.conns.get("default")!.connect).toHaveBeenCalledWith("192.168.1.100", 5025, expect.objectContaining({ transport: "auto" }));
+    expect(r.conns.get("sa1")!.connect).toHaveBeenCalledWith("192.168.1.101", 5026, expect.objectContaining({ transport: "raw" }));
+    expect(r.conns.get("sa2")!.connect).toHaveBeenCalledWith("192.168.1.102", 5025, expect.objectContaining({ transport: "auto" }));
+  });
+
+  it("one failing instrument does not stop the others, and the failure names it", async () => {
+    const conns = new Map<string, ReturnType<typeof fakeConnection>>();
+    const reg = {
+      declare: (name: string) => {
+        if (!conns.has(name)) conns.set(name, name === "bad" ? fakeConnection(async () => { throw new Error("ECONNREFUSED"); }) : fakeConnection());
+        return conns.get(name)!;
+      },
+    };
+    const log = vi.fn();
+    const ok = await autoConnectAll({ UTS_INSTRUMENTS: "bad=192.168.1.101,good=192.168.1.102" }, reg, log);
+    expect(ok).toEqual({ bad: false, good: true });
+    expect(log.mock.calls.join(" ")).toMatch(/\[bad\].*ECONNREFUSED/s);
+  });
+
+  it("an invalid UTS_INSTRUMENTS is logged, declares nothing and still connects UTS_IP", async () => {
+    const r = registry();
+    const log = vi.fn();
+    const ok = await autoConnectAll({ UTS_IP: "192.168.1.100", UTS_INSTRUMENTS: "oops" }, r, log);
+    expect(ok).toEqual({ default: true });
+    expect(log.mock.calls.join(" ")).toContain("UTS_INSTRUMENTS");
+    expect([...r.conns.keys()]).toEqual(["default"]);
+  });
+
+  it("with neither variable set nothing is connected or declared", async () => {
+    const r = registry();
+    expect(await autoConnectAll({}, r, vi.fn())).toEqual({});
+    expect(r.conns.size).toBe(0);
   });
 });
