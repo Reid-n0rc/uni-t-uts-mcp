@@ -12,6 +12,11 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- `measure` and `exit_measurement` verify the restored settings by readback (center, span, RBW, VBW, sweep time, their auto flags, continuous), resend everything once when a field differs (a warning names it), and otherwise return an error naming each wrong field instead of reporting a successful restore (#133, the span once left at 8 MHz).
+- The first setter of a process clears and re-checks the instrument's error queue and ignores a late stale `-113` (from a previous process's unanswered query), so it no longer fails on an error it did not cause (#133).
+
 ### Added
 
 - VXI-11 interrupt channel client (`Vxi11Client.enableSrq`/`waitForSrq`/`disableSrq`, bounded `IntrServer` for `device_intr_srq`), tested against a fake instrument. Live test on the UTS3036B (#128): the interrupt channel is accepted but the analyzer never connects back and its status byte never changes, so no tool uses it; documented in verified-hardware.md.
