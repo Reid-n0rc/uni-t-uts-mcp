@@ -264,3 +264,40 @@ describe("parallel mode", () => {
     }
   });
 });
+
+/** Tools that select an instrument with `instrument`; the connection tools use `name`, the listing tools take none (issue #165). */
+const NAME_TOOLS = ["connect", "disconnect", "identify"];
+const NO_INSTRUMENT_TOOLS = ["discover_instruments", "list_instruments"];
+
+describe("instrument selection", () => {
+  it("every instrument tool takes an optional `instrument` argument, the connection tools `name`, the listing tools neither", async () => {
+    const { tools } = await client.listTools();
+    for (const t of tools) {
+      const props = Object.keys((t.inputSchema as { properties?: Record<string, unknown> }).properties ?? {});
+      const required = (t.inputSchema as { required?: string[] }).required ?? [];
+      expect(required, t.name).not.toContain("instrument");
+      if (NO_INSTRUMENT_TOOLS.includes(t.name)) expect(props, t.name).not.toContain("instrument");
+      else if (NAME_TOOLS.includes(t.name)) expect(props, t.name).toContain("name");
+      else expect(props, t.name).toContain("instrument");
+    }
+  });
+
+  // `connect` registers an unknown name instead of refusing it (covered in multi-connection-tools.test.ts).
+  const selecting = entries.filter(([name]) => !NO_INSTRUMENT_TOOLS.includes(name) && name !== "connect");
+  it.each(selecting)("%s: an unknown instrument is refused before anything is sent", async (name, entry) => {
+    fake.reset();
+    const arg = NAME_TOOLS.includes(name) ? "name" : "instrument";
+    const res = await callTool(client, name, { ...entry.args, [arg]: "nope" });
+    expect(expectCleanError(res, name)).toMatch(/Unknown instrument "nope"/);
+    expect(fake.opCount, `${name} touched the instrument`).toBe(0);
+    expect(fake.connectCalls).toBe(0);
+  });
+
+  it.each(selecting.filter(([name]) => !NAME_TOOLS.includes(name)))("%s: an invalid instrument name is refused before anything is sent", async (name, entry) => {
+    fake.reset();
+    const res = await callTool(client, name, { ...entry.args, instrument: "bad name!" });
+    expect(isErrorResult(res), name).toBe(true);
+    expect(getText(res), name).toMatch(/instrument/i);
+    expect(fake.opCount).toBe(0);
+  });
+});
