@@ -318,13 +318,13 @@ describe("the real wiki built from this repository", () => {
 
   it("has every page the sidebar links to, and passes the link, anchor and privacy checks", () => {
     expect(checkPages(pages, { repoRoot: ROOT })).toEqual([]);
-    for (const name of ["Home", "Getting-Started", "Tools", "Instrument-Behavior", "Architecture", "Safety-and-Security", "Troubleshooting", "Development", "Roadmap"]) {
+    for (const name of ["Home", "Getting-Started", "Tools", "Instrument-Behavior", "Architecture", "Safety-and-Security", "Troubleshooting", "Manual-Testing", "Development", "Roadmap"]) {
       expect(pages[`${name}.md`], name).toBeTruthy();
     }
   });
 
   it("keeps the hand-written pages in the repository under docs/wiki/", () => {
-    for (const name of ["Getting-Started", "Architecture", "Safety-and-Security", "Troubleshooting", "Development", "_Sidebar", "_Footer", "Home", "Roadmap"]) {
+    for (const name of ["Getting-Started", "Architecture", "Safety-and-Security", "Troubleshooting", "Manual-Testing", "Development", "_Sidebar", "_Footer", "Home", "Roadmap"]) {
       expect(existsSync(join(ROOT, "docs", "wiki", `${name}.md`)), name).toBe(true);
     }
     // Generated bodies are not duplicated by hand.

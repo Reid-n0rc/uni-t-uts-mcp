@@ -38,7 +38,7 @@ The wiki is generated from the repository and published automatically, so never 
 | Instrument Behavior | `docs/verified-hardware.md` (generated) |
 | Home | `docs/wiki/Home.md` template, with the version from `package.json` and the tool table from `docs/tools-reference.md` (generated) |
 | Roadmap | `docs/wiki/Roadmap.md` template plus the open and closed issues (generated) |
-| Getting Started, Architecture, Safety and Security, Troubleshooting, Development, the sidebar and footer | `docs/wiki/*.md` (hand-written, reviewed in pull requests) |
+| Getting Started, Architecture, Safety and Security, Troubleshooting, Manual Testing, Development, the sidebar and footer | `docs/wiki/*.md` (hand-written, reviewed in pull requests) |
 
 `node scripts/sync-wiki.mjs --check` builds the pages and verifies that every internal link and anchor resolves, that links to repository files point at files that exist, that every page is in the sidebar, and that no serial numbers, real IP addresses or personal email addresses are present; CI runs it on every pull request. After a change to `main` that touches `docs/`, the README, the changelog or `package.json` (and when an issue changes), the `wiki-sync.yml` workflow builds the pages and pushes an ordinary commit to the wiki repository with the default `GITHUB_TOKEN`; nothing is pushed when nothing changed. `node scripts/sync-wiki.mjs --out <dir>` builds the pages locally (the Roadmap lists issues only when `GH_TOKEN` or `GITHUB_TOKEN` is set). The project site's tool list is generated from the same `docs/tools-reference.md` by `npm run site`.
 
