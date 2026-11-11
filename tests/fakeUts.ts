@@ -289,15 +289,20 @@ function sci(v: number): string {
 
 const fmtNum = sci;
 
-const PRIVATE_QUERIES = new Map<string, (m: UtsModel) => string>(Object.entries({
-  "*IDN?": () => "UNI-TREND,UTS3036B,SN000000,V1.04.0040", // serial deliberately not recorded in the repo
-  "*OPC?": () => "1",
-  "*ESR?": () => "0",
-  "*STB?": () => "0",
-  "*ESE?": (m) => String(m.num("ese")),
-  "*SRE?": (m) => String(m.num("sre")),
-  ":INSTrument:SELect?": () => "SA",
-}));
+/** Queries answered without a table entry. A switch, so input-derived text never selects a function to call. */
+function privateQuery(header: string, m: UtsModel): string | undefined {
+  switch (header) {
+    case "*IDN?": return "UNI-TREND,UTS3036B,SN000000,V1.04.0040"; // serial deliberately not recorded in the repo
+    case "*OPC?": return "1";
+    case "*ESR?": return "0";
+    case "*STB?": return "0";
+    case "*ESE?": return String(m.num("ese"));
+    case "*SRE?": return String(m.num("sre"));
+    case ":INSTrument:SELect?".toUpperCase(): return "SA";
+    default: return undefined;
+  }
+}
+
 
 interface PendingError { code: number; text: string; at: number }
 
@@ -472,8 +477,8 @@ export class UtsModel {
   }
 
   private query(header: string, args: string, line: string): Out[] {
-    const special = PRIVATE_QUERIES.get(header + "?");
-    if (special) return [{ text: special(this) }];
+    const special = privateQuery(header + "?", this);
+    if (special !== undefined) return [{ text: special }];
     if (/^:SYST(EM)?:ERR(OR)?$/.test(header)) return [{ text: this.nextError() }];
     if (/^:(TRAC|TRACE):DATA$/.test(header)) return this.traceData(args);
     if (/^:DISP(LAY)?:(ZBMP|ZBM|DATA)$/.test(header)) return this.screenshot(header);
