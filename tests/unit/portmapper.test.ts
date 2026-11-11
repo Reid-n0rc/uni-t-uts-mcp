@@ -64,3 +64,12 @@ describe("getPort", () => {
     await expect(getPort("127.0.0.1", 1, 1, { portmapperPort: server.port, timeoutMs: 2000 })).rejects.toBeInstanceOf(RpcAcceptError);
   });
 });
+
+describe("getPort reply validation", () => {
+  it("rejects a port above 65535 as a malformed reply", async () => {
+    server = await startFakeRpcServer();
+    server.registerPortmapper(new Map([[portKey(395190, 1), 70000]]));
+    await expect(getPort("127.0.0.1", 395190, 1, { portmapperPort: server.port })).rejects.toThrow(RpcProtocolError);
+    await expect(getPort("127.0.0.1", 395190, 1, { portmapperPort: server.port })).rejects.toThrow(/out of range/);
+  });
+});
