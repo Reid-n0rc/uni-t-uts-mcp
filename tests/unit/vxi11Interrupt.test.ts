@@ -276,3 +276,68 @@ describe("Vxi11Client SRQ", () => {
     await expect(client.enableSrq({ bindAddress: "127.0.0.1" })).rejects.toThrow(Vxi11ClosedError);
   });
 });
+
+describe("IntrServer validation and protocol replies", () => {
+  const rpcStatus = (r: Buffer): number[] => {
+    const x = new XdrReader(r);
+    for (let i = 0; i < 5; i++) x.u32(); // xid, REPLY, MSG_ACCEPTED, verifier flavor, verifier length
+    const stat = x.u32();
+    return stat === 2 ? [stat, x.u32(), x.u32()] : [stat];
+  };
+  async function call(bytes: Buffer): Promise<Buffer[]> {
+    server = await IntrServer.listen({ bindAddress: "127.0.0.1", allowedPeers: ["127.0.0.1"] });
+    const s = await connectTo(server.port);
+    const replies: Buffer[] = [];
+    const dec = new RecordDecoder();
+    s.on("data", (d) => replies.push(...dec.push(d)));
+    s.write(bytes);
+    await settle();
+    return replies;
+  }
+
+  it.each([
+    ["a non-IPv4 bind address", { bindAddress: "::1", allowedPeers: ["127.0.0.1"] }, /bindAddress must be an IPv4/],
+    ["an empty allow list", { bindAddress: "127.0.0.1", allowedPeers: [] }, /allowedPeers/],
+    ["a non-IPv4 allowed peer", { bindAddress: "127.0.0.1", allowedPeers: ["nope"] }, /allowedPeers/],
+    ["a port out of range", { bindAddress: "127.0.0.1", allowedPeers: ["127.0.0.1"], port: 70000 }, /invalid port/],
+    ["a fractional port", { bindAddress: "127.0.0.1", allowedPeers: ["127.0.0.1"], port: 1.5 }, /invalid port/],
+    ["zero connections", { bindAddress: "127.0.0.1", allowedPeers: ["127.0.0.1"], maxConnections: 0 }, /maxConnections/],
+  ])("refuses to listen with %s", async (_name, options, message) => {
+    await expect(IntrServer.listen(options)).rejects.toThrow(message);
+  });
+
+  it("answers a wrong program version with PROG_MISMATCH and the supported version range", async () => {
+    const replies = await call(encodeRecord(encodeCall(5, INTR, 9, 30, new XdrWriter().opaque(Buffer.from([1])).toBuffer())));
+    expect(rpcStatus(replies[0])).toEqual([2, 1, 1]);
+    expect(server!.stats.srqCalls).toBe(0);
+  });
+
+  it("answers the null procedure with success and counts it neither as SRQ nor as ignored", async () => {
+    const replies = await call(encodeRecord(encodeCall(6, INTR, 1, 0, Buffer.alloc(0))));
+    expect(rpcStatus(replies[0])).toEqual([0]);
+    expect(server!.stats.ignored).toBe(0);
+  });
+
+  it.each([
+    ["a record that is not an RPC call", new XdrWriter().u32(7).u32(1).toBuffer()],
+    ["a call with a wrong RPC version", new XdrWriter().u32(8).u32(0).u32(3).toBuffer()],
+  ])("silently ignores %s and drops the connection", async (_name, record) => {
+    const replies = await call(encodeRecord(record));
+    expect(replies).toEqual([]);
+    expect(server!.stats.ignored).toBe(1);
+  });
+
+  it("ignores a truncated call without answering", async () => {
+    const replies = await call(encodeRecord(new XdrWriter().u32(9).u32(0).toBuffer()));
+    expect(replies).toEqual([]);
+    expect(server!.stats.ignored).toBe(1);
+  });
+
+  it("remembers at most 16 rejected peers", async () => {
+    server = await IntrServer.listen({ bindAddress: "127.0.0.1", allowedPeers: ["10.9.9.9"] });
+    for (let i = 0; i < 18; i++) (await connectTo(server.port)).write(Buffer.from([0]));
+    await settle(150);
+    expect(server.stats.rejected).toBe(18);
+    expect(server.stats.rejectedPeers).toHaveLength(16);
+  });
+});

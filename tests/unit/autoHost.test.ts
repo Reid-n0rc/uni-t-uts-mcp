@@ -64,3 +64,36 @@ describe("resolveAutoHost", () => {
     });
   });
 });
+
+describe("resolveAutoHost edge cases", () => {
+  it("describes ambiguous analyzers without an IDN by their note, or by host alone", async () => {
+    const a: DiscoveredInstrument = { host: "192.168.1.100", vxi11: true, vxi11Port: 1234, raw: true, analyzer: true, note: "no *IDN? reply" };
+    const b: DiscoveredInstrument = { host: "192.168.1.101", vxi11: true, vxi11Port: 1234, raw: true, analyzer: true };
+    const r = (await resolveAutoHost(found(a, b))) as { error: string };
+    expect(r.error).toContain('192.168.1.100 ("no *IDN? reply")');
+    expect(r.error).toMatch(/192\.168\.1\.101[.;]/);
+  });
+  it("returns the host without model or firmware when the single analyzer has no IDN", async () => {
+    const a: DiscoveredInstrument = { host: "192.168.1.100", vxi11: true, vxi11Port: 1234, raw: true, analyzer: true };
+    expect(await resolveAutoHost(found(a))).toEqual({ host: "192.168.1.100", model: undefined, firmware: undefined });
+  });
+  it("names discovery notes and unidentified responders when no analyzer is found", async () => {
+    const other = inst("192.168.1.7", false);
+    const r = (await resolveAutoHost(async () => ({ instruments: [other], notes: ["probe timed out"] }))) as { error: string };
+    expect(r.error).toContain('("probe timed out")');
+    expect(r.error).toContain("not UNI-T analyzers");
+    expect(r.error).toContain("192.168.1.7");
+  });
+  it("reports a non-Error rejection as a discovery failure", async () => {
+    const r = (await resolveAutoHost(() => Promise.reject("boom"))) as { error: string };
+    expect(r.error).toContain("Discovery failed: boom");
+  });
+});
+
+describe("autoSelectedNote", () => {
+  it("says unknown when the model or firmware is missing, and quotes what it was given", async () => {
+    const { autoSelectedNote } = await import("../../src/autoHost.js");
+    expect(autoSelectedNote("192.168.1.100", undefined, undefined)).toContain('model "unknown", firmware "unknown"');
+    expect(autoSelectedNote("192.168.1.100", 'UTS"X', "V1")).toContain('model "UTS\\"X"');
+  });
+});
