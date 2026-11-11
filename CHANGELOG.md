@@ -12,6 +12,8 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-11
+
 ### Added
 
 - Front-panel lock detection (#172): `src/panelLock.ts` classifies a screenshot (PNG or BMP, decoded with `node:zlib` only) as locked, unlocked or unknown from the padlock icon in the status bar, `src/panelLockCapture.ts` takes the screenshot over VXI-11 with a single `:DISPlay:DATA?` and `node scripts/check-panel-lock.mjs` reports it (exit 0 unlocked, 1 locked, 2 unknown), so live runs say "press Esc" only when the panel is actually locked. Also recorded: `device_remote`/`device_local`, `device_clear`, reopening the link and a `lockDevice` link do not return the analyzer to local mode.
@@ -22,6 +24,7 @@ The text of a release's section is also used as its GitHub release notes.
 - Simulator conformance suite (#147): one scripted SCPI exchange (`scripts/conformance-lib.mjs`) runs against the simulator in CI and, on demand only (`UTS_IP`, `UTS_CONFORMANCE_LIVE=1`, never in CI), against a real analyzer with `scripts/conformance.mjs`, diffing a redacted transcript against `tests/fixtures/conformance/exchange.txt`. Procedure in docs/releasing.md.
 - Docs: `docs/manual-testing-guide.md`, a step-by-step hardware checklist for every tool group on raw and VXI-11 (prerequisites, safe setup, remote-mode and front-panel lock behavior, expected results, what to record, restore steps, reporting template, troubleshooting), linked from the README, CONTRIBUTING, the release checklist and a new wiki page; a test fails when a registered tool has no checklist step (#24).
 - Tests: the fake UTS analyzer models the measurement modes (presets, mode-dependent query silence, -113 for wrong-mode setters, FETCh/READ framing, parameter defaults and clamps, fault injection for lost setters), and `get_measurement`, `configure_measurement`, `read_measurement`, `exit_measurement` and `measure` have stdio end-to-end entries including the restore-by-readback retry and error paths (#150, part of #35).
+- Tests only, no source changes: raised branch coverage of `autoHost`, `shutdown`, the raw transport and the VXI-11 interrupt server above 85% (was 79-83.6%); overall lines 97.85% -> 97.91%, branches 92.74% -> 93.29% (#200).
 
 ### Fixed
 
@@ -32,6 +35,16 @@ The text of a release's section is also used as its GitHub release notes.
 ### Documentation
 
 - Research (#174): `docs/research/emi-function.md` assesses MCP support for the UTS3000B EMI module (module switch and state to restore, documented EMI commands with manual pages, proposed tools, risks, simulator-versus-hardware split, how to check for the option). Twelve proposed follow-up issues (#176-#187), none started.
+- Research on analog demodulation support (#173): `docs/research/analog-demodulation.md` summarises the module switch, the documented AD commands with page numbers, a proposed tool list, risks and a split into small issues. Research only; nothing was run on an instrument.
+
+### Known limitations
+
+- No automatic way out of remote mode exists on this firmware (V1.04.0040): once the panel locks, only the physical Esc key on the analyzer returns it to local (`:SYSTem:LOCK 0`, VXI-11 `device_local`/`device_unlock`, `device_clear`, reopening the link and a simulated `:KEY:ESC` all do nothing); `src/panelLock.ts` and `check-panel-lock.mjs` can only detect the lock, not clear it (#152, #155, #172).
+- Multi-instrument support (#163-#166, epic #67) is exercised against two fake instruments in CI; only the single-instrument path has been verified against real hardware so far.
+- SRQ is unavailable on this firmware: the VXI-11 interrupt channel client exists but no tool uses it, because the analyzer never connects back (#128, #139).
+- EMI and analog demodulation modules are unsupported: `docs/research/emi-function.md` and `docs/research/analog-demodulation.md` are research only, with proposed follow-up issues, nothing implemented or run on an instrument (#173, #174).
+- The Claude Desktop `.mcpb` bundle is built and checked in CI but has not been installed in Claude Desktop itself yet, and it is not code-signed.
+- VXI-11 is verified on one analyzer model and firmware only (UTS3036B V1.04.0040).
 
 ## [0.4.0] - 2026-11-11
 
@@ -254,7 +267,8 @@ latest published at the time) over LAN; see [docs/verified-hardware.md](docs/ver
 - Verified on one analyzer model and firmware (UTS3036B V1.04.0040); other UTS models are expected to be
   similar but are untested.
 
-[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.1.0...v0.2.0
