@@ -119,6 +119,7 @@ The server connects automatically at startup when `UTS_IP` is set (a failed auto
 | `UTS_PORT` | TCP port of the raw transport, default `5025` |
 | `UTS_TRANSPORT` | `auto` (default: VXI-11 if the analyzer offers it, otherwise raw), `raw` or `vxi11`. Default for the `connect` tool's `transport` parameter; setting only `UTS_PORT` means raw |
 | `UTS_VXI11_DEVICE` | VXI-11 logical device name, default `inst0` |
+| `UTS_INSTRUMENTS` | Optional, for several analyzers at once: `name=host[:port],name2=host2[:port2]` or JSON (`{"name":"host:port"}`). `UTS_IP` is the instrument named `default`; these add more, all connected at startup. Selecting an instrument per tool call arrives with #164/#165 |
 | `UTS_BUSY_TIMEOUT_S` | How many seconds a tool call waits for another call to finish before failing with `Instrument busy`, default `120` |
 
 To set the address in a shell instead of the client configuration: `export UTS_IP=192.168.1.100` (bash, zsh), `$env:UTS_IP = "192.168.1.100"` (PowerShell) or `set UTS_IP=192.168.1.100` (cmd).
