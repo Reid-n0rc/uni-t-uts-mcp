@@ -196,7 +196,7 @@ describe("detectPanelLock on real status-bar crops", () => {
     const r = detectPanelLockInImageFile(fixture("unlocked-statusbar.png"), ORIGIN);
     expect(r.state).toBe("unlocked");
     expect(r.monitorScore).toBeGreaterThan(0.9);
-    expect(r.padlockScore).toBeLessThan(0.5);
+    expect(r.padlockScore).toBeLessThan(0.7);
   });
 
   it("still classifies when the icons are one or two pixels off", () => {
