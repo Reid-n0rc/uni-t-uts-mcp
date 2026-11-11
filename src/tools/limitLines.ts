@@ -19,6 +19,10 @@ const MAX_POINTS = 100;
 /** The instrument sends no reply at all to DATA? on a line without points, so this wait is the "empty" signal. */
 const DATA_TIMEOUT_MS = 1500;
 
+/** How often, and how long apart, delete_limit_line re-reads the points while waiting for the delete to finish. */
+const DELETE_CHECKS = 4;
+const DELETE_CHECK_DELAY_MS = 300;
+
 export interface LimitPoint {
   frequency_hz: number;
   amplitude_dbm: number;
@@ -221,7 +225,7 @@ export function registerLimitLineTools(server: McpServer): void {
     server,
     "delete_limit_line",
     "Delete the points of one limit line (line) or of all limit lines (all: true). Type, trace and margin settings are left as they are. " +
-      "The result confirms the line is empty (for all, line 1 is checked).",
+      "The result confirms the line is empty (for all, line 1 is checked); the analyzer finishes a delete a moment after it is sent, so the tool waits for it.",
     {
       line: LINE.optional(),
       all: z.boolean().optional().describe("Delete every limit line instead of one"),
@@ -232,7 +236,16 @@ export function registerLimitLineTools(server: McpServer): void {
         const warnings: string[] = [];
         const check = line ?? 1;
         await applyCommands([all ? ":CALCulate:LLINe:ALL:DELete" : `${L(line!)}:DELete`]);
-        const left = await readBack(() => readPoints(check));
+        // The delete finishes after its *OPC? reply (verified: a DATA? right away still returns the old
+        // points, and a late delete would erase points set in the next call), so wait until it shows.
+        const left = await readBack(async () => {
+          let points = await readPoints(check);
+          for (let attempt = 1; attempt < DELETE_CHECKS && points.length > 0; attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, DELETE_CHECK_DELAY_MS));
+            points = await readPoints(check);
+          }
+          return points;
+        });
         if (left.length > 0) warnings.push(`limit line ${check} still has ${left.length} points after the delete`);
         return textResult(JSON.stringify({ deleted: all ? "all" : [line], warnings }, null, 2));
       } catch (err) {

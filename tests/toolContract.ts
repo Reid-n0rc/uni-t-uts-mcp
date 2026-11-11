@@ -236,7 +236,6 @@ export const CONTRACT: Record<string, ContractEntry> = {
     kind: "setter",
     args: { line: 1 },
     invalid: [{}, { line: 1, all: true }, { line: 9 }],
-    warn: [{ line: 1 }], // the canned DATA? reply still holds points after the delete
     skip: {
       timeout: "the only readback is DATA?, which the instrument leaves unanswered on an emptied line, so a timeout there is the success signal",
       empty: "an empty DATA? reply means the same (no points), so the delete is confirmed",
@@ -262,7 +261,7 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/LLINe\d:(DISPlay|MARGin:STATe)\?$/, "0"],
   [/LLINe\d:TRACe\?$/, "1"],
   [/LLINe\d:MARGin\?$/, "0.000000e+00"],
-  [/LLINe\d:DATA\?$/, "1.000000000e+08,-5.000000e+01,1,5.000000000e+08,-3.000000e+01,1"],
+  [/LLINe\d:DATA\?$/, ""], // an empty line (the real instrument stays silent there; "" is read the same way)
   [/MARKer\d+:MODE\?$/, "POSition"],
   [/MARKer\d+:TRACe\?$/, "1"],
   [/MARKer\d+:REFerence\?$/, "2"],
