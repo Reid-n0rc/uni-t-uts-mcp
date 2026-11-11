@@ -23,7 +23,7 @@ Use `npm run inspector` to try the server interactively with the MCP Inspector.
 
 1. Open an issue first for anything non-trivial so we can agree on scope.
 2. Every PR must be tied to an issue (`Closes #<n>`). Branch `issue-<n>-<slug>` from `main`, keep PRs small and focused.
-3. Add or update tests (vitest). Integration tests mock the connection; no hardware is needed to run them.
+3. Add or update tests (vitest). Integration tests mock the connection; no hardware is needed to run them. `tests/e2e/` starts the built server (`npm run build` first) against the stateful fake analyzer in `tests/fakeUts.ts`; a new tool needs an entry in `tests/e2e/e2eTable.ts`, and a newly verified instrument behavior goes into both `docs/verified-hardware.md` and the fake.
 4. Document new or changed tools in `docs/tools-reference.md`.
 5. Make sure `npm run build` and `npm test` pass.
 6. Signed commits are encouraged but not required.
