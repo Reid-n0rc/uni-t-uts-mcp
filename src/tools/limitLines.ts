@@ -100,7 +100,7 @@ const SET_SHAPE = {
   trace: z.number().int().min(1).max(6).optional().describe("Trace number (1-6) to test against the line"),
   margin_db: z.number().finite().optional().describe("Margin in dB, -40 to 40"),
   margin_enabled: z.boolean().optional().describe("Margin on/off"),
-  points: z.array(POINT).optional().describe(`Replace the whole point list: 2 to ${MAX_POINTS} points in strictly ascending frequency order`),
+  points: z.array(POINT).optional().describe(`Replace the whole point list: 1 to ${MAX_POINTS} points in ascending frequency order (equal frequencies make a vertical step)`),
 };
 type SetArgs = { [K in keyof typeof SET_SHAPE]?: z.infer<(typeof SET_SHAPE)[K]> };
 
@@ -111,11 +111,11 @@ export function validateSet(a: SetArgs): string | undefined {
   if (a.margin_db !== undefined && (a.margin_db < -40 || a.margin_db > 40)) return "margin_db must be between -40 and 40.";
   if (a.points !== undefined) {
     const p = a.points;
-    if (p.length < 2) return "points needs at least 2 points (a limit line is defined by two or more points).";
+    if (p.length < 1) return "points needs at least 1 point; use delete_limit_line to remove all points.";
     if (p.length > MAX_POINTS) return `points has ${p.length} entries; at most ${MAX_POINTS} are accepted.`;
     for (let i = 1; i < p.length; i++) {
-      if (!(p[i].frequency_hz > p[i - 1].frequency_hz)) {
-        return `points must be in strictly ascending frequency order (point ${i + 1} is not above point ${i}).`;
+      if (p[i].frequency_hz < p[i - 1].frequency_hz) {
+        return `points must be in ascending frequency order (point ${i + 1} is below point ${i}).`;
       }
     }
   }
@@ -159,7 +159,7 @@ export function registerLimitLineTools(server: McpServer): void {
     server,
     "set_limit_line",
     "Create or edit a limit line. Give any of: displayed, type (upper/lower), trace, margin_db and margin_enabled, and points " +
-      "(replaces the whole point list; 2 or more points in ascending frequency order, each with frequency_hz, amplitude_dbm and optional connected). " +
+      "(replaces the whole point list; 1 to 100 points in ascending frequency order, equal frequencies make a vertical step, each with frequency_hz, amplitude_dbm and optional connected). " +
       "The line is re-read afterwards; anything the instrument did not take is reported in 'warnings'.",
     SET_SHAPE,
     { readOnlyHint: false, idempotentHint: true },

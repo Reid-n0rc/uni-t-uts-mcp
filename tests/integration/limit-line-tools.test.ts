@@ -180,6 +180,14 @@ describe("set_limit_line", () => {
     expect(json(res).warnings).toEqual([]);
   });
 
+  it("accepts a single point and a vertical step (equal frequencies)", async () => {
+    expect((await callTool(client, "set_limit_line", { points: [{ frequency_hz: 5e8, amplitude_dbm: -30 }] })).isError).toBeFalsy();
+    const step = [{ frequency_hz: 5e8, amplitude_dbm: -30 }, { frequency_hz: 5e8, amplitude_dbm: -20 }];
+    const res = await callTool(client, "set_limit_line", { points: step });
+    expect(json(res).warnings).toEqual([]);
+    expect(json(res).state.points).toHaveLength(2);
+  });
+
   it("warns when the margin or its state was not taken", async () => {
     const orig = fake.sendCommand.getMockImplementation()!;
     fake.sendCommand.mockImplementation(async (cmd: string) => {
@@ -226,9 +234,7 @@ describe("set_limit_line", () => {
       { margin_db: 41 },
       { margin_db: -41 },
       { points: [] },
-      { points: [{ frequency_hz: 1e8, amplitude_dbm: -50 }] },
       { points: [{ frequency_hz: 5e8, amplitude_dbm: -30 }, { frequency_hz: 1e8, amplitude_dbm: -50 }] },
-      { points: [{ frequency_hz: 1e8, amplitude_dbm: -50 }, { frequency_hz: 1e8, amplitude_dbm: -40 }] },
       { points: [{ frequency_hz: -1, amplitude_dbm: -50 }, { frequency_hz: 1e8, amplitude_dbm: -40 }] },
       { points: [{ frequency_hz: 1e8, amplitude_dbm: Number.NaN }, { frequency_hz: 2e8, amplitude_dbm: -40 }] },
       { points: Array.from({ length: 101 }, (_, i) => ({ frequency_hz: (i + 1) * 1e6, amplitude_dbm: -50 })) },
