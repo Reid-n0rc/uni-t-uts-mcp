@@ -138,7 +138,7 @@ describe("get_limit_line", () => {
   });
 
   it("fails on a malformed point list", async () => {
-    fake.lines[0].points = [[1e8, -50, 1]];
+    const orig = fake.query.getMockImplementation()!;
     fake.query.mockImplementation(async (cmd: string) => {
       if (cmd.endsWith("DATA?")) return "1e8,-50";
       if (cmd.endsWith("DISPlay?") || cmd.endsWith("STATe?")) return "0";
@@ -146,6 +146,7 @@ describe("get_limit_line", () => {
       return "1";
     });
     const res = await callTool(client, "get_limit_line", {});
+    fake.query.mockImplementation(orig);
     expect(res.isError).toBe(true);
     expect(getText(res)).toContain("DATA?");
   });
@@ -159,7 +160,7 @@ describe("get_limit_line", () => {
 describe("set_limit_line", () => {
   it("sends the point list in the documented form and reads everything back", async () => {
     const res = await callTool(client, "set_limit_line", { line: 1, type: "lower", trace: 2, points: PTS, displayed: true });
-    expect(res.isError).toBeFalsy();
+    expect(res.isError, getText(res)).toBeFalsy();
     expect(fake.calls).toEqual([
       ":CALCulate:LLINe1:DATA 100000000,-50,1,500000000,-30,1,900000000,-30,0",
       ":CALCulate:LLINe1:TYPE LOWer",
@@ -199,9 +200,14 @@ describe("set_limit_line", () => {
   });
 
   it("warns when the readback points differ", async () => {
-    const res = await callTool(client, "set_limit_line", { points: [{ frequency_hz: 5e8, amplitude_dbm: -30 }, { frequency_hz: 1e8, amplitude_dbm: -50 }] });
-    // The instrument sorts by frequency; the order change is reported.
+    const orig = fake.sendCommand.getMockImplementation()!;
+    fake.sendCommand.mockImplementation(async (cmd: string) => {
+      await orig(cmd);
+      if (cmd.includes(":DATA ")) fake.lines[0].points[1][1] += 3;
+    });
+    const res = await callTool(client, "set_limit_line", { points: PTS });
     expect(json(res).warnings.join(" ")).toMatch(/points/);
+    fake.sendCommand.mockImplementation(orig);
   });
 
   it("reports an instrument error with the commands sent", async () => {
@@ -250,7 +256,7 @@ describe("delete_limit_line", () => {
     for (const l of fake.lines) l.points = [[1e8, -50, 1]];
     const res = await callTool(client, "delete_limit_line", { all: true });
     expect(fake.calls).toEqual([":CALCulate:LLINe:ALL:DELete"]);
-    expect(json(res)).toEqual({ deleted: [1, 2, 3, 4, 5, 6], warnings: [] });
+    expect(json(res)).toEqual({ deleted: "all", warnings: [] });
   });
 
   it("warns when a line still has points", async () => {

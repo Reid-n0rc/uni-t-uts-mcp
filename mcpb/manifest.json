@@ -194,6 +194,18 @@
       "description": "Set the peak search threshold and excursion."
     },
     {
+      "name": "get_limit_line",
+      "description": "Read a limit line: type, trace, margin and its point list."
+    },
+    {
+      "name": "set_limit_line",
+      "description": "Create or edit a limit line: points, type, trace, margin and display."
+    },
+    {
+      "name": "delete_limit_line",
+      "description": "Delete the points of one limit line or of all limit lines."
+    },
+    {
       "name": "get_measurement",
       "description": "Tell whether the analyzer is in spectrum analyzer mode, or check one measurement and read its parameters."
     },
