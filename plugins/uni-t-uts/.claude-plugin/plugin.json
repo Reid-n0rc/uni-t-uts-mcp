@@ -1,7 +1,7 @@
 {
   "name": "uni-t-uts",
   "displayName": "UNI-T UTS Spectrum Analyzer",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "MCP server for UNI-T UTS1000B/UTS3000B spectrum analyzers over the local network (SCPI over LAN)",
   "author": {
     "name": "Reid Crowe"

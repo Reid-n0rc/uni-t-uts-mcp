@@ -12,8 +12,11 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-11
+
 ### Changed
 
+- Connect and disconnect results now say that the front panel stays locked in remote mode until Esc is pressed on the analyzer (#155).
 - Docs and test: the 21 required status checks of the `protect-main` ruleset, how to keep them in step with workflow job names and matrices, and the no-bypass-for-red-PRs rule (docs/releasing.md, AGENTS.md, CONTRIBUTING.md); `tests/unit/required-checks.test.ts` fails when the documented list drifts from the workflows (#148).
 - Tests: a stateful fake UTS analyzer (`tests/fakeUts.ts`) and an end-to-end suite that drives the built server over stdio and calls every tool against it (`tests/e2e/`); the measurement tools follow in #150 (#146, part of #35).
 - CI: a dependency audit job (also weekly), Dependabot for npm, and a written flaky-test policy in CONTRIBUTING.md (#145, part of #35).
@@ -38,6 +41,14 @@ The text of a release's section is also used as its GitHub release notes.
 - Limit line tools `get_limit_line`, `set_limit_line` and `delete_limit_line` (#21): type, trace, margin, display and a point list of up to 10 points per line, verified on the UTS3036B. There is no pass/fail tool because the manual documents no such read-back.
 
 - VXI-11 interrupt channel client (`Vxi11Client.enableSrq`/`waitForSrq`/`disableSrq`, bounded `IntrServer` for `device_intr_srq`), tested against a fake instrument. Live test on the UTS3036B (#128): the interrupt channel is accepted but the analyzer never connected back to our listener, so no tool uses it; documented in verified-hardware.md.
+
+### Known limitations
+
+- Raw TCP (and the first query of a session) puts the analyzer into remote mode, which locks the front panel until the Esc key is pressed on the instrument; `:SYSTem:LOCK 0` and the other standard local-return calls do not unlock it on V1.04.0040 (#152, #155).
+- SRQ is unavailable on this firmware: the VXI-11 interrupt channel client exists but no tool uses it, because the analyzer never connects back (#128, #139).
+- The measurement modes are not yet in the end-to-end test table against the fake analyzer ([#150](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/150)).
+- The Claude Desktop `.mcpb` bundle is built and checked in CI but has not been installed in Claude Desktop itself yet, and it is not code-signed.
+- VXI-11 is verified on one analyzer model and firmware only (UTS3036B V1.04.0040).
 
 ## [0.3.0] - 2026-11-10
 
@@ -221,7 +232,8 @@ latest published at the time) over LAN; see [docs/verified-hardware.md](docs/ver
 - Verified on one analyzer model and firmware (UTS3036B V1.04.0040); other UTS models are expected to be
   similar but are untested.
 
-[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v0.1.0
