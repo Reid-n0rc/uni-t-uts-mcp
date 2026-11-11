@@ -581,7 +581,15 @@ npm run client-config -- --host 192.168.1.100</code></pre></div></div>
         <div role="tabpanel" class="cpanel" id="panel-claude-code" aria-labelledby="tab-claude-code">
           <h3>Claude Code</h3>
           
-          <ul><li>Run the command once in a terminal. Add <code>--scope user</code> to make it available in every project (<code>local</code> is the default, <code>project</code> writes <code>.mcp.json</code>).</li><li>UTS_IP is optional: without it, tell the assistant &quot;connect to the analyzer at 192.168.1.100&quot;.</li></ul>
+          <ul><li>Recommended: add this repository as a marketplace and install the plugin (two commands, inside Claude Code or with <code>claude plugin ...</code> in a shell). The plugin runs <code>npx -y uni-t-uts-mcp</code> pinned to this release (0.3.0) and asks for the analyzer address, port and transport (all optional; they are stored in your Claude Code settings).</li><li>Or run the <code>claude mcp add</code> command once in a terminal. Add <code>--scope user</code> to make it available in every project (<code>local</code> is the default, <code>project</code> writes <code>.mcp.json</code>).</li><li>UTS_IP is optional: without it, tell the assistant &quot;connect to the analyzer at 192.168.1.100&quot;.</li></ul>
+          <div class="win"><div class="win-bar"><h4 class="win-title">Plugin (recommended)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="/plugin marketplace add Reid-n0rc/uni-t-uts-mcp&#10;/plugin install uni-t-uts@uni-t-uts-mcp">Copy</button>
+<pre class="code"><code>/plugin marketplace add Reid-n0rc/uni-t-uts-mcp
+/plugin install uni-t-uts@uni-t-uts-mcp</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">Plugin from a shell</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="claude plugin marketplace add Reid-n0rc/uni-t-uts-mcp&#10;claude plugin install uni-t-uts@uni-t-uts-mcp">Copy</button>
+<pre class="code"><code>claude plugin marketplace add Reid-n0rc/uni-t-uts-mcp
+claude plugin install uni-t-uts@uni-t-uts-mcp</code></pre></div></div>
           <div class="win"><div class="win-bar"><h4 class="win-title">npx (macOS / Linux)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
             <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp">Copy</button>
 <pre class="code"><code>claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp</code></pre></div></div>
@@ -607,7 +615,7 @@ npm run client-config -- --host 192.168.1.100</code></pre></div></div>
     }
   }
 }</code></pre></div></div>
-          <p class="callout">Command form and <code>.mcp.json</code> format checked against the Claude Code docs. Not run by the maintainer on a fresh machine. Source: <code>https://code.claude.com/docs/en/mcp</code></p>
+          <p class="callout">Plugin, marketplace and <code>.mcp.json</code> formats checked against the Claude Code docs and validated with <code>claude plugin validate</code>. <code>claude plugin marketplace add</code> and <code>claude plugin install</code> were run against a local checkout in an isolated Claude Code config directory (install and listing succeeded). Not yet verified: adding the marketplace from GitHub, and starting the server inside a Claude Code session (the pinned npm version must be published first). Source: <code>https://code.claude.com/docs/en/plugins/marketplace-reference.md and https://code.claude.com/docs/en/mcp</code></p>
         </div>
         <div role="tabpanel" class="cpanel" id="panel-claude-desktop" aria-labelledby="tab-claude-desktop" data-later>
           <h3>Claude Desktop</h3>
