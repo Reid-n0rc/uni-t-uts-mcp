@@ -44,6 +44,7 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 - `src/vxi11/` – dependency-free ONC RPC/XDR client, portmapper, VXI-11 core-channel client (used by the VXI-11 transport) and the interrupt-channel listener (`interrupt.ts`, SRQ client; not used by any tool)
 - `src/tools/` – one file per tool group, registered in `src/server.ts`
 - `tests/` – unit and mocked integration tests, a fake SCPI server, a transport contract suite (`transportContract.ts`), and captured instrument fixtures
+- `scripts/conformance.mjs`, `scripts/conformance-lib.mjs` – simulator conformance: the same scripted exchange against the simulator (CI) and, on demand, a real analyzer (see docs/releasing.md)
 - `mcpb/manifest.json`, `scripts/build-mcpb.mjs` – the Claude Desktop MCP bundle (`.mcpb`): manifest and the Node-only build script (`npm run build:mcpb`)
 - `scripts/client-snippets.mjs` – single source for the per-client configs and links (README table, wiki page, site section); `npm run clients:sync` regenerates them
 - `scripts/client-config.mjs` – the `npm run client-config` printer; also the single place that holds the install specs and the `NPM_PUBLISHED` switch

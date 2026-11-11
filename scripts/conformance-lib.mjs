@@ -12,6 +12,7 @@ import net from "node:net";
 export function redact(text) {
   return text
     .replace(/^([^,\r\n]*,[^,\r\n]*,)[^,\r\n]*(,[^\r\n]*)$/, "$1<serial>$2")
+    .replace(/\b([A-Za-z][A-Za-z-]*,UTS[0-9A-Za-z]+,)[^,\s]+/g, "$1<serial>") // an *IDN? reply inside other text
     .replace(/\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b/g, "<mac>")
     .replace(/\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/g, "<ip>");
 }

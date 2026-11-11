@@ -12,6 +12,14 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+
+- Simulator conformance suite (#147): one scripted SCPI exchange (`scripts/conformance-lib.mjs`) runs against the simulator in CI and, on demand only (`UTS_IP`, `UTS_CONFORMANCE_LIVE=1`, never in CI), against a real analyzer with `scripts/conformance.mjs`, diffing a redacted transcript against `tests/fixtures/conformance/exchange.txt`. Procedure in docs/releasing.md.
+
+### Fixed
+
+- Simulator replies now match the analyzer: 10-decimal frequency values, a trailing space on non-negative numbers, the span setter moves the center, an invalid enum value posts `-224` twice, `:TRACe:SELect` above 6 is ignored (#147).
+
 ## [0.4.0] - 2026-11-11
 
 ### Changed

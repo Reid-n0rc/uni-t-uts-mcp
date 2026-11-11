@@ -156,6 +156,60 @@ gh api -X PUT repos/Reid-n0rc/uni-t-uts-mcp/rulesets/26951437 --input ruleset-pu
 Do not make a check required before it has reported on a pull request at least once, and apply a removal or rename
 right after the workflow change merges (or before, when the old name would otherwise never report).
 
+## Simulator conformance (issue #147)
+
+The simulator (`tests/fakeUts.ts`) is only useful if it behaves like the analyzer. `scripts/conformance-lib.mjs` holds one
+scripted SCPI exchange (about 65 steps: frequency, amplitude, bandwidth, detector, markers, the tracking generator state,
+formats, error handling and an unsupported query) that runs unchanged against both:
+
+- **The simulator, always, in CI:** `tests/e2e/conformance.test.ts` runs it and requires the transcript to equal the
+  committed `tests/fixtures/conformance/exchange.txt` (about 7 s, mostly the wait for the late `-113`). Unit tests of the
+  recorder, redactor and differ are in `tests/unit/conformance.test.ts`.
+- **A real analyzer, on demand only:** `scripts/conformance.mjs`. It refuses to run unless `UTS_IP` and
+  `UTS_CONFORMANCE_LIVE=1` are set, and never when `CI` is set.
+
+```sh
+UTS_IP=192.168.1.100 UTS_CONFORMANCE_LIVE=1 node scripts/conformance.mjs [--out transcript.txt] [--record]
+```
+
+(PowerShell: `$env:UTS_IP = "192.168.1.100"; $env:UTS_CONFORMANCE_LIVE = "1"; node scripts/conformance.mjs`.)
+
+**Before you run it:** the first query puts the analyzer into remote mode and locks its touch screen and buttons until the
+owner presses Esc on the analyzer, so tell the owner. The script sends only what is in `EXCHANGE` (no `*RST`, `:KEY:`,
+`:SYSTem:LOCK`, `:SYSTem:DEFault`, LAN or `:MMEMory` commands), reads every setting it touches first (`RESTORE_PLAN`), writes
+it back at the end, verifies the readback and checks that `:SYSTem:ERRor?` is clean. Serial numbers, IPv4 and MAC addresses are
+redacted from the transcript (`<serial>`, `<ip>`, `<mac>`).
+
+**Reading a diff.** Each difference shows the step number, the command, the committed reply and the analyzer's reply. Exit
+status 0 means no unexplained difference and a clean restore. For every difference decide:
+
+1. the simulator is wrong: fix `tests/fakeUts.ts` (and its unit test) so it reproduces the analyzer, cite the finding in
+   `docs/verified-hardware.md`;
+2. the analyzer is not reproducible (depends on the signal, the unit or its firmware): remove or change the step, or add an entry
+   to `KNOWN_DIVERGENCES` in `scripts/conformance-lib.mjs` (`{cmd, actual: <regex of the analyzer's reply>, note}`); such a
+   difference is printed as `known` and does not fail the run, but the note must say why.
+
+**Refreshing the transcript.** After a deliberate change to `EXCHANGE`, or a firmware update, run the live script with `--record`
+(it rewrites `tests/fixtures/conformance/exchange.txt` from the analyzer), review `git diff` of the fixture, make the simulator match
+and commit them together; `npm test` then proves the simulator equals the committed transcript. Add the result to
+`docs/verified-hardware.md`.
+
+**Self-hosted runner (optional, not enabled).** The live run needs a runner on the analyzer's network. A manual job would be:
+
+```yaml
+on: workflow_dispatch
+jobs:
+  conformance:
+    runs-on: [self-hosted, uts-bench]
+    steps:
+      - uses: actions/checkout@<pinned sha>
+      - run: node scripts/conformance.mjs
+        env: { UTS_IP: "${{ secrets.UTS_IP }}", UTS_CONFORMANCE_LIVE: "1" }
+```
+
+The script refuses when `CI` is set, so such a job would have to unset it; do that only on a bench runner whose owner accepts the
+remote-mode lock. The address stays in a secret, never in the repository.
+
 ## Hardware checklist (live runs)
 
 - Record the instrument state first (frequency, span, sweep mode, format) and restore it afterwards; `:SYSTem:ERRor?` must be clean.

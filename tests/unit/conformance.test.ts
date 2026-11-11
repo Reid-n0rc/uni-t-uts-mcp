@@ -18,6 +18,9 @@ describe("redact", () => {
     expect(redact("host 10.26.0.14 gw 192.168.1.1")).toBe("host <ip> gw <ip>");
     expect(redact("mac AA:bb:CC:01:02:03 and 00-11-22-33-44-55")).toBe("mac <mac> and <mac>");
   });
+  it("blanks the serial of an *IDN? reply embedded in other text", () => {
+    expect(redact("Device: UNI-TREND,UTS3036B,ASA0000000000,V1.04.0040 Note")).toBe("Device: UNI-TREND,UTS3036B,<serial>,V1.04.0040 Note");
+  });
   it("leaves ordinary replies alone", () => {
     for (const s of ['0,"No error"', "1.000000000000e+09", "ASC8", "3.0.0.1x"]) expect(redact(s)).toBe(s);
   });
