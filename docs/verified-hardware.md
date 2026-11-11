@@ -284,3 +284,31 @@ The instrument was restored (`*SRE`/`*ESE` 0, continuous sweep on, `:SYSTem:ERRo
 ## VXI-11 probe retry and teardown (issue #127)
 
 Checked through the built server over stdio (read-only: `connect`, `get_frequency`, no setting touched), five short-lived processes back to back about 3 s apart: four with `UTS_TRANSPORT=vxi11` and one with `auto` from a cold start. Every one connected in 0.10 to 0.11 s (`create_link` plus status poll plus `*IDN?`), the `auto` run chose VXI-11, `get_frequency` took 40 to 50 ms, and closing the client took 3 to 4 ms (the server sent `destroy_link` before exiting). The first write of a process right after a previous one did not time out in any of the five runs. The earlier failures (portmapper connect timing out in 3 of 4 cold tries over a routed Tailscale path, and an occasional 5.5 s first-write timeout) did not reproduce on this path, so the fix is verified against fake servers (slow or dropped portmapper connect, refused `create_link`, a stale link that never answers) and the live check shows no regression and a clean teardown. Retry behaviour is documented in the programming guide (`UTS_VXI11_PROBE_TIMEOUT_S`).
+
+## Front-panel lock (2026-11-11, issue #152, firmware V1.04.0040)
+
+Observed in a live session on a UTS3036B V1.04.0040. Manuals: UTS3000B user manual and programming manual (both from gotronik.pl/testequity). No new instrument access was used for this write-up.
+
+**What the manuals say.** User manual: the front panel has a physical [Touch/Lock] key whose indicator is red when the touch screen is locked; the status bar's "connection type" area shows the mouse/USB/screen-lock state (a padlock icon); Esc returns to local mode when the instrument is in remote control. Programming manual: `:SYSTem:LOCK {1|ON|0|OFF}` locks/unlocks the keyboard and touch screen; `:KEY:<key>:LOCK {1|0}`; `:KEY:LOCK?` (38 keys, bit order in Appendix 2); `:KEY:LED?` (3 characters: TG, Single, TLOCk); `:KEY:<key>` simulates a key press.
+
+**What was observed.**
+
+- The analyzer was found with `:SYSTem:LOCK?` = 1, `:KEY:LOCK?` all 1s and `:KEY:LED?` = `001`. The front keys and the touch screen were both unresponsive, but the screen itself was live (a screenshot over VXI-11 showed a padlock icon in the status bar).
+- `:KEY:LOCK?` returns **44 characters, not 38**.
+- Firefox had held the instrument's web interface (ports 80 and 9001) open for about 14 h from the controlling Mac; closing it later had no effect.
+- `:SYSTem:LOCK 0` and `:SYSTem:LOCK OFF` were accepted without error but changed nothing: `:SYSTem:LOCK?` stayed 1, even after the touch screen worked again. VXI-11 `device_local` and `device_unlock` returned success with no change. `:KEY:ESC` changed nothing.
+- Per-key `:KEY:<key>:LOCK 0` does change `:KEY:LOCK?`, but not at the position the manual's bit order gives (`:KEY:TLOCk:LOCK 0` changed position 43 of 44, not position 17). After unlocking all 37 listed keys the string was `00000000000100100000011000000000001101000001`: 8 positions stayed 1 and could not be cleared.
+- `:KEY:TLOCk` (a simulated press) changed `:KEY:LED?` from `001` to `000`.
+- Order of events: the remote unlock attempts, then `:KEY:TLOCk` (LED `001` to `000`), then the per-key unlocks, then the owner pressed the physical [Touch/Lock] key, then the touch screen responded, then the front-panel buttons responded (confirmed responding after the physical [Touch/Lock] key was pressed). Which step restored them is not established: the remote steps are not shown to have caused the recovery. `:SYSTem:LOCK?` still read 1 afterwards.
+- The error queue attributed -101/-113 to the wrong commands during these tests, consistent with the documented late and phantom errors.
+
+**Conclusions.**
+
+- The cause of the original lock is not identified. A web-interface session or an earlier remote state are possibilities, unproven.
+- `:SYSTem:LOCK` does not behave as documented on this firmware (the unlock setters are no-ops and the query did not track the real lock state).
+- The `:SYSTem:LOCK?` manual text has a typo ("0 = unlocked / 1 = unlocked"); the 44-character `:KEY:LOCK?` bit order differs from the manual.
+- The SCPI denylist is unchanged.
+
+**Recovery, in order.** (1) Press the physical [Touch/Lock] key (the indicator is red while locked). (2) Unlock keys one at a time with `:KEY:<key>:LOCK 0`, on the owner's explicit request only. (3) Press Esc on the front panel if the instrument is in remote control. (4) Power-cycle as a last resort; this also resets settings.
+
+**Rule for live runs.** Never send `:SYSTem:LOCK` or `:KEY:*:LOCK` setters except to unlock on the owner's explicit request. At the end of every live run, query `:SYSTem:LOCK?` and `:KEY:LED?` and leave the panel unlocked; if it is locked, tell the owner rather than trying fixes. See AGENTS.md and docs/releasing.md.
