@@ -293,8 +293,37 @@ export const E2E: Record<string, Entry> = {
         args: (c) => { m(c).loseNext("span", 1); return { measurement: "cn" }; },
         check: (r, c) => { ok(r); expect(r.json.result.cn_db).toEqual(expect.any(Number)); expect(r.json.warnings.join(" ")).toMatch(/span_hz did not read back/); expectRestored(c); },
       },
+      // #161: entering a measurement switches the generator output off; measure/exit_measurement put it back
+      { tool: "set_tracking_generator", args: { enabled: true, level_dbm: -25, level_offset_db: 1.5 }, check: (r, c) => { ok(r); expect(m(c).bool("tg.out")).toBe(true); } },
+      {
+        args: { measurement: "cn" },
+        check: (r, c) => {
+          ok(r);
+          expect(warns(r)).toEqual([]);
+          expect(m(c).mode).toBe("SA");
+          expect([m(c).bool("tg.out"), m(c).num("tg.level"), m(c).num("tg.off")]).toEqual([true, -25, 1.5]);
+        },
+      },
+      { tool: "configure_measurement", args: { measurement: "cn" }, check: (r, c) => { ok(r); expect(m(c).bool("tg.out")).toBe(false); } },
+      // while a measurement is active the generator cannot be read or changed: say so (not "no tracking generator option")
+      {
+        tool: "set_tracking_generator", args: { enabled: true },
+        check: (r, c) => { expect(r.isError).toBe(true); expect(r.text).toMatch(/cannot be changed while a measurement is active.*exit_measurement/); expect(r.text).not.toMatch(/probably/); expect(m(c).bool("tg.out")).toBe(false); },
+      },
+      { tool: "get_tracking_generator", args: {}, check: (r) => { expect(r.isError).toBe(true); expect(r.text).toMatch(/while a measurement is active.*exit_measurement/); } },
+      { tool: "exit_measurement", args: {}, check: (r, c) => { ok(r); expect(warns(r)).toEqual([]); expect([m(c).bool("tg.out"), m(c).num("tg.level"), m(c).num("tg.off")]).toEqual([true, -25, 1.5]); } },
+      // a lost output setter: resent once, reported with the field name
+      {
+        tool: "measure", args: (c) => { m(c).loseNext("tg.out", 1); return { measurement: "obw" }; },
+        check: (r, c) => { ok(r); expect(warns(r).join(" ")).toMatch(/tracking generator.*enabled/); expect(m(c).bool("tg.out")).toBe(true); },
+      },
+      // entered outside this server: no memory of it, the generator tools still blame the measurement, not a missing option
+      { tool: "scpi_command", args: { command: ":CONFigure:CHPower" }, check: (r) => ok(r) },
+      { tool: "set_tracking_generator", args: { enabled: false }, check: (r) => { expect(r.isError).toBe(true); expect(r.text).toMatch(/measurement is active.*exit_measurement|exit_measurement.*measurement/s); } },
+      { tool: "exit_measurement", args: {}, check: (r, c) => { ok(r); expect(m(c).mode).toBe("SA"); expect(warns(r).join(" ")).toMatch(/tracking generator/); } },
+      { tool: "set_tracking_generator", args: { enabled: false }, check: (r, c) => { ok(r); expect(m(c).bool("tg.out")).toBe(false); } },
     ],
-    timeoutMs: 60_000,
+    timeoutMs: 120_000,
   },
 };
 

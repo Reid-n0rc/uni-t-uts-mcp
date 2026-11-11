@@ -296,28 +296,100 @@ function saMismatches(want: SaState, got: SaState): Array<{ name: string; text: 
   return out;
 }
 
+// ---------------- tracking generator state (#161) ----------------
+
+/**
+ * Entering a measurement switches the tracking generator output off and :OUTPut:STATe is undefined (-113) while one is active
+ * (verified-hardware.md, "Measurements"), so the output is read before entering and put back after leaving. The level and offset
+ * are only read (and restored) when the output was on. An analyzer without the option leaves the query unanswered: nothing is saved.
+ */
+interface TgState {
+  enabled: boolean;
+  level_dbm?: number;
+  level_offset_db?: number;
+}
+
+const TG_OUT = ":OUTPut:STATe";
+const TG_LEVEL = ":SOURce:POWer";
+const TG_OFFSET = ":SOURce:CORRection:OFFSet";
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function readTgNow(): Promise<TgState> {
+  const enabled = await queryBool(`${TG_OUT}?`);
+  if (!enabled) return { enabled };
+  return { enabled, level_dbm: await queryNumber(`${TG_LEVEL}?`), level_offset_db: await queryNumber(`${TG_OFFSET}?`) };
+}
+
+/** The generator state before a measurement, or undefined when the analyzer does not answer (no tracking generator option). */
+async function readTg(): Promise<TgState | undefined> {
+  try {
+    return await readTgNow();
+  } catch (err) {
+    if (!isTimeout(err)) throw err;
+    await sleep(probeTuning.recoveryMs); // the unanswered query stalls the instrument; let it recover before the next command
+    return undefined;
+  }
+}
+
+/** Level and offset first, then the output (the order set_tracking_generator uses). */
+const tgCommands = (t: TgState): string[] =>
+  t.enabled ? [`${TG_LEVEL} ${formatNumber(t.level_dbm!)}`, `${TG_OFFSET} ${formatNumber(t.level_offset_db!)}`, `${TG_OUT} ON`] : [];
+
+function tgMismatches(want: TgState, got: TgState): Array<{ name: string; text: string }> {
+  if (want.enabled !== got.enabled) return [{ name: "enabled", text: `enabled is ${got.enabled}, was ${want.enabled}` }];
+  const out: Array<{ name: string; text: string }> = [];
+  if (want.enabled) {
+    if (!close(want.level_dbm!, got.level_dbm!)) out.push({ name: "level_dbm", text: `level_dbm is ${got.level_dbm}, was ${want.level_dbm}` });
+    if (!close(want.level_offset_db!, got.level_offset_db!)) out.push({ name: "level_offset_db", text: `level_offset_db is ${got.level_offset_db}, was ${want.level_offset_db}` });
+  }
+  return out;
+}
+
+/** Put the generator back and verify by readback; one resend like the analyzer settings. Returns warnings, throws when it stays wrong. */
+async function restoreTg(want: TgState): Promise<string[]> {
+  const attempt = async (retry: boolean) => {
+    const commands = want.enabled ? tgCommands(want) : retry ? [`${TG_OUT} OFF`] : [];
+    if (commands.length > 0) await applyCommands(commands);
+    return tgMismatches(want, await readBack(readTgNow));
+  };
+  const first = await attempt(false);
+  if (first.length === 0) return [];
+  await sleep(probeTuning.settleMs);
+  const second = await attempt(true);
+  if (second.length > 0) {
+    throw new Error(
+      `The tracking generator could not be restored: ${second.map((m) => m.text).join("; ")} (read back after sending it twice). ` +
+        "The instrument is back in spectrum analyzer mode but the generator is wrong; use set_tracking_generator."
+    );
+  }
+  return [`restore: tracking generator ${first.map((m) => m.name).join(", ")} did not read back as saved after the first attempt (${first.map((m) => m.text).join("; ")}); the second attempt restored it`];
+}
+
 /** Settings saved when a measurement was entered from spectrum analyzer mode, for exit_measurement to put back. */
 let savedSa: SaState | undefined;
+let savedTg: TgState | undefined;
+/** True from configure_measurement entering a measurement until exit_measurement leaves it: lets the generator tools say why they cannot work. */
+let measurementEntered = false;
+
+/** Whether this server entered a measurement that is still active (the instrument cannot be asked without a stalling probe). */
+export function measurementKnownActive(): boolean {
+  return measurementEntered;
+}
 
 /** For tests: forget the saved settings (the tool table runs every tool from a clean state). */
 export function forgetSavedSettings(): void {
   savedSa = undefined;
+  savedTg = undefined;
+  measurementEntered = false;
 }
 
-/** Leave the measurement, check that spectrum analyzer mode is back, and (given a state) restore and verify the settings. */
-async function exitMeasurement(restore: SaState | undefined): Promise<{ warnings: string[] }> {
-  await applyCommands([":CONFigure:SANalyzer"]);
-  const misses: string[] = [];
-  if (!(await isSpectrumAnalyzer(misses))) {
-    throw new Error(`The instrument is still in a measurement mode after :CONFigure:SANalyzer (${misses.join("; ")}). Check the instrument.`);
-  }
-  if (!restore) return { warnings: [] };
+async function restoreSa(restore: SaState): Promise<string[]> {
   await applyCommands(saCommands(restore));
   let mismatches = saMismatches(restore, await readBack(readSa));
-  if (mismatches.length === 0) return { warnings: [] };
+  if (mismatches.length === 0) return [];
   // A setter can be lost (#133: the span once stayed at the measurement's 8 MHz although everything reported success): send everything once more.
   const first = mismatches;
-  await new Promise((resolve) => setTimeout(resolve, probeTuning.settleMs));
+  await sleep(probeTuning.settleMs);
   await applyCommands(saCommands(restore));
   mismatches = saMismatches(restore, await readBack(readSa));
   if (mismatches.length > 0) {
@@ -326,7 +398,38 @@ async function exitMeasurement(restore: SaState | undefined): Promise<{ warnings
         "The instrument is back in spectrum analyzer mode but these values are wrong; set them again or check the instrument."
     );
   }
-  return { warnings: [`restore: ${first.map((m) => m.name).join(", ")} did not read back as saved after the first attempt (${first.map((m) => m.text).join("; ")}); the second attempt restored it`] };
+  return [`restore: ${first.map((m) => m.name).join(", ")} did not read back as saved after the first attempt (${first.map((m) => m.text).join("; ")}); the second attempt restored it`];
+}
+
+/**
+ * Leave the measurement, check that spectrum analyzer mode is back, and (given a state) restore and verify the settings, then the
+ * tracking generator (last: its output makes the auto sweep time 2.15 s, which drops lines). A failed analyzer restore does not
+ * stop the generator restore; both failures are reported.
+ */
+async function exitMeasurement(restore: SaState | undefined, tg?: TgState): Promise<{ warnings: string[] }> {
+  await applyCommands([":CONFigure:SANalyzer"]);
+  const misses: string[] = [];
+  if (!(await isSpectrumAnalyzer(misses))) {
+    throw new Error(`The instrument is still in a measurement mode after :CONFigure:SANalyzer (${misses.join("; ")}). Check the instrument.`);
+  }
+  if (!restore) return { warnings: [] };
+  const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+  const warnings: string[] = [];
+  const failures: string[] = [];
+  try {
+    warnings.push(...(await restoreSa(restore)));
+  } catch (err) {
+    failures.push(message(err));
+  }
+  if (tg) {
+    try {
+      warnings.push(...(await restoreTg(tg)));
+    } catch (err) {
+      failures.push(message(err));
+    }
+  }
+  if (failures.length > 0) throw new Error(failures.join(" "));
+  return { warnings };
 }
 
 // ---------------- configure / read ----------------
@@ -513,7 +616,8 @@ export function registerMeasurementTools(server: McpServer): void {
     "Enter a measurement (channel_power, time_power, obw, acpr, toi, cn or harmonics) and set its parameters; the instrument stays in the measurement until exit_measurement. " +
       "preset=true (default) is :CONFigure:<meas>, false is :CONFigure:<meas>:NDEFault. Either way the instrument changes the span, RBW and sweep time " +
       "(for example span 3 MHz); when entered from spectrum analyzer mode the previous frequency, bandwidth and sweep settings are saved and " +
-      "exit_measurement puts them back. While a measurement is active most spectrum analyzer queries (detector, trace type) get no reply.",
+      "exit_measurement puts them back, and so is the tracking generator output (entering a measurement switches it off). While a measurement is active most spectrum analyzer queries (detector, trace type) get no reply " +
+      "and the tracking generator cannot be changed.",
     { measurement: MEASUREMENT, preset: z.boolean().optional().describe("Preset the measurement's parameters (default true)"), ...PARAMS },
     { readOnlyHint: false, idempotentHint: true },
     async (args) => {
@@ -522,9 +626,17 @@ export function registerMeasurementTools(server: McpServer): void {
         // Save the spectrum analyzer settings first: the preset overwrites them. Already in a measurement: keep what was saved.
         // Save the settings the preset overwrites. A silent probe means a measurement is already active (keep what was saved then).
         let saved: SaState | undefined;
-        if (await isSpectrumAnalyzer([])) saved = await readSa();
+        let tg: TgState | undefined;
+        if (await isSpectrumAnalyzer([])) {
+          saved = await readSa();
+          tg = await readTg();
+        }
         const result = await configure(measurement, params, preset === false ? "ndefault" : "preset");
-        if (saved) savedSa = saved;
+        measurementEntered = true;
+        if (saved) {
+          savedSa = saved;
+          savedTg = tg;
+        }
         return textResult(
           JSON.stringify({ measurement, parameters: result.parameters, warnings: result.warnings, saved_settings: savedSa !== undefined }, null, 2)
         );
@@ -560,7 +672,7 @@ export function registerMeasurementTools(server: McpServer): void {
     "exit_measurement",
     "Leave the measurement and return to spectrum analyzer mode (:CONFigure:SANalyzer). The measurement preset leaves the span, RBW and sweep time changed, " +
       "so unless restore_settings=false the frequency, bandwidth, sweep time and continuous-sweep settings saved by configure_measurement are put back " +
-      "and verified (a measurement entered elsewhere has nothing saved: a warning says so). Does nothing when already in spectrum analyzer mode.",
+      "and verified, and so is the tracking generator output, level and offset when it was on (a measurement entered elsewhere has nothing saved: a warning says so). Does nothing when already in spectrum analyzer mode.",
     { restore_settings: z.boolean().optional().describe("Restore the settings saved when the measurement was entered (default true)") },
     { readOnlyHint: false, idempotentHint: true },
     async (args) => {
@@ -570,13 +682,26 @@ export function registerMeasurementTools(server: McpServer): void {
         const inSa = savedSa ? false : await isSpectrumAnalyzer([]);
         if (inSa) {
           savedSa = undefined;
+          savedTg = undefined;
+          measurementEntered = false;
           return textResult(JSON.stringify({ measurement: SA, restored: false, warnings: [] }, null, 2));
         }
         const wantRestore = args.restore_settings !== false;
         const saved = savedSa;
-        const { warnings } = await exitMeasurement(wantRestore ? saved : undefined);
+        const tg = savedTg;
+        const { warnings } = await exitMeasurement(wantRestore ? saved : undefined, tg);
         savedSa = undefined;
-        if (wantRestore && !saved) warnings.push("No saved settings (the measurement was not entered with configure_measurement): the span, RBW and sweep time keep the measurement's values.");
+        savedTg = undefined;
+        measurementEntered = false;
+        if (wantRestore && !saved) {
+          warnings.push(
+            "No saved settings (the measurement was not entered with configure_measurement): the span, RBW and sweep time keep the measurement's values, " +
+              "and the tracking generator output (which entering a measurement switches off) was not restored; check it with get_tracking_generator."
+          );
+        }
+        if (!wantRestore && tg?.enabled) {
+          warnings.push("The tracking generator output was on before the measurement and stays off (restore_settings=false); switch it on with set_tracking_generator.");
+        }
         return textResult(JSON.stringify({ measurement: SA, restored: wantRestore && saved !== undefined, warnings }, null, 2));
       } catch (err) {
         return setterFailure(err, "get_measurement");
@@ -587,9 +712,9 @@ export function registerMeasurementTools(server: McpServer): void {
   defineTool(
     server,
     "measure",
-    "One-shot measurement that leaves the instrument as it found it: from spectrum analyzer mode it saves the frequency, bandwidth and sweep settings, enters the " +
+    "One-shot measurement that leaves the instrument as it found it: from spectrum analyzer mode it saves the frequency, bandwidth and sweep settings and the tracking generator output (entering a measurement switches it off), enters the " +
       "measurement (channel_power, time_power, obw, acpr, toi, cn or harmonics) with the given parameters, READs the result, and ALWAYS (even on errors) exits to spectrum analyzer " +
-      "mode, restores the settings and verifies. With the requested measurement already active it only reads and puts any parameters you changed back. " +
+      "mode, restores the settings and the generator and verifies. With the requested measurement already active it only reads and puts any parameters you changed back. " +
       "It refuses when the instrument is not in spectrum analyzer mode and the requested measurement is not the active one (use exit_measurement first). Takes the measurement's averaging time.",
     { measurement: MEASUREMENT, preset: z.boolean().optional().describe("Preset the measurement's parameters when entering (default true)"), timeout_s: TIMEOUT, ...PARAMS },
     { readOnlyHint: false, idempotentHint: true },
@@ -606,6 +731,7 @@ export function registerMeasurementTools(server: McpServer): void {
         }
         const entry: Entry = original === measurement ? "none" : preset === false ? "ndefault" : "preset";
         const sa = original === SA ? await readSa() : undefined;
+        const tg = sa ? await readTg() : undefined;
         const previous = original === measurement ? await readParams(measurement) : undefined;
 
         let result: Awaited<ReturnType<typeof readResult>> | undefined;
@@ -625,7 +751,7 @@ export function registerMeasurementTools(server: McpServer): void {
         let restoreFailure: unknown;
         try {
           if (sa) {
-            warnings = (await exitMeasurement(sa)).warnings;
+            warnings = (await exitMeasurement(sa, tg)).warnings;
           } else if (previous) {
             const keys = PARAM_KEYS.filter((k) => params[k] !== undefined);
             const restoreCommands = paramCommands(measurement, Object.fromEntries(keys.map((k) => [k, previous[k]])) as ParamArgs);

@@ -252,7 +252,8 @@ const SPECS: Spec[] = [
   { id: "ll.margin.on", path: ":CALCulate:LLINe<n>:MARGin:STATe", kind: "bool", suffixMax: 6, def: false },
 
   // --- tracking generator (docs: "Tracking generator")
-  { id: "tg.out", path: ":OUTPut:STATe", kind: "bool", def: false, onSet: (m, _i, v) => { if (!v) m.set("tg.ref", false); } },
+  { id: "tg.out", path: ":OUTPut:STATe", kind: "bool", def: false, saOnly: true, // #161: undefined (-113 / silent) while a measurement is active
+    onSet: (m, _i, v) => { if (!v) m.set("tg.ref", false); } },
   { id: "tg.level", path: ":SOURce:POWer", kind: "num", units: DB, def: -30, min: -40, max: 0 },
   { id: "tg.off", path: ":SOURce:CORRection:OFFSet", kind: "num", units: DB, def: 0, min: -200, max: 200 },
   { id: "tg.ref", path: ":SOURce:TRACe:REFerence:STATe", kind: "bool", def: false,
@@ -464,6 +465,8 @@ export class UtsModel {
   /** `:CONFigure:<meas>`: presets the span (center unchanged) and the measurement's parameters; auto RBW follows the span. */
   enter(code: MeasCode): void {
     this.mode = code;
+    this.set("tg.out", false); // #161 (verified): entering a measurement switches the tracking generator output off
+    this.set("tg.ref", false);
     for (const k of [...this.values.keys()]) if (k.startsWith(`m.${code}.`)) this.values.delete(k);
     if (code === "HARMonics") this.set("m.HARMonics.fund", this.num("fc"));
     this.set("span", MEAS_PRESET_SPAN[code]);
@@ -680,7 +683,7 @@ export class UtsModel {
     const { spec, idx } = r;
     const n = idx[0] ?? 0;
     if (spec.suffixMax !== undefined && (n < 1 || n > spec.suffixMax)) { this.post(-108, "Parameter not allowed"); return []; }
-    if (spec.mode !== undefined && spec.mode !== this.mode) { this.post(-113, "Undefined header"); return []; } // "wrong-mode parameter setters give -113"
+    if ((spec.mode !== undefined && spec.mode !== this.mode) || (spec.saOnly && spec.id === "tg.out" && this.mode !== "SA")) { this.post(-113, "Undefined header"); return []; } // "wrong-mode parameter setters give -113"
     const lost = this.lose.get(spec.id) ?? 0;
     if (lost > 0) { this.lose.set(spec.id, lost - 1); return []; } // fault injection
     if (args === "") { this.post(-109, "Missing parameter"); return []; }

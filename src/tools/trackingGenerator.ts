@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { applyCommands, queryBool, queryNumber, readBack } from "../instrument.js";
 import { formatNumber, onOff } from "../scpi.js";
+import { measurementKnownActive } from "./measurement.js";
 import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 
 // Commands: docs/programming-guide.md section 6 (the manual calls the tracking generator the "trace source",
@@ -36,11 +37,17 @@ export interface TrackingGeneratorState {
 }
 
 const ABSENT_HINT =
-  "The instrument gave no answer to the tracking generator query; this analyzer probably does not have the tracking generator option " +
-  "(or the link is unreliable). Nothing was changed.";
+  "The instrument gave no answer to the tracking generator query. Either this analyzer does not have the tracking generator option, or a measurement " +
+  "is active (the generator is unavailable then; use get_measurement and exit_measurement), or the link is unreliable. Nothing was changed.";
+
+/** Said without sending anything: the generator is unavailable in a measurement (:OUTPut:STATe is undefined there) and a probe would only stall the instrument. */
+const MEASUREMENT_ACTIVE =
+  "The tracking generator cannot be changed while a measurement is active (entering a measurement switches the output off and :OUTPut:STATe is undefined there); " +
+  "call exit_measurement first, which also restores the output that was on before. This is not a missing option. Nothing was sent.";
 
 /** The first query doubles as the presence check: an analyzer without the option leaves it unanswered. */
 async function readEnabled(): Promise<boolean> {
+  if (measurementKnownActive()) throw new Error(MEASUREMENT_ACTIVE);
   try {
     return await queryBool(`${OUT}?`);
   } catch (err) {
@@ -96,7 +103,7 @@ export function registerTrackingGeneratorTools(server: McpServer): void {
     server,
     "get_tracking_generator",
     "Get the tracking generator (the manual's 'trace source') state: output on/off, output level in dBm, level offset in dB, " +
-      "reference trace, normalization on/off and its reference level in dB. An error naming the query means the option is probably not installed.",
+      "reference trace, normalization on/off and its reference level in dB. While a measurement is active it is an error saying so (call exit_measurement); an error naming the query otherwise means the option is probably not installed.",
     {},
     { readOnlyHint: true },
     async () => {
@@ -118,6 +125,7 @@ export function registerTrackingGeneratorTools(server: McpServer): void {
     SET_SHAPE,
     { readOnlyHint: false, idempotentHint: true },
     async (a) => {
+      if (measurementKnownActive()) return errorResult(MEASUREMENT_ACTIVE);
       try {
         // Presence check: nothing is sent to an analyzer without the option.
         await readEnabled();
