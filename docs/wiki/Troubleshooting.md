@@ -27,6 +27,10 @@ VXI-11 needs outbound TCP to port 111 (the portmapper) and to the port the portm
 **"Connected but failed to initialize"**
 The TCP connection opened but the analyzer did not answer `*IDN?` in time. Check that the port really is the SCPI port and that nothing else is holding the instrument.
 
+## The analyzer's touch screen and buttons are locked
+
+Once the server sends commands the analyzer is in remote mode and locks its front panel (seen on a UTS3036B V1.04.0040 over raw TCP after `:KEY:LOCK?`, `:KEY:LED?` and `:SENSe:FREQuency:CENTer?`; `*IDN?` and `:SYSTem:LOCK?` did not trigger it). Press **Esc** on the analyzer to return to local mode. `:SYSTem:LOCK 0`, VXI-11 `device_local`/`device_unlock` and `:KEY:ESC` do not work on this firmware, and the `:SYSTem:LOCK?`, `:KEY:LOCK?` and `:KEY:LED?` readbacks are not reliable lock indicators.
+
 ## Timeouts and slow responses
 
 **A query timed out and the next call is slow**

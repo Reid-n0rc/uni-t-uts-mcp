@@ -159,7 +159,7 @@ right after the workflow change merges (or before, when the old name would other
 ## Hardware checklist (live runs)
 
 - Record the instrument state first (frequency, span, sweep mode, format) and restore it afterwards; `:SYSTem:ERRor?` must be clean.
-- At the end, query `:SYSTem:LOCK?` and `:KEY:LED?` and leave the front panel unlocked (red [Touch/Lock] indicator off). Do not send `:SYSTem:LOCK` or `:KEY:*:LOCK` setters except to unlock on the owner's explicit request. See "Front-panel lock" in docs/verified-hardware.md.
+- Do not send `:KEY:` commands or queries. The analyzer locks its front panel while in remote mode: at the end, tell the owner to press Esc on the analyzer to return it to local mode. See "Front-panel lock" in docs/verified-hardware.md.
 - No serial number or real IP address in anything committed.
 
 ## What the CI smoke tests cover

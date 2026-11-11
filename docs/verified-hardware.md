@@ -302,13 +302,28 @@ Observed in a live session on a UTS3036B V1.04.0040. Manuals: UTS3000B user manu
 - Order of events: the remote unlock attempts, then `:KEY:TLOCk` (LED `001` to `000`), then the per-key unlocks, then the owner pressed the physical [Touch/Lock] key, then the touch screen responded, then the front-panel buttons responded (confirmed responding after the physical [Touch/Lock] key was pressed). Which step restored them is not established: the remote steps are not shown to have caused the recovery. `:SYSTem:LOCK?` still read 1 afterwards.
 - The error queue attributed -101/-113 to the wrong commands during these tests, consistent with the documented late and phantom errors.
 
+**Follow-up test (2026-11-11, after a power cycle, owner watching the panel).** One command per fresh raw TCP connection (VXI-11 was not separately isolated):
+
+| Sent | Front panel |
+|------|-------------|
+| nothing (connect only) | not locked |
+| a single `*IDN?` | not locked |
+| a single `:SYSTem:LOCK?` | not locked |
+| a single `:KEY:LOCK?` (twice) | touch screen and all buttons unresponsive |
+| a single `:KEY:LED?` | same |
+| a single `:SENSe:FREQuency:CENTer?` | same |
+
+Recovery was the physical [Esc] key (user manual: "If the instrument is in remote control mode, press [Esc] to return to local mode"); [Touch/Lock] alone also freed it once earlier. So the trigger is not specific to `:KEY:`: the first non-common command or query seems to put the analyzer into remote mode, which locks the front panel until Esc is pressed. This is probably normal remote behaviour. The defects are that the standard ways back to local do not work: `:SYSTem:LOCK 0`/`OFF`, VXI-11 `device_local`/`device_unlock` and a simulated `:KEY:ESC` all leave it in remote mode. The `:SYSTem:LOCK?`, `:KEY:LOCK?` and `:KEY:LED?` readbacks are unreliable lock indicators (`:KEY:LOCK?` returns 44 characters and becomes all 1s when remote); do not use them as lock checks.
+
+**Still unknown.** Exactly which other headers trigger remote mode (only the five above were tested individually), and whether VXI-11 behaves the same. The original lock's cause was probably a `:KEY:` (or other non-common) query during manual probing; the earlier web-interface theory is unsupported.
+
 **Conclusions.**
 
-- The cause of the original lock is not identified. A web-interface session or an earlier remote state are possibilities, unproven.
+- The cause of the original lock was most likely a `:KEY:` query sent during manual probing (see the follow-up test); the web-interface theory is unproven.
 - `:SYSTem:LOCK` does not behave as documented on this firmware (the unlock setters are no-ops and the query did not track the real lock state).
 - The `:SYSTem:LOCK?` manual text has a typo ("0 = unlocked / 1 = unlocked"); the 44-character `:KEY:LOCK?` bit order differs from the manual.
-- The SCPI denylist is unchanged.
+- The SCPI denylist is unchanged (issue #155: the trigger is not specific to `:KEY:`, so a `:KEY:` denylist would not address it). The `connect` and `disconnect` results tell the user to press Esc.
 
-**Recovery, in order.** (1) Press the physical [Touch/Lock] key (the indicator is red while locked). (2) Unlock keys one at a time with `:KEY:<key>:LOCK 0`, on the owner's explicit request only. (3) Press Esc on the front panel if the instrument is in remote control. (4) Power-cycle as a last resort; this also resets settings.
+**Recovery.** Press the physical Esc key on the analyzer (leaves remote mode). [Touch/Lock] alone also freed the panel once. Power-cycling is a last resort and resets settings. The remote ways back to local do not work (above).
 
-**Rule for live runs.** Never send `:SYSTem:LOCK` or `:KEY:*:LOCK` setters except to unlock on the owner's explicit request. At the end of every live run, query `:SYSTem:LOCK?` and `:KEY:LED?` and leave the panel unlocked; if it is locked, tell the owner rather than trying fixes. See AGENTS.md and docs/releasing.md.
+**Rule for live runs.** Do not send `:KEY:` commands or queries and do not use the lock readbacks as checks. At the end of every live run tell the owner: "press Esc on the analyzer to return it to local mode". See AGENTS.md and docs/releasing.md.

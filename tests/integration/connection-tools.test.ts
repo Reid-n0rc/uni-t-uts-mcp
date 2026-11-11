@@ -173,6 +173,26 @@ describe("disconnect", () => {
   });
 });
 
+describe("front-panel lock notice (#155)", () => {
+  it("connect says the panel is locked while remote and Esc returns to local", async () => {
+    const text = getText(await callTool(client, "connect", { host: "192.168.1.100" }));
+    expect(text).toMatch(/front panel/i);
+    expect(text).toMatch(/locked/i);
+    expect(text).toMatch(/Esc/);
+  });
+
+  it("disconnect says the user must press Esc on the analyzer", async () => {
+    const text = getText(await callTool(client, "disconnect", {}));
+    expect(text).toMatch(/Esc/);
+    expect(text).toMatch(/front panel|local mode/i);
+  });
+
+  it("disconnect when not connected stays a plain notice", async () => {
+    mockConnection.isConnected.mockReturnValue(false);
+    expect(getText(await callTool(client, "disconnect", {}))).toMatch(/not connected/i);
+  });
+});
+
 describe("transport selection (#74)", () => {
   it("states the transport in the connect output", async () => {
     const res = await callTool(client, "connect", { host: "192.168.1.100" });
