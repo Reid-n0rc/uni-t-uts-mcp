@@ -45,7 +45,8 @@ describe("docs/manual-testing-guide.md", () => {
 
   it("has a checklist section for every tool group, on both transports", () => {
     for (const group of ["Connection", "Raw SCPI", "Frequency", "Amplitude", "Bandwidth, sweep and detector", "Acquisition", "Trace", "Markers", "Marker functions", "Measurements", "Screenshot", "Limit lines", "Tracking generator", "Discovery"]) {
-      expect(doc, group).toMatch(new RegExp(`^### [A-Z]\\d+\\. ${group.replace(/[,]/g, "\\,")}`, "m"));
+      const headings = doc.split("\n").filter((l) => /^### [A-Z]\d+\. /.test(l)).map((l) => l.replace(/^### [A-Z]\d+\. /, ""));
+      expect(headings, group).toContain(group);
     }
     expect(doc).toMatch(/raw/i);
     expect(doc).toMatch(/VXI-11/);
