@@ -249,6 +249,18 @@ Create or edit a limit line. `line` (1-6, default 1) plus at least one of `displ
 
 Delete the points of one limit line (`line`) or of all of them (`all: true`); type, trace and margin settings stay. The analyzer finishes a delete a moment after it acknowledges it, so the tool re-reads the points (up to four times, 0.3 s apart) until the line is empty; for `all` it checks line 1. A line that still has points is reported in `warnings`. Returns `deleted` (`[n]` or `"all"`).
 
+## Tracking generator
+
+Command syntax: [programming-guide.md](programming-guide.md) section 6 (the manual calls the tracking generator the "trace source"). Verified on the UTS3036B, which has the option: see [verified-hardware.md](verified-hardware.md#tracking-generator-2026-11-11-issue-22-firmware-v1040040). On an analyzer without the option the first query gets no reply, and both tools then return an error naming `:OUTPut:STATe?` and saying the option is probably not installed; `set_tracking_generator` sends nothing in that case.
+
+### `get_tracking_generator`
+
+Read-only. Returns `enabled` (output on/off), `level_dbm`, `level_offset_db`, `reference_trace`, `normalize` and `normalize_ref_level_db`.
+
+### `set_tracking_generator`
+
+Takes at least one of `enabled`, `level_dbm` (-40 to 0), `level_offset_db` (-200 to 200), `reference_trace`, `normalize` and `normalize_ref_level_db` (-100 to 100); ranges are checked before anything is sent (the instrument clamps silently outside them). Level and offset are set before the output is switched on. `reference_trace` only takes while the output is on (otherwise a warning says so). Switching the output off also re-asserts automatic RBW and VBW when they were automatic: the instrument otherwise leaves the RBW at a stale 300 kHz (auto sweep time 264 ms instead of 2.6 ms) with both auto flags still reading on; the tool waits 0.6 s, re-sends the auto commands and warns if the RBW did not return. With the output on the auto sweep time is about 2.15 s. Readback differences are `warnings`. On some benches the output is wired to the analyzer input: switch it off when done.
+
 ## Measurements
 
 Channel power, time-domain power, occupied bandwidth (OBW), adjacent channel power (ACPR), third-order intercept (TOI), carrier-to-noise ratio (C/N) and harmonics. The instrument has **no query for the active measurement**, and `:CONFigure:<meas>` presets the span, RBW and sweep time (for example span 3 MHz) which `:CONFigure:SANalyzer` does not put back, so these tools save and restore that state and never scan for the active mode (queries the instrument does not answer stall it, and over VXI-11 can drop the link). Spectrum analyzer mode is told by `:SENSe:DETector:TRACe1?`, which only it answers; one measurement is told by `:SENSe:<meas>:AVERage:STATe?`. While a measurement is active most spectrum analyzer queries (detector, trace type) get no reply. A probe that gets no reply costs about 4.5 s (the 1.5 s timeout plus a 3 s pause while the instrument recovers). Measurement names: `channel_power`, `time_power`, `obw`, `acpr` (`:SENSe:ACPower`), `toi`, `cn` (`CNRatio`), `harmonics`.

@@ -19,6 +19,8 @@ The text of a release's section is also used as its GitHub release notes.
 
 ### Added
 
+- `get_tracking_generator` and `set_tracking_generator`: tracking generator (trace source) output on/off, level (-40 to 0 dBm), level offset, reference trace and normalization with its reference level. Switching the output off re-asserts automatic RBW/VBW after a pause, because the instrument otherwise leaves a stale 300 kHz RBW; an analyzer without the option gets an error naming the unanswered query (#22).
+
 - "Add to your client" help (#88): copy-paste configs and install links for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf and generic stdio clients, generated from `scripts/client-snippets.mjs` into the README table, the new wiki page `Add-to-Client` and a tabbed site section (`npm run clients:sync` / `clients:check`). Each client is marked with what was verified against its docs; the Cursor install link follows Cursor's documented format; no VS Code or Windsurf link is offered because their formats are not documented; Claude Desktop `.mcpb` installation is still unverified.
 - Limit line tools `get_limit_line`, `set_limit_line` and `delete_limit_line` (#21): type, trace, margin, display and a point list of up to 10 points per line, verified on the UTS3036B. There is no pass/fail tool because the manual documents no such read-back.
 
