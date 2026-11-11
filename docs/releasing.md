@@ -106,6 +106,7 @@ package is caught before a tag exists:
 | `git install smoke` | installs a `git+file://` URL of the checkout into an empty project (the code path of `npx github:...`, which builds through `prepare`), runs the bin over stdio and repeats the checks. The `github:` spec itself can only be verified once a tag exists | see below |
 | `mcpb bundle` | builds the `.mcpb` on Ubuntu, macOS and Windows, validates the manifest with the official validator, checks the exact file list, and starts the unpacked bundle over stdio | `npm run build && npm run test:mcpb` |
 | `docker image smoke` | builds the image (no push), checks the `org.opencontainers.image.source` label, runs it through `docker run -i` and repeats the same checks | `docker build -t uni-t-uts-mcp:ci . && node scripts/smoke-mcp.mjs -- docker run -i --rm uni-t-uts-mcp:ci` |
+| `dependency audit` | `npm audit --omit=dev --audit-level=high` (runtime dependencies; fails on high or critical advisories). It also runs from a weekly schedule, when it is the only job, so new advisories surface without a pull request | `npm audit --omit=dev --audit-level=high` |
 
 Local run of the install smoke test (POSIX shell, from the repo root after `npm run build`):
 

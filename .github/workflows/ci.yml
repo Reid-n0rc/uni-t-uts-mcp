@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Weekly: only the audit job runs, so a new advisory in a dependency surfaces without waiting for a pull request.
+  schedule:
+    - cron: "17 5 * * 1"
 
 permissions:
   contents: read
@@ -11,6 +14,7 @@ permissions:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    if: github.event_name != 'schedule'
     strategy:
       fail-fast: false
       matrix:
@@ -49,6 +53,7 @@ jobs:
   wiki-check:
     name: wiki pages build and links resolve
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -61,6 +66,7 @@ jobs:
   package-contents:
     name: package contents
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -84,6 +90,7 @@ jobs:
   mcpb-bundle:
     name: mcpb bundle (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    if: github.event_name != 'schedule'
     strategy:
       fail-fast: false
       matrix:
@@ -107,6 +114,7 @@ jobs:
   install-smoke:
     name: npm install smoke (${{ matrix.os }}, node ${{ matrix.node-version }})
     runs-on: ${{ matrix.os }}
+    if: github.event_name != 'schedule'
     strategy:
       fail-fast: false
       matrix:
@@ -146,6 +154,7 @@ jobs:
     # verified once a tag exists; a git+file URL of this checkout exercises the same npm code path.
     name: git install smoke
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -164,6 +173,7 @@ jobs:
   docker-smoke:
     name: docker image smoke
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -181,3 +191,15 @@ jobs:
           test "$src" = "https://github.com/${{ github.repository }}"
       - name: Run the image as a stdio MCP server (initialize, tools/list)
         run: node scripts/smoke-mcp.mjs -- docker run -i --rm uni-t-uts-mcp:ci
+
+  # Dependency audit (issue #145): runtime dependencies only (what users install), fails on high or critical advisories.
+  # Needs no secrets and no hardware.
+  audit:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+      - run: npm audit --omit=dev --audit-level=high
