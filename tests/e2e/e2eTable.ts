@@ -37,6 +37,16 @@ export interface Entry {
 const ok = (r: E2eResult) => expect(r.isError, r.text).toBe(false);
 const m = (c: E2eContext) => c.fake.model;
 const warns = (r: E2eResult): string[] => r.json?.warnings ?? [];
+/** The spectrum analyzer settings a measurement preset overwrites (what exit_measurement/measure must put back). */
+const snapshot = (c: E2eContext) => {
+  const x = c.fake.model;
+  return { fc: x.num("fc"), span: x.num("span"), rbw: x.num("rbw"), rbwAuto: x.bool("rbw.auto"), vbw: x.num("vbw"), vbwAuto: x.bool("vbw.auto"), swtAuto: x.bool("swt.auto"), swt: x.sweepTimeS, cont: x.bool("cont") };
+};
+let sa: ReturnType<typeof snapshot> | undefined;
+const expectRestored = (c: E2eContext) => {
+  expect(c.fake.model.mode).toBe("SA");
+  expect(snapshot(c)).toEqual(sa);
+};
 const ping = async (c: E2eContext) => expect((await c.call("scpi_query", { command: "*IDN?" })).text).toContain("UTS3036B");
 
 export const E2E: Record<string, Entry> = {
@@ -211,11 +221,81 @@ export const E2E: Record<string, Entry> = {
     ],
     timeoutMs: 60_000,
   },
-  get_measurement: { steps: [], skip: "pending #150 (measurement modes in the fake UTS)" },
-  configure_measurement: { steps: [], skip: "pending #150 (measurement modes in the fake UTS)" },
-  read_measurement: { steps: [], skip: "pending #150 (measurement modes in the fake UTS)" },
-  exit_measurement: { steps: [], skip: "pending #150 (measurement modes in the fake UTS)" },
-  measure: { steps: [], skip: "pending #150 (measurement modes in the fake UTS)" },
+  // Measurements (#150). The fake models the modes of docs/verified-hardware.md "Measurements". Over raw TCP the tools use
+  // FETCh (READ has no line terminator there) and `measure` settles 1.5 s after entering, so these entries take a few seconds.
+  get_measurement: {
+    steps: [
+      { args: {}, check: (r) => { ok(r); expect(r.json.measurement).toBe("spectrum_analyzer"); } },
+      // only the active measurement answers its average-state query: this one gets no reply, so it is an error after the probe timeout
+      { args: { measurement: "channel_power" }, check: (r) => { expect(r.isError).toBe(true); expect(r.text).toMatch(/not active/); } },
+    ],
+    timeoutMs: 30_000,
+  },
+  configure_measurement: {
+    steps: [
+      { args: { measurement: "channel_power", percent: 0.5 }, check: (r) => { expect(r.isError).toBe(true); expect(r.text).toMatch(/obw only/); } },
+      {
+        args: (c) => { sa = snapshot(c); return { measurement: "channel_power", integration_bandwidth_hz: 1e6, average_count: 5 }; },
+        check: (r, c) => {
+          ok(r);
+          expect(m(c).mode).toBe("CHPower");
+          expect(m(c).num("span")).toBe(3e6); // the preset span; the center stays
+          expect(m(c).num("fc")).toBe(sa!.fc);
+          expect(r.json.saved_settings).toBe(true);
+          expect(r.json.parameters.integration_bandwidth_hz).toBe(1e6);
+          expect(r.json.parameters.average_count).toBe(5);
+          expect(warns(r)).toEqual([]);
+        },
+      },
+      { tool: "get_measurement", args: { measurement: "channel_power" }, check: (r) => { ok(r); expect(r.json.parameters.average).toBe(true); expect(r.json.parameters.average_type).toBe("power"); } },
+    ],
+    timeoutMs: 30_000,
+  },
+  read_measurement: {
+    steps: [{
+      args: { measurement: "channel_power" },
+      check: (r) => {
+        ok(r);
+        expect(r.json.command).toBe("FETCh");
+        expect(r.json.warnings.join(" ")).toMatch(/FETCh was used instead of READ/);
+        expect(r.json.channel_power_dbm).toBeCloseTo(-74, 0); // noise floor, docs "Results"
+        expect(r.json.power_density_dbm_per_hz).toBeCloseTo(-134, 0); // -74 dBm over the 1 MHz integration bandwidth
+      },
+    }],
+  },
+  exit_measurement: {
+    steps: [
+      // a setter lost once: the first readback finds the span wrong, the second attempt restores it (#133)
+      {
+        args: (c) => { m(c).loseNext("span", 1); return {}; },
+        check: (r, c) => { ok(r); expect(r.json.restored).toBe(true); expect(warns(r).join(" ")).toMatch(/span_hz did not read back/); expectRestored(c); },
+      },
+      { tool: "configure_measurement", args: { measurement: "obw", percent: 0.9 }, check: (r, c) => { ok(r); expect(m(c).mode).toBe("OBWidth"); expect(r.json.parameters.percent).toBe(0.9); } },
+      // lost twice: the readback after the resend still differs, so an error names the field (never success)
+      {
+        args: (c) => { m(c).loseNext("span", 2); return {}; },
+        check: (r, c) => { expect(r.isError).toBe(true); expect(r.text).toMatch(/could not be restored.*span_hz/); expect(m(c).mode).toBe("SA"); expect(m(c).num("span")).toBe(3e6); },
+      },
+      // the instrument is still usable: exiting again resends the saved settings
+      { args: {}, check: (r, c) => { ok(r); expect(r.json.restored).toBe(true); expectRestored(c); } },
+    ],
+    timeoutMs: 60_000,
+  },
+  measure: {
+    steps: [
+      { args: { measurement: "harmonics", harmonics_count: 5 }, check: (r, c) => { ok(r); expect(r.json.restored).toBe(true); expect(r.json.result.harmonics).toHaveLength(4); expect(r.json.result.thd_percent).toEqual(expect.any(Number)); expectRestored(c); } },
+      { args: { measurement: "acpr", offset_side: "positive" }, check: (r, c) => { ok(r); expect(r.json.result.lower_power_dbm).toBeNull(); expect(r.json.result.upper_dbc).toEqual(expect.any(Number)); expect(r.json.result.warnings.join(" ")).toMatch(/lower adjacent channel not measured/); expectRestored(c); } },
+      { args: { measurement: "time_power" }, check: (r, c) => { ok(r); expect(r.json.result.power_dbm).toEqual(expect.any(Number)); expectRestored(c); } }, // zero span, then restored
+      { args: { measurement: "toi" }, check: (r, c) => { ok(r); expect(r.json.result.lower_third_order.toi_dbm).toEqual(expect.any(Number)); expectRestored(c); } },
+      { args: { measurement: "obw" }, check: (r, c) => { ok(r); expect(r.json.result.obw_hz).toEqual(expect.any(Number)); expectRestored(c); } },
+      // restore-by-readback inside the one-shot tool: one lost setter is resent and reported as a warning
+      {
+        args: (c) => { m(c).loseNext("span", 1); return { measurement: "cn" }; },
+        check: (r, c) => { ok(r); expect(r.json.result.cn_db).toEqual(expect.any(Number)); expect(r.json.warnings.join(" ")).toMatch(/span_hz did not read back/); expectRestored(c); },
+      },
+    ],
+    timeoutMs: 60_000,
+  },
 };
 
 /** Execution order: connect first, disconnect last; state carries over, so a getter follows its setter. */

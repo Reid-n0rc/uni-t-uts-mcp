@@ -13,7 +13,12 @@
  * clamp silently or reject with -224, an unsupported query that gets no reply, stalls the instrument for about
  * 2.15 s and posts -113 about 4 s later, the window in which a single sweep ignores commands (raw TCP drops lines, VXI-11 queues them),
  * trace data as ASCII or a #4 block with CRLF, and the 144,800 byte screenshot cutoff.
- * Not modelled: measurement modes (:CONFigure:...), trace averaging/hold, real signals (the trace is the fixture).
+ * Measurement modes (#150, docs "Measurements: channel power, time-domain power, OBW" and "Measurements: ACPR, TOI,
+ * C/N, harmonics"): `:CONFigure:<meas>[:NDEFault]` presets the span and the measurement's parameters, `:CONFigure:SANalyzer`
+ * does not undo the span, no query reports the mode, mode-dependent queries are silent, wrong-mode setters give -113,
+ * and :FETCh:/:READ: results have the verified value counts and framing (READ: trailing space, no terminator over raw TCP).
+ * Not modelled: trace averaging/hold, real signals (the trace is the fixture; measurement results are constant
+ * noise-floor numbers, ASSUMED where the document gives none).
  */
 
 import * as net from "node:net";
@@ -79,6 +84,12 @@ interface Spec {
   round?: boolean;
   /** Values are truncated to integers (the sweep points do that: 1001.6 -> 1001). */
   trunc?: boolean;
+  /** Measurement parameter: only the measurement with this code (`CHPower`, ...) has it (a query elsewhere is silent, a setter gives -113). */
+  mode?: string;
+  /** Answers only in spectrum analyzer mode ("in a measurement they time out"). */
+  saOnly?: boolean;
+  /** Query gets no reply while this holds (":SPAN? (not in zero span)"). */
+  silentWhen?: (m: UtsModel) => boolean;
   /** Called after a set (value already stored and clamped). */
   onSet?: (m: UtsModel, idx: number, v: V) => void;
   /** Custom reply. */
@@ -141,6 +152,7 @@ const SPECS: Spec[] = [
   { id: "fc", path: "[:SENSe]:FREQuency:CENTer", kind: "num", units: HZ, def: 1.805e9, min: 0, max: MAX_CENTER,
     onSet: (m) => m.spanChanged() },
   { id: "span", path: "[:SENSe]:FREQuency:SPAN", kind: "num", units: HZ, def: 3.59e9, min: 0, max: MAX_FREQ,
+    silentWhen: (m) => m.num("span") === 0, // "`:SPAN?` (not in zero span)" answers in the measurements
     onSet: (m) => m.spanChanged() },
   { id: "start", path: "[:SENSe]:FREQuency:STARt", kind: "num", units: HZ, def: FULL_START, min: 0, max: MAX_FREQ, // min ASSUMED
     onSet: (m) => m.edgeChanged() },
@@ -185,7 +197,7 @@ const SPECS: Spec[] = [
     onSet: (m) => m.set("swtype.auto", false) },
   { id: "swtype.auto", path: ":SENSe:SWEep:TYPE:AUTO", kind: "bool", def: true },
   { id: "pts", path: ":SENSe:SWEep:POINts", kind: "int", def: 1001, min: 11, max: 40001, trunc: true },
-  { id: "det", path: ":SENSe:DETector:TRACe<n>", kind: "enum", suffixMax: 6, values: ["NORMal", "SAMPle", "POSitive", "NEGative", "AVERage"], def: "NORMal",
+  { id: "det", path: ":SENSe:DETector:TRACe<n>", kind: "enum", suffixMax: 6, values: ["NORMal", "SAMPle", "POSitive", "NEGative", "AVERage"], def: "NORMal", saOnly: true, // "answers only in spectrum analyzer mode"
     onSet: (m, i) => m.set("det.auto", false, i) },
   { id: "det.auto", path: ":SENSe:DETector:TRACe<n>:AUTO", kind: "bool", suffixMax: 6, def: true },
   { id: "trig", path: ":TRIGger[:SEQuence]:SOURce", kind: "enum", values: ["IMMediate", "VIDeo"], def: "IMMediate" },
@@ -197,7 +209,7 @@ const SPECS: Spec[] = [
 
   // --- trace (docs: "Trace configuration")
   { id: "tr.type", path: ":TRACe<n>:TYPE", kind: "enum", suffixMax: 6, values: ["WRITe", "AVERage", "MAXHold", "MINHold"],
-    def: "WRITe", onSet: () => {} },
+    def: "WRITe", saOnly: true, onSet: () => {} },
   { id: "tr.upd", path: ":TRACe<n>:UPDate:STATe", kind: "bool", suffixMax: 6, def: (i) => i <= 3 },
   { id: "tr.disp", path: ":TRACe<n>:DISPlay:STATe", kind: "bool", suffixMax: 6, def: (i) => i <= 3 },
   { id: "tr.sel", path: ":TRACe:SELect", kind: "int", def: 1, min: 1, max: 6 }, // rejected, not clamped: see rejectOutOfRange
@@ -252,6 +264,90 @@ const SPECS: Spec[] = [
   { id: "sre", path: "*SRE", kind: "int", def: 0 },
 ];
 
+// ---------------------------------------------------------------- measurement modes (#150)
+
+type MeasCode = "CHPower" | "TPOWer" | "OBWidth" | "ACPower" | "TOI" | "CNRatio" | "HARMonics";
+const MEAS_PRESET_SPAN: Record<MeasCode, number> = {
+  CHPower: 3e6, // "took span 3.59 GHz to 3 MHz"
+  TPOWer: 0, // "gives zero span"
+  OBWidth: 3e6, // ASSUMED (not documented)
+  ACPower: 10e6, // "ACPR 10 MHz"
+  TOI: 8e6, // "TOI 8 MHz at the same center"
+  CNRatio: 3e6, // ASSUMED
+  HARMonics: 3e6, // "harmonics around the center": exact span ASSUMED
+};
+const MEAS_CODES = Object.keys(MEAS_PRESET_SPAN) as MeasCode[];
+
+/** Measurement specific parameters; `m.<code>.` ids are reset by every :CONFigure:<code> (the preset). Defaults: docs "Parameter behavior" / "Parameters read back as set". */
+function measSpecs(): Spec[] {
+  const out: Spec[] = [];
+  const add = (code: MeasCode, id: string, path: string, rest: Omit<Spec, "id" | "path" | "mode">) => out.push({ id: `m.${code}.${id}`, path: `[:SENSe]:${code}:${path}`, mode: code, ...rest });
+  for (const code of MEAS_CODES) {
+    // averaging exists in every measurement; the defaults are only documented for channel power (10 averages, on, POWEr, EXPonential), the others ASSUMED the same
+    add(code, "avg", "AVERage:STATe", { kind: "bool", def: true });
+    add(code, "avg.count", "AVERage:COUNt", { kind: "int", def: 10, round: true, min: 1 }); // 5000 was accepted (manual: 1-999), so no upper clamp
+    add(code, "avg.type", "AVERage:TYPE", { kind: "enum", values: ["VOLTage", "POWEr", "LOG"], def: "POWEr" });
+    add(code, "avg.tctl", "AVERage:TCONtrol", { kind: "enum", values: ["EXPonential", "REPeat"], def: "EXPonential" });
+  }
+  add("CHPower", "ibw", "BANDwidth:INTegration", { kind: "num", units: HZ, def: 2e6, min: 100, max: 3.61e9 }); // "clamps to 100 Hz-3.61 GHz"
+  add("TPOWer", "llim", "LLIMit", { kind: "num", units: SEC, def: 0, min: 0, max: 0.01 }); // max ASSUMED like the right limit
+  add("TPOWer", "rlim", "RLIMit", { kind: "num", units: SEC, def: 0.01, min: 0, max: 0.01 }); // "clamped to 10 ms"
+  add("OBWidth", "pct", "PERCent", { kind: "num", units: NONE, def: 0.99, min: 1e-4, max: 0.9999 }); // min ASSUMED
+  add("OBWidth", "xdb", "XDB", { kind: "num", units: DB, def: -26, min: -100, max: -0.1 }); // "5 clamps to -0.1"; min from the manual
+  add("ACPower", "ibw", "BANDwidth:INTegration", { kind: "num", units: HZ, def: 2e6, min: 1 }); // "preset 2 MHz"; clamping not probed
+  add("ACPower", "carrier", "CARRier:LIST:BANDwidth", { kind: "num", units: HZ, def: 2e6, min: 1 });
+  add("ACPower", "offset", "OFFSet:LIST:FREQuency", { kind: "num", units: HZ, def: 3e6, min: 0 });
+  add("ACPower", "side", "OFFSet:LIST:SIDE", { kind: "enum", values: ["BOTH", "NEGative", "POSitive"], def: "BOTH" });
+  add("CNRatio", "ibw", "BANDwidth:INTegration", { kind: "num", units: HZ, def: 2e6, min: 1 });
+  add("CNRatio", "noise", "BANDwidth:NOISe", { kind: "num", units: HZ, def: 2e6, min: 1 });
+  add("CNRatio", "offset", "OFFSet", { kind: "num", units: HZ, def: 2e6, min: 0 });
+  add("HARMonics", "fund", "FREQuency:FUNDamental", { kind: "num", units: HZ, def: 1.805e9, min: 0 }); // preset = the center (set on entering)
+  add("HARMonics", "num", "NUMBer", { kind: "int", def: 2, round: true, min: 2, max: 10 }); // range from the manual, clamp ASSUMED
+  add("HARMonics", "swt", "SWEeptime", { kind: "num", units: SEC, def: 0.1, min: 0.001, max: 100 }); // range from the manual, clamp ASSUMED
+  return out;
+}
+SPECS.push(...measSpecs());
+
+/** Noise-floor level of every measurement result: "noise floor around -74 dBm / -137 dBm/Hz with 3 MHz span and no signal". */
+const FLOOR_DBM = -74;
+
+interface ResultSpec { mode: MeasCode; path: string; read: boolean; values: (m: UtsModel) => number[]; spaced?: boolean }
+const nanIf = (cond: boolean, v: number[]) => (cond ? v.map(() => NaN) : v);
+const RESULTS: ResultSpec[] = [
+  // channel power: two values (power, density); density follows the integration bandwidth (-74 - 63 = -137 dBm/Hz at 2 MHz)
+  { mode: "CHPower", path: "CHPower", read: true, values: (m) => [FLOOR_DBM, FLOOR_DBM - 10 * Math.log10(m.num("m.CHPower.ibw"))] },
+  { mode: "TPOWer", path: "TPOWer", read: true, values: () => [FLOOR_DBM] }, // one value; the number is ASSUMED
+  // OBW: seven values, "order not as documented" (ASSUMED: the four the tools use first, then three placeholders); sub-results one value each; READ sub-forms get no reply
+  { mode: "OBWidth", path: "OBWidth", read: true, values: () => [2.5e6, 0, 2e6, FLOOR_DBM, 0, 0, 0] }, // numbers ASSUMED
+  { mode: "OBWidth", path: "OBWidth:OBWidth", read: false, values: () => [2.5e6] },
+  { mode: "OBWidth", path: "OBWidth:FERRor", read: false, values: () => [0] },
+  { mode: "OBWidth", path: "OBWidth:XDB", read: false, values: () => [2e6] },
+  { mode: "OBWidth", path: "OBWidth:APOWr", read: false, values: () => [FLOOR_DBM] },
+  // ACPR: three values (main dBm, lower dBc, upper dBc), MAIN one, LOWer/UPPer (dBm, dBc); a side that is not measured reads nan
+  { mode: "ACPower", path: "ACPower", read: true, values: (m) => [FLOOR_DBM, ...nanIf(m.acprSide() === "POSitive", [-1]), ...nanIf(m.acprSide() === "NEGative", [-1])] }, // -75 dBm / -1 dBc ASSUMED
+  { mode: "ACPower", path: "ACPower:MAIN", read: false, values: () => [FLOOR_DBM] },
+  { mode: "ACPower", path: "ACPower:LOWer", read: false, values: (m) => nanIf(m.acprSide() === "POSitive", [FLOOR_DBM - 1, -1]) },
+  { mode: "ACPower", path: "ACPower:UPPer", read: false, values: (m) => nanIf(m.acprSide() === "NEGative", [FLOOR_DBM - 1, -1]) }, // nan for NEGative ASSUMED symmetric
+  { mode: "CNRatio", path: "CNRatio", read: true, values: () => [FLOOR_DBM, FLOOR_DBM - 1, 1] }, // carrier, noise, C/N; numbers ASSUMED
+  // TOI: TRD four values (frequency, amplitude, dBc, TOI), TONE two; :FETCh:TOI:IPT? is NOT answered (gets no reply, -113); numbers ASSUMED
+  { mode: "TOI", path: "TOI:LOW:TRD", read: true, values: (m) => [m.num("fc") - 3e6, -90, -16, -55] },
+  { mode: "TOI", path: "TOI:UP:TRD", read: false, values: (m) => [m.num("fc") + 3e6, -90, -16, -55] },
+  { mode: "TOI", path: "TOI:LOW:TONE", read: false, values: (m) => [m.num("fc") - 1e6, FLOOR_DBM] },
+  { mode: "TOI", path: "TOI:UP:TONE", read: false, values: (m) => [m.num("fc") + 1e6, FLOOR_DBM] },
+  // harmonics: both lists always hold 10 values with trailing spaces; the first NUMBer are results (fundamental counts), the rest
+  // placeholders (+|fundamental| dBc, frequency 0 ASSUMED)
+  {
+    mode: "HARMonics", path: "HARMonics:AMPLitude:ALL", read: true, spaced: true,
+    values: (m) => Array.from({ length: 10 }, (_, i) => (i === 0 ? FLOOR_DBM : i < m.num("m.HARMonics.num") ? -60 - 5 * (i - 1) : -FLOOR_DBM)), // dBc of the harmonics ASSUMED
+  },
+  {
+    mode: "HARMonics", path: "HARMonics:FREQuency:ALL", read: false, spaced: true,
+    values: (m) => Array.from({ length: 10 }, (_, i) => (i < m.num("m.HARMonics.num") ? (i + 1) * m.num("m.HARMonics.fund") : 0)),
+  },
+  { mode: "HARMonics", path: "HARMonics:DISTortion", read: false, values: () => [0.1, -60] }, // THD % and dBc ASSUMED
+];
+const compiledResults = RESULTS.map((r) => ({ ...r, nodes: parsePath(r.path) }));
+
 /** Commands without a value and without a query, with their effect. */
 const ACTIONS: Array<{ path: string; run: (m: UtsModel, idx: number[]) => void }> = [
   { path: ":FREQuency:SPAN:FULL", run: (m) => { m.set("span", FULL_STOP - FULL_START); m.set("fc", (FULL_START + FULL_STOP) / 2); m.spanChanged(); } },
@@ -272,6 +368,11 @@ const ACTIONS: Array<{ path: string; run: (m: UtsModel, idx: number[]) => void }
   { path: ":CALCulate:MARKer<n>:SET:RLEVel", run: (m, [n]) => { m.set("rl", m.markerLevel(n!)); m.refChanged(); } },
   { path: ":CALCulate:LLINe<n>:DELete", run: (m, [n]) => m.limitPoints.delete(n!) },
   { path: ":CALCulate:LLINe:ALL:DELete", run: (m) => m.limitPoints.clear() },
+  { path: ":CONFigure:SANalyzer", run: (m) => { m.mode = "SA"; } }, // does NOT undo the span ("returns to spectrum analyzer mode with the span still at 3 MHz")
+  ...MEAS_CODES.flatMap((code) => [
+    { path: `:CONFigure:${code}`, run: (m: UtsModel) => m.enter(code) },
+    { path: `:CONFigure:${code}:NDEFault`, run: (m: UtsModel) => m.enter(code) }, // "same effect here"
+  ]),
   { path: "*CLS", run: (m) => m.clearErrors() },
   { path: "*OPC", run: () => {} },
 ];
@@ -318,6 +419,9 @@ export class UtsModel {
   /** Lines dropped while the instrument ignored commands. */
   readonly dropped: string[] = [];
   readonly tgSweepScale: number;
+  /** Active measurement; no query reports it (docs "Measurements"). */
+  mode: "SA" | MeasCode = "SA";
+  private lose = new Map<string, number>();
   private readonly now: () => number;
   readonly transport: "raw" | "vxi11";
 
@@ -346,6 +450,19 @@ export class UtsModel {
   get sweeping(): boolean { return this.now() < this.busyUntil; }
   /** ms until the end of the sweep or stall (0 when idle). */
   get busyForMs(): number { return Math.max(0, this.busyUntil - this.now(), this.stallUntil - this.now()); }
+
+  /** Test hook: silently drop the next `times` setters of parameter `id` (no error), like the lost span setter of #133. */
+  loseNext(id: string, times = 1): void { this.lose.set(id, times); }
+  acprSide(): string { return this.str("m.ACPower.side"); }
+  /** `:CONFigure:<meas>`: presets the span (center unchanged) and the measurement's parameters; auto RBW follows the span. */
+  enter(code: MeasCode): void {
+    this.mode = code;
+    for (const k of [...this.values.keys()]) if (k.startsWith(`m.${code}.`)) this.values.delete(k);
+    if (code === "HARMonics") this.set("m.HARMonics.fund", this.num("fc"));
+    this.set("span", MEAS_PRESET_SPAN[code]);
+    this.spanChanged();
+    this.autoBandwidth();
+  }
 
   // ---- couplings (docs: "Amplitude", "Bandwidth, sweep, detector and trigger")
   spanChanged(): void {
@@ -381,7 +498,8 @@ export class UtsModel {
     }
   }
   autoBandwidth(): void {
-    if (this.bool("rbw.auto")) this.set("rbw", 3e6);
+    // spectrum analyzer: 3 MHz at every span (the verified default); in a measurement the auto RBW follows the span ("RBW and sweep time follow because they are auto"), rule ASSUMED
+    if (this.bool("rbw.auto")) this.set("rbw", this.mode === "SA" || this.num("span") === 0 ? 3e6 : Math.min(3e6, snap13(this.num("span") / 100)));
     this.vbwFollow();
   }
   vbwFollow(): void {
@@ -492,11 +610,15 @@ export class UtsModel {
       if (n < 1 || n > 6 || !pts || pts.length === 0) return n >= 1 && n <= 6 ? [] : this.unsupportedQuery();
       return [{ text: pts.map((v) => sci(v)).join(",") }];
     }
+    const result = /^:(FETC|FETCH|READ):(.+)$/.exec(header);
+    if (result) return this.results(result[1] === "READ", result[2]!);
     const r = this.resolve(header);
     if (!r) return this.unsupportedQuery();
     const { spec, idx } = r;
     const n = idx[0] ?? 0;
     if (spec.suffixMax !== undefined && (n < 1 || n > spec.suffixMax)) return this.unsupportedQuery();
+    // "[:SENSe]:<meas>:AVERage:STATe? answers only while that measurement is active", detector/trace type only in SA mode
+    if ((spec.mode !== undefined && spec.mode !== this.mode) || (spec.saOnly && this.mode !== "SA") || spec.silentWhen?.(this)) return this.unsupportedQuery();
     void line;
     if (spec.get) return [{ text: spec.get(this, n) }];
     const v = this.get(spec.id, n);
@@ -504,6 +626,17 @@ export class UtsModel {
     if (spec.kind === "enum") return [{ text: spec.upper ? String(v).toUpperCase() : String(v) }];
     if (spec.kind === "int") return [{ text: String(v) }];
     return [{ text: sci(v as number) + (spec.trailingSpace ? " " : "") }];
+  }
+
+  /** `:FETCh:<path>?` / `:READ:<path>?` of the active measurement; anything else gets no reply. */
+  private results(read: boolean, path: string): Out[] {
+    const nodes = path.split(":");
+    const hit = compiledResults.find((c) => c.mode === this.mode && matchNodes(c.nodes, nodes));
+    if (!hit || (read && !hit.read)) return this.unsupportedQuery(); // "the READ sub-forms get no reply"
+    const text = hit.values(this).map((v) => (Number.isNaN(v) ? "nan" : sci(v)) + (hit.spaced ? " " : "")).join(",");
+    // "READ has no line terminator over raw TCP: the reply ends with a space"; FETCh ends with CRLF (added by the caller)
+    if (read) return this.transport === "raw" ? [{ bytes: Buffer.from(text + " ", "latin1") }] : [{ text: text + " " }];
+    return [{ text }];
   }
 
   private nextError(): string {
@@ -526,6 +659,9 @@ export class UtsModel {
     const { spec, idx } = r;
     const n = idx[0] ?? 0;
     if (spec.suffixMax !== undefined && (n < 1 || n > spec.suffixMax)) { this.post(-108, "Parameter not allowed"); return []; }
+    if (spec.mode !== undefined && spec.mode !== this.mode) { this.post(-113, "Undefined header"); return []; } // "wrong-mode parameter setters give -113"
+    const lost = this.lose.get(spec.id) ?? 0;
+    if (lost > 0) { this.lose.set(spec.id, lost - 1); return []; } // fault injection
     if (args === "") { this.post(-109, "Missing parameter"); return []; }
     const parsed = this.parseValue(spec, args);
     if (parsed === undefined) return [];

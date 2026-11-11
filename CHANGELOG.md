@@ -15,6 +15,7 @@ The text of a release's section is also used as its GitHub release notes.
 ### Added
 
 - Docs: `docs/manual-testing-guide.md`, a step-by-step hardware checklist for every tool group on raw and VXI-11 (prerequisites, safe setup, remote-mode and front-panel lock behavior, expected results, what to record, restore steps, reporting template, troubleshooting), linked from the README, CONTRIBUTING, the release checklist and a new wiki page; a test fails when a registered tool has no checklist step (#24).
+- Tests: the fake UTS analyzer models the measurement modes (presets, mode-dependent query silence, -113 for wrong-mode setters, FETCh/READ framing, parameter defaults and clamps, fault injection for lost setters), and `get_measurement`, `configure_measurement`, `read_measurement`, `exit_measurement` and `measure` have stdio end-to-end entries including the restore-by-readback retry and error paths (#150, part of #35).
 
 ## [0.4.0] - 2026-11-11
 
