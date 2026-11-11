@@ -42,7 +42,7 @@ export async function checkPanelLockOnInstrument(host: string, options: CaptureO
   try {
     image = await captureScreenshot(host, options);
   } catch (err) {
-    return { state: "unknown", padlockScore: 0, monitorScore: 0, reason: `could not take a screenshot over VXI-11: ${err instanceof Error ? err.message : String(err)}` };
+    return { state: "unknown", padlockScore: 0, monitorScore: 0, reason: `could not take a screenshot over VXI-11: ${(err as Error).message}` };
   }
   return detectPanelLockInImageFile(image);
 }
