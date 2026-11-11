@@ -1,4 +1,5 @@
 import { connection } from "./connection.js";
+import { instruments } from "./registry.js";
 import { drainErrorQueue } from "./errors.js";
 import { parseBool, parseNumber } from "./scpi.js";
 
@@ -76,8 +77,7 @@ function isUndefinedHeader(error: string): boolean {
 export async function applyCommands(commands: string[]): Promise<void> {
   const sent: string[] = [];
   let inFlight: string | undefined;
-  const first = firstSetterPending;
-  firstSetterPending = false;
+  const first = takeFirstSetter();
   try {
     await connection.sendCommand("*CLS");
     if (first) await clearStaleQueue();
@@ -108,15 +108,35 @@ export async function applyCommands(commands: string[]): Promise<void> {
 }
 
 /**
- * True until this process sent its first setter. A previous process (or an earlier query of this one that the
+ * True until each instrument (connection) received its first setter from this process. A previous process (or an earlier query of this one that the
  * instrument did not answer) leaves a `-113` in the queue, or posts it up to ~4 s later, so the first setter would
  * otherwise fail on an error it did not cause (#133).
  */
 let firstSetterPending = true;
+/** Connections that already had their first setter: the stale error belongs to one instrument, not to the process (#166). */
+let firstSetterDone = new WeakSet<object>();
 
-/** For tests: make the next applyCommands (not) behave as the first setter of the process. */
+/** The connection a setter of the running tool call goes to (the connection object itself when no registry entry applies, as in mocks). */
+function currentConnection(): object {
+  try {
+    return instruments.current() as object;
+  } catch {
+    return connection;
+  }
+}
+
+function takeFirstSetter(): boolean {
+  if (!firstSetterPending) return false;
+  const key = currentConnection();
+  if (firstSetterDone.has(key)) return false;
+  firstSetterDone.add(key);
+  return true;
+}
+
+/** For tests: make the next applyCommands (not) behave as the first setter of each instrument. */
 export function setFirstSetterPending(pending: boolean): void {
   firstSetterPending = pending;
+  if (pending) firstSetterDone = new WeakSet<object>();
 }
 
 /** Clear the queue and re-check it until it is empty (at most 3 rounds): whatever is in it now was not caused by us. */

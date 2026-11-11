@@ -22,9 +22,16 @@ export function autoSelectedNote(host: string, model: string | undefined, firmwa
  * Resolve `host=auto` / `UTS_IP=auto`: discover analyzers on the local network and return the host when exactly one
  * UNI-T analyzer answered; otherwise an error message that says what was found and what to do. Never throws.
  */
-export async function resolveAutoHost(discover: () => Promise<DiscoveryResult> = discoverInstruments): Promise<AutoHost> {
+export async function resolveAutoHost(
+  discover: () => Promise<DiscoveryResult> = () => discoverInstruments({ skipIdentify: connected }),
+  /** Hosts already connected under another instrument name: not probed again, never picked, not counted. */
+  connected: ReadonlySet<string> = new Set()
+): Promise<AutoHost> {
   try {
-    const { instruments, notes } = await discover();
+    const found = await discover();
+    const { notes } = found;
+    const taken = found.instruments.filter((i) => connected.has(i.host));
+    const instruments = found.instruments.filter((i) => !connected.has(i.host));
     const analyzers = instruments.filter((i) => i.analyzer);
     if (analyzers.length === 1) return { host: analyzers[0].host, model: analyzers[0].idn?.model, firmware: analyzers[0].idn?.firmware };
     if (analyzers.length > 1) {
@@ -32,6 +39,13 @@ export async function resolveAutoHost(discover: () => Promise<DiscoveryResult> =
         error:
           `Found ${analyzers.length} UNI-T analyzers on the local network: ${analyzers.map(describe).join("; ")}. ` +
           "Connect to one of them by giving its address as the 'host' parameter (or UTS_IP).",
+      };
+    }
+    if (taken.length > 0 && instruments.length === 0) {
+      return {
+        error:
+          `The only analyzer found (${taken.map((i) => i.host).join(", ")}) is already connected under another instrument name. ` +
+          "Power on and connect another analyzer, or give the address of a different one as the 'host' parameter.",
       };
     }
     const others = instruments.length ? ` Other VXI-11 devices answered but are not UNI-T analyzers or could not be identified: ${instruments.map(describe).join("; ")}.` : "";
