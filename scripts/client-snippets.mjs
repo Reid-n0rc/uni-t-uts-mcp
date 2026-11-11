@@ -5,8 +5,8 @@
 //   node scripts/client-snippets.mjs [--check]     (npm run clients:sync / npm run clients:check)
 // The server specs come from scripts/client-config.mjs (the same code as `npm run client-config`).
 // Only placeholders appear in the output: the host is PLACEHOLDER_HOST, there are no secrets.
-import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { NPM_PUBLISHED, buildServerConfig, claudeCodeCommand, dockerImage } from "./client-config.mjs";
 
@@ -19,6 +19,67 @@ const json = (v) => JSON.stringify(v, null, 2);
 
 /** The spec every client launches: npm once published, otherwise the release tarball. */
 const source = () => (NPM_PUBLISHED ? "npm" : "tarball");
+
+export const PLUGIN_DIR = "plugins/uni-t-uts";
+export const MARKETPLACE = "uni-t-uts-mcp";
+
+/**
+ * The Claude Code plugin files that carry the package version (issue #87), as { path: file text }.
+ * Formats: https://code.claude.com/docs/en/plugins-reference (plugin.json, userConfig) and
+ * https://code.claude.com/docs/en/mcp (plugin .mcp.json). The marketplace file itself is static.
+ */
+export function pluginFiles(version) {
+  const manifest = {
+    name: "uni-t-uts",
+    displayName: "UNI-T UTS Spectrum Analyzer",
+    version,
+    description: "MCP server for UNI-T UTS1000B/UTS3000B spectrum analyzers over the local network (SCPI over LAN)",
+    author: { name: "Reid Crowe" },
+    homepage: "https://reid-n0rc.github.io/uni-t-uts-mcp/",
+    repository: "https://github.com/Reid-n0rc/uni-t-uts-mcp",
+    license: "MIT",
+    keywords: ["spectrum-analyzer", "scpi", "uni-t", "uts", "mcp"],
+    userConfig: {
+      analyzer_host: {
+        type: "string",
+        title: "Analyzer address",
+        description: `Hostname or IP address of the analyzer, for example ${PLACEHOLDER_HOST}, or "auto" to discover it. Optional: leave it empty and ask Claude to connect to the analyzer at an address.`,
+        required: false,
+        default: "",
+      },
+      analyzer_port: {
+        type: "number",
+        title: "Port",
+        description: "TCP port of the raw SCPI connection. The analyzer uses 5025; change it only if yours differs.",
+        required: false,
+        default: 5025,
+        min: 1,
+        max: 65535,
+      },
+      transport: {
+        type: "string",
+        title: "Transport",
+        description: "auto (VXI-11 when the analyzer offers it, otherwise raw), raw (TCP port 5025) or vxi11.",
+        required: false,
+        default: "auto",
+        options: ["auto", "raw", "vxi11"],
+      },
+    },
+  };
+  const mcp = {
+    mcpServers: {
+      "uni-t-uts": {
+        command: "npx",
+        args: ["-y", `uni-t-uts-mcp@${version}`],
+        env: { UTS_IP: "${user_config.analyzer_host}", UTS_PORT: "${user_config.analyzer_port}", UTS_TRANSPORT: "${user_config.transport}" },
+      },
+    },
+  };
+  return {
+    [`${PLUGIN_DIR}/.claude-plugin/plugin.json`]: json(manifest) + "\n",
+    [`${PLUGIN_DIR}/.mcp.json`]: json(mcp) + "\n",
+  };
+}
 
 /** Returns the clients with their snippets for a package version. */
 export function buildClients(version) {
@@ -44,10 +105,12 @@ export function buildClients(version) {
       id: "claude-code",
       name: "Claude Code",
       where: "terminal, or `.mcp.json` in a project",
-      docs: "https://code.claude.com/docs/en/mcp",
-      verified: "Command form and `.mcp.json` format checked against the Claude Code docs. Not run by the maintainer on a fresh machine.",
-      steps: ["Run the command once in a terminal. Add `--scope user` to make it available in every project (`local` is the default, `project` writes `.mcp.json`).", tail],
+      docs: "https://code.claude.com/docs/en/plugins/marketplace-reference.md and https://code.claude.com/docs/en/mcp",
+      verified: "Plugin, marketplace and `.mcp.json` formats checked against the Claude Code docs and validated with `claude plugin validate`. `claude plugin marketplace add` and `claude plugin install` were run against a local checkout in an isolated Claude Code config directory (install and listing succeeded). Not yet verified: adding the marketplace from GitHub, and starting the server inside a Claude Code session (the pinned npm version must be published first).",
+      steps: [`Recommended: add this repository as a marketplace and install the plugin (two commands, inside Claude Code or with \`claude plugin ...\` in a shell). The plugin runs \`npx -y uni-t-uts-mcp\` pinned to this release (${version}) and asks for the analyzer address, port and transport (all optional; they are stored in your Claude Code settings).`, "Or run the \`claude mcp add\` command once in a terminal. Add `--scope user` to make it available in every project (`local` is the default, `project` writes `.mcp.json`).", tail],
       snippets: [
+        { label: "Plugin (recommended)", lang: "sh", text: `/plugin marketplace add Reid-n0rc/uni-t-uts-mcp\n/plugin install uni-t-uts@${MARKETPLACE}` },
+        { label: "Plugin from a shell", lang: "sh", text: `claude plugin marketplace add Reid-n0rc/uni-t-uts-mcp\nclaude plugin install uni-t-uts@${MARKETPLACE}` },
         { label: "npx (macOS / Linux)", lang: "sh", text: claudeCodeCommand({ ...base, platform: "linux" }) },
         { label: "npx (Windows)", lang: "sh", text: claudeCodeCommand({ ...base, platform: "win32" }) },
         { label: "Docker", lang: "sh", text: claudeCodeCommand({ ...base, source: "docker", platform: "linux" }) },
@@ -189,6 +252,16 @@ export function sync({ root = resolve(fileURLToPath(new URL("../", import.meta.u
   const v = version ?? JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")).version;
   const clients = buildClients(v);
   const stale = [];
+  for (const [file, text] of Object.entries(pluginFiles(v))) {
+    const path = resolve(root, file);
+    if (!existsSync(path) || readFileSync(path, "utf8") !== text) {
+      stale.push(file);
+      if (write) {
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, text);
+      }
+    }
+  }
   for (const t of TARGETS) {
     const path = resolve(root, t.file);
     const current = readFileSync(path, "utf8");

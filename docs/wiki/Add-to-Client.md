@@ -5,12 +5,27 @@ Copy-paste configuration for each MCP client. Everything here is generated from 
 <!-- clients:begin -->
 ### Claude Code
 
-Source: https://code.claude.com/docs/en/mcp
+Source: https://code.claude.com/docs/en/plugins/marketplace-reference.md and https://code.claude.com/docs/en/mcp
 
-Verification: Command form and `.mcp.json` format checked against the Claude Code docs. Not run by the maintainer on a fresh machine.
+Verification: Plugin, marketplace and `.mcp.json` formats checked against the Claude Code docs and validated with `claude plugin validate`. `claude plugin marketplace add` and `claude plugin install` were run against a local checkout in an isolated Claude Code config directory (install and listing succeeded). Not yet verified: adding the marketplace from GitHub, and starting the server inside a Claude Code session (the pinned npm version must be published first).
 
-- Run the command once in a terminal. Add `--scope user` to make it available in every project (`local` is the default, `project` writes `.mcp.json`).
+- Recommended: add this repository as a marketplace and install the plugin (two commands, inside Claude Code or with `claude plugin ...` in a shell). The plugin runs `npx -y uni-t-uts-mcp` pinned to this release (0.3.0) and asks for the analyzer address, port and transport (all optional; they are stored in your Claude Code settings).
+- Or run the `claude mcp add` command once in a terminal. Add `--scope user` to make it available in every project (`local` is the default, `project` writes `.mcp.json`).
 - UTS_IP is optional: without it, tell the assistant "connect to the analyzer at 192.168.1.100".
+
+Plugin (recommended):
+
+```sh
+/plugin marketplace add Reid-n0rc/uni-t-uts-mcp
+/plugin install uni-t-uts@uni-t-uts-mcp
+```
+
+Plugin from a shell:
+
+```sh
+claude plugin marketplace add Reid-n0rc/uni-t-uts-mcp
+claude plugin install uni-t-uts@uni-t-uts-mcp
+```
 
 npx (macOS / Linux):
 
