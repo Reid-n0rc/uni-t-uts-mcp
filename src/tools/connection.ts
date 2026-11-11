@@ -15,6 +15,12 @@ function connectedHosts(): Set<string> {
   return new Set(host ? [host] : []);
 }
 
+/** Seen on a UTS3036B V1.04.0040 over raw TCP (issue #155); VXI-11 was not separately isolated. */
+const PANEL_NOTE =
+  "Note: a command sent after connecting (observed for everything except *IDN? and :SYSTem:LOCK?) puts the analyzer into remote mode, and its front panel (touch screen and buttons) is locked while it is remote. Press Esc on the analyzer's front panel to return it to local mode.";
+const PANEL_NOTE_DISCONNECT =
+  "Note: disconnecting is not known to return the analyzer to local mode; if its front panel is still locked, press Esc on the analyzer.";
+
 export function registerConnectionTools(server: McpServer): void {
   defineTool(
     server,
@@ -49,7 +55,7 @@ export function registerConnectionTools(server: McpServer): void {
   defineTool(
     server,
     "connect",
-    "Connect to a UNI-T UTS series spectrum analyzer over auto (default: VXI-11 when the instrument offers it, else raw SCPI/TCP), VXI-11 or raw SCPI/TCP. Returns the instrument identification and the transport in use. Use host \"auto\" (or UTS_IP=auto) to find the analyzer on the local network when exactly one answers.",
+    "Connect to a UNI-T UTS series spectrum analyzer over auto (default: VXI-11 when the instrument offers it, else raw SCPI/TCP), VXI-11 or raw SCPI/TCP. Returns the instrument identification and the transport in use. Use host \"auto\" (or UTS_IP=auto) to find the analyzer on the local network when exactly one answers. Using the analyzer puts it in remote mode and locks its front panel until Esc is pressed on the analyzer.",
     {
       host: z
         .string()
@@ -105,7 +111,7 @@ export function registerConnectionTools(server: McpServer): void {
           log: (message) => console.error(message),
         });
         const where = connection.transportName === "vxi11" ? targetHost : `${targetHost}:${targetPort}`;
-        return textResult(`Connected to ${where}\nTransport: ${connection.transportLabel}\nDevice: ${idn}${autoNote}`);
+        return textResult(`Connected to ${where}\nTransport: ${connection.transportLabel}\nDevice: ${idn}${autoNote}\n${PANEL_NOTE}`);
       } catch (err) {
         return errorResult(err);
       }
@@ -122,7 +128,7 @@ export function registerConnectionTools(server: McpServer): void {
       try {
         if (!connection.isConnected()) return textResult("Not connected.");
         connection.disconnect();
-        return textResult("Disconnected.");
+        return textResult(`Disconnected.\n${PANEL_NOTE_DISCONNECT}`);
       } catch (err) {
         return errorResult(err);
       }
