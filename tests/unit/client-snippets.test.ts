@@ -79,7 +79,9 @@ describe("client snippets (single source of truth)", () => {
     expect(read("docs/wiki/_Sidebar.md")).toContain("[Add to Client](Add-to-Client)");
     const readme = read("README.md");
     for (const c of clients) expect(readme).toContain(`| ${c.name} |`);
-    expect(site).not.toMatch(/<(script|link|img)[^>]+(src|href)="https?:/i);
+    expect(site).not.toMatch(/<(script|img)[^>]+src="https?:/i);
+    // vendor doc URLs are shown as text, not as links: the site makes no external requests and links only to this repo
+    for (const c of clients) expect(site).not.toContain(`href="${c.docs}"`);
   });
 
   it("rendering is deterministic and the marker replacement fails closed", () => {

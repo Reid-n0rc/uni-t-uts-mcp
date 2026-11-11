@@ -160,7 +160,7 @@ export function renderSiteSection(clients) {
           ${link}
           <ul>${c.steps.map((s) => `<li>${inline(s)}</li>`).join("")}</ul>
           ${snippets}
-          <p class="callout">${inline(c.verified)} Source: <a href="${esc(c.docs)}">${esc(c.docs)}</a></p>
+          <p class="callout">${inline(c.verified)} Source: <code>${esc(c.docs)}</code></p>
         </div>`;
   }).join("\n        ");
   return `<div class="ctabs" role="tablist" aria-label="MCP client">

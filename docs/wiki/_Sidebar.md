@@ -2,6 +2,7 @@
 
 - [Home](Home)
 - [Getting Started](Getting-Started)
+- [Add to Client](Add-to-Client)
 - [Tools](Tools)
 - [Instrument Behavior](Instrument-Behavior)
 - [Architecture](Architecture)
