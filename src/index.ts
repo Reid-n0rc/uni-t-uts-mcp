@@ -2,8 +2,8 @@
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./server.js";
-import { autoConnectFromEnv } from "./autoconnect.js";
-import { connection } from "./connection.js";
+import { autoConnectAll } from "./autoconnect.js";
+import { instruments } from "./connection.js";
 import { installShutdownHandlers } from "./shutdown.js";
 
 // Prevent uncaught errors from killing the MCP server process.
@@ -15,13 +15,13 @@ process.on("unhandledRejection", (reason) => {
 });
 
 async function main(): Promise<void> {
-  installShutdownHandlers(process, connection, (code) => process.exit(code));
+  installShutdownHandlers(process, instruments, (code) => process.exit(code));
   const server = createServer();
   await server.connect(new StdioServerTransport());
   console.error("uni-t-uts-mcp server running on stdio");
 
   // Fire-and-forget so a slow or absent analyzer never blocks MCP startup.
-  autoConnectFromEnv(process.env, connection, console.error).catch((err) => {
+  autoConnectAll(process.env, instruments, console.error).catch((err) => {
     console.error("Auto-connect failed unexpectedly:", err);
   });
 }

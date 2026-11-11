@@ -1,3 +1,4 @@
+import { InstrumentRegistry } from "./registry.js";
 import { SessionLock, busyTimeoutFromEnv, type RunOptions } from "./sessionLock.js";
 import { RawTransport } from "./transports/raw.js";
 import {
@@ -440,5 +441,18 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-// Singleton used by the tool modules.
-export const connection = new UtsConnection();
+/** The configured instruments (issue #163); the default one always exists once something asks for it. */
+export const instruments = new InstrumentRegistry<UtsConnection>(() => new UtsConnection());
+
+/**
+ * What the tool modules import. It forwards every property to the instrument selected for the running
+ * tool call (`instruments.runWith`, set by `defineTool`), else to the default one, so with a single
+ * instrument it behaves exactly like the former singleton.
+ */
+export const connection: UtsConnection = new Proxy({} as UtsConnection, {
+  get(_target, prop) {
+    const current = instruments.current();
+    const value = Reflect.get(current, prop, current);
+    return typeof value === "function" ? value.bind(current) : value;
+  },
+});
