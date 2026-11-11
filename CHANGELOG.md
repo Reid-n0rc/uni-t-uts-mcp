@@ -12,13 +12,15 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+- Tests: the fake UTS analyzer models the measurement modes (presets, mode-dependent query silence, -113 for wrong-mode setters, FETCh/READ framing, parameter defaults and clamps, fault injection for lost setters), and `get_measurement`, `configure_measurement`, `read_measurement`, `exit_measurement` and `measure` have stdio end-to-end entries including the restore-by-readback retry and error paths (#150, part of #35).
+
 ## [0.4.0] - 2026-11-11
 
 ### Changed
 
 - Connect and disconnect results now say that the front panel stays locked in remote mode until Esc is pressed on the analyzer (#155).
 - Docs and test: the 21 required status checks of the `protect-main` ruleset, how to keep them in step with workflow job names and matrices, and the no-bypass-for-red-PRs rule (docs/releasing.md, AGENTS.md, CONTRIBUTING.md); `tests/unit/required-checks.test.ts` fails when the documented list drifts from the workflows (#148).
-- Tests: a stateful fake UTS analyzer (`tests/fakeUts.ts`) and an end-to-end suite that drives the built server over stdio and calls every tool against it (`tests/e2e/`); the measurement tools follow in #150 (#146, part of #35).
+- Tests: a stateful fake UTS analyzer (`tests/fakeUts.ts`) and an end-to-end suite that drives the built server over stdio and calls every tool against it (`tests/e2e/`); the measurement tools were added in #150 (#146, part of #35).
 - CI: a dependency audit job (also weekly), Dependabot for npm, and a written flaky-test policy in CONTRIBUTING.md (#145, part of #35).
 
 ### Documentation
