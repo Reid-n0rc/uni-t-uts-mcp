@@ -243,7 +243,7 @@ describe("results: FETCh and READ framing (docs: Measurements, #18 and #19)", ()
     expect(amp).toHaveLength(10);
     expect(freq).toHaveLength(10);
     expect(amp.slice(5)).toEqual(Array(5).fill(Math.abs(amp[0]!)));
-    expect(freq.slice(0, 5)).toEqual([1, 2, 3, 4, 5].map((k) => k * r.model.num("harm.fund")));
+    expect(freq.slice(0, 5)).toEqual([1, 2, 3, 4, 5].map((k) => k * r.model.num("m.HARMonics.fund")));
     expect(r.nums(":FETCh:HARMonics:DISTortion?")).toHaveLength(2);
     expect(r.raw(":FETCh:HARMonics:AMPLitude:ALL?").endsWith("\r\n")).toBe(true);
   });
