@@ -59,7 +59,8 @@ Wire differences are expressed as capability flags (`syncsCommands`, `dropsInput
 
 An MCP client may send several tool calls at once, but the analyzer has one command stream, one global error queue and ignores commands during a single sweep. So **each tool's whole operation is one exclusive session**: `defineTool` runs the handler inside `connection.runExclusive`, a first-in first-out lock (`src/sessionLock.ts`) that nested helper calls join, so `applyCommands` never deadlocks. Results and errors of parallel calls are never mixed up.
 
-- A long operation such as `single_sweep` makes the other calls wait their turn.
+- The lock is per instrument. With several instruments (`UTS_INSTRUMENTS`, `connect` with a `name`) each has its own connection, queue and lock, and the optional `instrument` argument picks one, so calls to different instruments run in parallel.
+- A long operation such as `single_sweep` makes the other calls to the same instrument wait their turn.
 - A call that waits longer than `UTS_BUSY_TIMEOUT_S` seconds (default 120) fails with `Instrument busy` and nothing was sent.
 - The session is released on every path: when the tool returns, fails or times out, or when the connection is closed or lost (which also fails every waiting call).
 - Invalid input is refused before waiting for the lock.

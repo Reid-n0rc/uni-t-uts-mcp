@@ -49,7 +49,7 @@ Disconnect from the analyzer. Safe to call when not connected. Optional `name`: 
 
 List the instruments this server knows by name: the `default` one (`UTS_IP`), those from `UTS_INSTRUMENTS` and any added by `connect` with a `name`. Read-only, reads the registry only (it never waits for a running sweep), and shows no serial number. No parameters.
 
-Returns JSON: `instruments` (each with `name`, `connected`, `isDefault`, and when connected `connection` (host and port) and `transport`; `configured` shows the host[:port] declared for it) and a `hint`. `isDefault` marks the instrument a call without a name uses: `default` if it exists, else the only one. With several instruments and none called `default`, name the one you mean (`name` for `connect`, `disconnect`, `identify`; the optional `instrument` argument on every other tool follows in the next sub-issue of #67). `UTS_INSTRUMENTS` is `name=host[:port],name2=...` or JSON (`{"sa1":"192.168.1.100:5026"}`); an invalid value is logged at startup and ignored.
+Returns JSON: `instruments` (each with `name`, `connected`, `isDefault`, and when connected `connection` (host and port) and `transport`; `configured` shows the host[:port] declared for it) and a `hint`. `isDefault` marks the instrument a call without a name uses: `default` if it exists, else the only one. With several instruments and none called `default`, name the one you mean (`name` for `connect`, `disconnect`, `identify`, and the optional `instrument` argument on every other tool; see [Selecting an instrument](#selecting-an-instrument-all-tools)). `UTS_INSTRUMENTS` is `name=host[:port],name2=...` or JSON (`{"sa1":"192.168.1.100:5026"}`); an invalid value is logged at startup and ignored.
 
 ### `identify`
 
@@ -303,6 +303,14 @@ One shot that leaves the instrument as it found it: from spectrum analyzer mode 
 Read-only, no parameters. Captures the analyzer screen (1280 x 800) and returns it as an MCP **image content block** (`image/png`) followed by a text line with the size (about 90 KB, taking about 3 s). It reads the picture format (`:SYSTem:PICture:FORMat?`, `BMP` or `PNG`), selects `PNG`, queries `:DISPlay:DATA?` as a `#` block, checks the PNG signature, and **always restores the original format** (try/finally, also after a failed transfer). If the restore fails the result is an error that says so and still carries the image.
 
 Needs a transport whose large replies arrive complete (`completeLargeBlocks`: VXI-11). Over raw TCP the instrument stops after exactly 144,800 bytes (issue #42), so the tool refuses at once, sends nothing, and the error tells you to reconnect with `transport: "vxi11"` (or `auto`) or set `UTS_TRANSPORT`. Errors name the command: a timeout names `:DISPlay:DATA?`, an unreadable format reply names `:SYSTem:PICture:FORMat?`, an empty or non-PNG reply is rejected, and an instrument error while selecting the format carries its code. The tool does not save files; the client receives the image. The screen shows whatever the instrument displays (including its system information page if open).
+
+## Selecting an instrument (all tools)
+
+Every tool except `discover_instruments` and `list_instruments` takes an optional `instrument` argument (a name from `list_instruments`: 1-32 letters, digits, `_` or `-`; `connect`, `disconnect` and `identify` call it `name`). The tool then runs on that instrument's own connection, queue and exclusive session, so calls to different instruments proceed in parallel while calls to the same instrument stay serialized.
+
+- Omitted: the `default` instrument (`UTS_IP`), or the only configured instrument whatever its name. With one instrument nothing changes for existing users.
+- An unknown name is an error that lists the configured names and sends nothing; so is an omitted name when several instruments are configured and none is called `default`.
+- An instrument that is not connected fails with the usual not-connected message; the other instruments are not affected.
 
 ## Error handling (all tools)
 
