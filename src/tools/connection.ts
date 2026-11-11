@@ -9,11 +9,11 @@ import { TRANSPORT_CHOICES, resolveTransport, vxi11DeviceFromEnv, vxi11ProbeBudg
 import { errorResult, textResult, defineTool } from "./util.js";
 
 /** Hosts in `discover_instruments` results that must not be probed again: the ones this server is connected to. */
-function connectedHosts(): Set<string> {
+function connectedHosts(except?: object): Set<string> {
   const hosts = new Set<string>();
   const conns = instruments.names().length > 0 ? instruments.names().map((n) => instruments.get(n)!) : [connection];
   for (const c of conns) {
-    if (!c.isConnected()) continue;
+    if (c === except || !c.isConnected()) continue;
     const host = /^[^\s:]+/.exec(c.getConnectionInfo())?.[0];
     if (host) hosts.add(host);
   }
@@ -97,7 +97,7 @@ export function registerConnectionTools(server: McpServer): void {
         let targetHost = host || configured?.host || (isDefault ? process.env.UTS_IP : undefined);
         let autoNote = "";
         if (targetHost?.toLowerCase() === AUTO_HOST) {
-          const found = await resolveAutoHost();
+          const found = await resolveAutoHost(undefined, connectedHosts(instruments.get(effective)));
           if ("error" in found) return errorResult(found.error);
           targetHost = found.host;
           autoNote = "\n" + autoSelectedNote(found.host, found.model, found.firmware);

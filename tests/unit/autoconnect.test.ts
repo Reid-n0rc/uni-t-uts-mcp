@@ -175,4 +175,14 @@ describe("autoConnectAll (UTS_INSTRUMENTS)", () => {
     expect(await autoConnectAll({}, r, vi.fn())).toEqual({});
     expect(r.conns.size).toBe(0);
   });
+
+  it("UTS_IP=auto never picks a host that UTS_INSTRUMENTS already names", async () => {
+    const r = registry();
+    const found = (host: string) => ({ host, vxi11: true, vxi11Port: 1, raw: true, analyzer: true, idn: { manufacturer: "UNI-T", model: "UTS3036B", firmware: "V1" } });
+    const discover = vi.fn(async () => ({ instruments: [found("192.168.1.100"), found("192.168.1.101")], notes: [] }));
+    const ok = await autoConnectAll({ UTS_IP: "auto", UTS_INSTRUMENTS: "sa2=192.168.1.101" }, r, vi.fn(), discover);
+    expect(ok).toEqual({ default: true, sa2: true });
+    expect(r.conns.get("default")!.connect).toHaveBeenCalledWith("192.168.1.100", 5025, expect.anything());
+    expect(discover).toHaveBeenCalledTimes(1);
+  });
 });
