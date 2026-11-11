@@ -12,6 +12,10 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+
+- Docs: `docs/manual-testing-guide.md`, a step-by-step hardware checklist for every tool group on raw and VXI-11 (prerequisites, safe setup, remote-mode and front-panel lock behavior, expected results, what to record, restore steps, reporting template, troubleshooting), linked from the README, CONTRIBUTING, the release checklist and a new wiki page; a test fails when a registered tool has no checklist step (#24).
+
 ## [0.4.0] - 2026-11-11
 
 ### Changed

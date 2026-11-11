@@ -37,7 +37,7 @@ Use `npm run inspector` to try the server interactively with the MCP Inspector.
 
 ## Hardware testing
 
-If you have a UTS1000B/T or UTS3000B, please say which model and firmware you tested on in the PR. See `docs/manual-testing-guide.md` once it exists.
+If you have a UTS1000B/T or UTS3000B, please say which model and firmware you tested on in the PR. Follow the [manual testing guide](docs/manual-testing-guide.md): a step-by-step checklist for every tool group on raw and VXI-11, what to record, how to restore the analyzer, and a reporting template (no serial numbers or real IP addresses; the analyzer stays locked in remote mode until you press Esc on it).
 
 ## Reporting bugs
 

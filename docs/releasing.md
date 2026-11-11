@@ -158,6 +158,8 @@ right after the workflow change merges (or before, when the old name would other
 
 ## Hardware checklist (live runs)
 
+Before a release that changes tools or transports, run [manual-testing-guide.md](manual-testing-guide.md) (every tool group, raw and VXI-11, with restore steps and a reporting template) on a real analyzer, and record new findings in verified-hardware.md.
+
 - Record the instrument state first (frequency, span, sweep mode, format) and restore it afterwards; `:SYSTem:ERRor?` must be clean.
 - Do not send `:KEY:` commands or queries. The analyzer locks its front panel while in remote mode: at the end, tell the owner to press Esc on the analyzer to return it to local mode. See "Front-panel lock" in docs/verified-hardware.md.
 - No serial number or real IP address in anything committed.

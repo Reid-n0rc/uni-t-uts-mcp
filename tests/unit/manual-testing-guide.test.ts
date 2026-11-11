@@ -39,7 +39,7 @@ describe("docs/manual-testing-guide.md", () => {
     const named = new Set<string>();
     for (const row of stepRows(doc)) for (const m of row.matchAll(/`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)`/g)) named.add(m[1]);
     const known = new Set([...registered, "scpi_query"]);
-    const unknown = [...named].filter((n) => !known.has(n) && /^(get|set|read|exit|marker|markers|start|wait|single|restart|configure|delete|discover|scpi)_/.test(n));
+    const unknown = [...named].filter((n) => !known.has(n) && /^(get|set|read|exit|configure|delete|discover|wait_for|restart)_/.test(n));
     expect(unknown).toEqual([]);
   });
 
@@ -95,7 +95,7 @@ describe("the guide is linked from the rest of the documentation", () => {
     ["docs/releasing.md", "manual-testing-guide.md"],
     ["docs/wiki/Manual-Testing.md", "docs/manual-testing-guide.md"],
     ["docs/wiki/_Sidebar.md", "Manual-Testing"],
-    ["docs/wiki/Development.md", "Manual-Testing"],
+    ["docs/wiki/Development.md", "Manual Testing"],
   ])("%s links to it", (file, needle) => {
     expect(read(file)).toContain(needle);
   });

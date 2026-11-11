@@ -48,7 +48,7 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 - `scripts/client-snippets.mjs` – single source for the per-client configs and links (README table, wiki page, site section); `npm run clients:sync` regenerates them
 - `scripts/client-config.mjs` – the `npm run client-config` printer; also the single place that holds the install specs and the `NPM_PUBLISHED` switch
 - `scripts/sync-wiki.mjs` – builds the wiki page set from the docs (see [Wiki](#wiki)); `docs/wiki/` holds the hand-written wiki pages
-- `docs/` – [tools-reference.md](docs/tools-reference.md), [verified-hardware.md](docs/verified-hardware.md), [programming-guide.md](docs/programming-guide.md), [references.md](docs/references.md)
+- `docs/` – [manual-testing-guide.md](docs/manual-testing-guide.md), [tools-reference.md](docs/tools-reference.md), [verified-hardware.md](docs/verified-hardware.md), [programming-guide.md](docs/programming-guide.md), [references.md](docs/references.md)
 
 ## Install
 
@@ -193,7 +193,7 @@ The [project wiki](https://github.com/Reid-n0rc/uni-t-uts-mcp/wiki) (getting sta
 
 ## Documentation
 
-Manual and reference links: [docs/references.md](docs/references.md).
+Have an analyzer? The [manual testing guide](docs/manual-testing-guide.md) is a checklist for every tool group on raw and VXI-11, with a reporting template. Manual and reference links: [docs/references.md](docs/references.md).
 
 ## Security
 
