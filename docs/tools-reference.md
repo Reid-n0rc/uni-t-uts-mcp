@@ -233,6 +233,22 @@ The N-dB bandwidth measurement of a marker: the width in Hz of the trace around 
 
 The marker frequency counter: `enabled`, `gate_time_s` and `frequency_hz` (the counted frequency of the selected marker via `:CALCulate:MARKer:FCOunt:X?`, only queried while on; `null` while off or when the instrument reports its invalid value 9.91e37). `get_frequency_counter` is read-only and takes no parameters. `set_frequency_counter` takes `enabled` and/or `gate_time_s` (1e-6 to 0.5 s, checked before anything is sent). Readback differences are `warnings`.
 
+## Limit lines
+
+Command syntax: [programming-guide.md](programming-guide.md) section 5 (limit lines). Lines are numbered 1 to 6 (1 to 4 on the 1000-series models). Verified on the UTS3036B: see [verified-hardware.md](verified-hardware.md). **There is no pass/fail tool:** the manual documents no pass/fail read-back for limit lines. To judge a trace against a line, read both (`get_limit_line` and `get_trace_data`) or take a `screenshot`.
+
+### `get_limit_line`
+
+Read-only. Takes `line` (1-6, default 1) and returns `displayed`, `type` (`upper` or `lower`), `trace` (the trace the line is tested against), `margin_db`, `margin_enabled` and `points` (a list of `frequency_hz`, `amplitude_dbm`, `connected`; the instrument always reports the first point as connected). The analyzer sends no reply at all to the point query of a line without points, so the tool reads it last with a 1.5 s wait and takes that silence as an empty list; a failure of any of the other queries is an error, never an empty line.
+
+### `set_limit_line`
+
+Create or edit a limit line. `line` (1-6, default 1) plus at least one of `displayed`, `type` (`upper`: the trace must stay below the line, `lower`: above), `trace` (1-6), `margin_db` (-40 to 40), `margin_enabled` and `points`. `points` replaces the whole list: 1 to 10 entries of `{frequency_hz, amplitude_dbm, connected?}` in ascending frequency order (equal frequencies make a vertical step; `connected` defaults to true and is ignored for the first point). All of this is checked before anything is sent. The analyzer keeps at most 10 points and silently ignores a longer list, so the tool refuses more than 10. Setting points also turns the line's display on, so `displayed` is sent last; setting the margin switches its state on, so `margin_enabled` is sent after it. The line is read back; anything the instrument did not take is listed in `warnings`.
+
+### `delete_limit_line`
+
+Delete the points of one limit line (`line`) or of all of them (`all: true`); type, trace and margin settings stay. The analyzer finishes a delete a moment after it acknowledges it, so the tool re-reads the points (up to four times, 0.3 s apart) until the line is empty; for `all` it checks line 1. A line that still has points is reported in `warnings`. Returns `deleted` (`[n]` or `"all"`).
+
 ## Measurements
 
 Channel power, time-domain power, occupied bandwidth (OBW), adjacent channel power (ACPR), third-order intercept (TOI), carrier-to-noise ratio (C/N) and harmonics. The instrument has **no query for the active measurement**, and `:CONFigure:<meas>` presets the span, RBW and sweep time (for example span 3 MHz) which `:CONFigure:SANalyzer` does not put back, so these tools save and restore that state and never scan for the active mode (queries the instrument does not answer stall it, and over VXI-11 can drop the link). Spectrum analyzer mode is told by `:SENSe:DETector:TRACe1?`, which only it answers; one measurement is told by `:SENSe:<meas>:AVERage:STATe?`. While a measurement is active most spectrum analyzer queries (detector, trace type) get no reply. A probe that gets no reply costs about 4.5 s (the 1.5 s timeout plus a 3 s pause while the instrument recovers). Measurement names: `channel_power`, `time_power`, `obw`, `acpr` (`:SENSe:ACPower`), `toi`, `cn` (`CNRatio`), `harmonics`.

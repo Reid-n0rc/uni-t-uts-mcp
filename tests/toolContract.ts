@@ -225,6 +225,22 @@ export const CONTRACT: Record<string, ContractEntry> = {
     invalid: [{}, { marker: 1 }, { marker: 1, ndb: 3 }, { marker: 1, ndb: -141 }, { marker: 11, enabled: true }],
     warn: [{ marker: 1, enabled: false }, { marker: 1, ndb: -6 }],
   },
+  get_limit_line: { kind: "getter", args: { line: 2 }, invalid: [{ line: 0 }, { line: 7 }] },
+  set_limit_line: {
+    kind: "setter",
+    args: { line: 1, displayed: false, points: [{ frequency_hz: 1e8, amplitude_dbm: -50 }, { frequency_hz: 5e8, amplitude_dbm: -30, connected: false }] },
+    invalid: [{}, { line: 7, displayed: true }, { trace: 7 }, { margin_db: 41 }, { points: [] }, { points: [{ frequency_hz: 5e8, amplitude_dbm: -30 }, { frequency_hz: 1e8, amplitude_dbm: -50 }] }],
+    warn: [{ type: "lower" }, { trace: 2 }, { margin_db: 5 }, { margin_enabled: true }, { displayed: true }, { points: [{ frequency_hz: 2e8, amplitude_dbm: -40 }, { frequency_hz: 3e8, amplitude_dbm: -40 }] }],
+  },
+  delete_limit_line: {
+    kind: "setter",
+    args: { line: 1 },
+    invalid: [{}, { line: 1, all: true }, { line: 9 }],
+    skip: {
+      timeout: "the only readback is DATA?, which the instrument leaves unanswered on an emptied line, so a timeout there is the success signal",
+      empty: "an empty DATA? reply means the same (no points), so the delete is confirmed",
+    },
+  },
   get_frequency_counter: { kind: "getter", args: {} },
   set_frequency_counter: {
     kind: "setter",
@@ -241,6 +257,11 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/^\*OPC\?$/, "1"],
   [/^:SENSe:SWEep:TIME\?$/, "1.000000E-02"],
   [/:UNIT:POWer\?$/, "DBM"],
+  [/LLINe\d:TYPE\?$/, "UPPer"],
+  [/LLINe\d:(DISPlay|MARGin:STATe)\?$/, "0"],
+  [/LLINe\d:TRACe\?$/, "1"],
+  [/LLINe\d:MARGin\?$/, "0.000000e+00"],
+  [/LLINe\d:DATA\?$/, ""], // an empty line (the real instrument stays silent there; "" is read the same way)
   [/MARKer\d+:MODE\?$/, "POSition"],
   [/MARKer\d+:TRACe\?$/, "1"],
   [/MARKer\d+:REFerence\?$/, "2"],

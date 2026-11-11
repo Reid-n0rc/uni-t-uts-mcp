@@ -14,6 +14,8 @@ The text of a release's section is also used as its GitHub release notes.
 
 ### Added
 
+- Limit line tools `get_limit_line`, `set_limit_line` and `delete_limit_line` (#21): type, trace, margin, display and a point list of up to 10 points per line, verified on the UTS3036B. There is no pass/fail tool because the manual documents no such read-back.
+
 - VXI-11 interrupt channel client (`Vxi11Client.enableSrq`/`waitForSrq`/`disableSrq`, bounded `IntrServer` for `device_intr_srq`), tested against a fake instrument. Live test on the UTS3036B (#128): the interrupt channel is accepted but the analyzer never connects back and its status byte never changes, so no tool uses it; documented in verified-hardware.md.
 
 ## [0.3.0] - 2026-11-10

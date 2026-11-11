@@ -203,7 +203,7 @@ Typical "find peak and read it" sequence (manual's own application example, p.17
 | Delete | `:CALCulate:LLINe<n>:DELete`, `:CALCulate:LLINe:ALL:DELete` | |
 | Files | `:MMEMory:LOAD:LIMit LLINEn,"<f>.limit"`, `:MMEMory:STORe:LIMit LLINEn,"<f>.limit"` | p.48-49 |
 
-No pass/fail query for limit lines is documented.
+No pass/fail query for limit lines is documented. Verified on the UTS3036B (details in [verified-hardware.md](verified-hardware.md#limit-lines-2026-11-11-issue-21-firmware-v1040040)): every setter above has a matching query; `DATA` takes at most 10 points (a longer list is ignored without an error), reads back sorted with the first connect flag forced to 1, and `DATA?` on a line without points gives no reply at all; setting `DATA` switches the display on and setting `MARGin` switches the margin state on; `DELete` finishes shortly after its `*OPC?`; `MARGin` clamps to -40..40 and an out-of-range `TRACe` is ignored.
 
 ## 6. Tracking generator (called "trace source" in the manual) (3K p.50, p.39, p.93)
 
@@ -292,7 +292,7 @@ Safety notes: `*RST`, `:SYSTem:DEFault`, `:SYSTem:LOCK`, `:KEY:*:LOCK`, LAN sett
 14. **Screenshot**: **Partly verified (P2) - the transfer is truncated over raw TCP (144,800 bytes) but complete over VXI-11 (issue #75): use VXI-11 for a screenshot, `:DISPlay:DATA?` gives a 1280 x 800 32 bit BMP (4,096,054 bytes), or a PNG after `:SYSTem:PICture:FORMat PNG`, and `:DISPlay:ZBmp?` the compressed stream (200 KB).** Over raw TCP: `:DISPlay:ZBmp?` replies `#9` + 9-digit length (198908, 202898 on different captures, so it is compressed), then a `0x03` byte, then a BMP-like stream; `:DISPlay:DATA?` replies `#7` + `4096054` followed directly by an uncompressed `BM` bitmap, and returned nothing after `:SYSTem:PICture:FORMat PNG` was set (which the instrument accepts but ZBmp still returned bitmap data). In every case the instrument stops after exactly 144,800 bytes (100 TCP segments of 1448 bytes), far short of the declared length, with the sweep running or paused, with nc or a slow reader. **Resolved (issues #42, #20): the `screenshot` tool uses VXI-11 with `:SYSTem:PICture:FORMat PNG` and `:DISPlay:DATA?` (a real PNG, about 90 KB, ~3 s), restores the format to its original value, and refuses over raw TCP with an actionable error.** (Original note:) `:DISPlay:ZBmp?` payload is "compressed" with unspecified algorithm and framing; test it against `:DISPlay:DATA?` and `:SYSTem:PICture:FORMat`.
 15. **`*IDN?`**: **Verified (P1):** comma-separated `UNI-TREND,UTS3036B,<serial>,V1.04.0040`; manufacturer string is `UNI-TREND`, not the manual's `UNI-T Technologies`.
 16. **Typos in boolean descriptions** (several `1|ON` listed twice in place of `0|OFF`; `*OPC?` "1 = unfinished"; `:SYSTem:LOCK?` "0 = unlocked / 1 = unlocked"). Assume 1 = on/true/finished.
-17. **Peak-table / marker-table contents** and **limit-line pass/fail** have no documented read-back.
+17. **Peak-table / marker-table contents** and **limit-line pass/fail** have no documented read-back (the limit line point list does read back; see section 5).
 18. **Parameter coupling**: setting `SPAN`, `STARt`, `STOP`, `CENTer` interact; setting RBW/VBW/sweep time with AUTO on may be overridden. Re-query after set.
 19. **Query response for set-only commands** (`SPAN:FULL`, `MAXimum`, etc.) is "No return value"; use `*OPC?` or a follow-up query to know it completed.
 
