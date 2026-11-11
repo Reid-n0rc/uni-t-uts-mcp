@@ -14,8 +14,8 @@ const L = (n: number) => `:CALCulate:LLINe${n}`;
 const TYPES = { upper: "UPPer", lower: "LOWer" } as const;
 type TypeName = keyof typeof TYPES;
 
-/** Tool-side guard, not an instrument limit (the manual gives none): keeps a command line short. */
-const MAX_POINTS = 100;
+/** Verified on the UTS3036B: DATA keeps at most 10 points and silently ignores a longer list (the manual gives no number). */
+const MAX_POINTS = 10;
 /** The instrument sends no reply at all to DATA? on a line without points, so this wait is the "empty" signal. */
 const DATA_TIMEOUT_MS = 1500;
 
@@ -116,7 +116,7 @@ export function validateSet(a: SetArgs): string | undefined {
   if (a.points !== undefined) {
     const p = a.points;
     if (p.length < 1) return "points needs at least 1 point; use delete_limit_line to remove all points.";
-    if (p.length > MAX_POINTS) return `points has ${p.length} entries; at most ${MAX_POINTS} are accepted.`;
+    if (p.length > MAX_POINTS) return `points has ${p.length} entries; at most ${MAX_POINTS} are kept by the instrument (it silently ignores a longer list).`;
     for (let i = 1; i < p.length; i++) {
       if (p[i].frequency_hz < p[i - 1].frequency_hz) {
         return `points must be in ascending frequency order (point ${i + 1} is below point ${i}).`;
@@ -163,7 +163,7 @@ export function registerLimitLineTools(server: McpServer): void {
     server,
     "set_limit_line",
     "Create or edit a limit line. Give any of: displayed, type (upper/lower), trace, margin_db and margin_enabled, and points " +
-      "(replaces the whole point list; 1 to 100 points in ascending frequency order, equal frequencies make a vertical step, each with frequency_hz, amplitude_dbm and optional connected). " +
+      "(replaces the whole point list; 1 to 10 points in ascending frequency order, equal frequencies make a vertical step, each with frequency_hz, amplitude_dbm and optional connected). " +
       "The line is re-read afterwards; anything the instrument did not take is reported in 'warnings'.",
     SET_SHAPE,
     { readOnlyHint: false, idempotentHint: true },
