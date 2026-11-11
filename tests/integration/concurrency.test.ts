@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach } from "vitest";
+import { setFirstSetterPending } from "../../src/instrument.js";
 import type * as net from "node:net";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -63,6 +64,8 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   state.clear(); errors = []; deafUntil = 0; lost = [];
+  // The first setter of a process also clears the stale error queue first (an extra wire line); the baselines are for later setters.
+  setFirstSetterPending(false);
   const res = await callTool(client, "connect", { host: "127.0.0.1", port: server.port });
   expect(res.isError, getText(res)).toBeFalsy();
 });

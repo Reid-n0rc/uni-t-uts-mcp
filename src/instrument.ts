@@ -76,15 +76,18 @@ function isUndefinedHeader(error: string): boolean {
 export async function applyCommands(commands: string[]): Promise<void> {
   const sent: string[] = [];
   let inFlight: string | undefined;
+  const first = firstSetterPending;
+  firstSetterPending = false;
   try {
     await connection.sendCommand("*CLS");
+    if (first) await clearStaleQueue();
     for (const command of commands) {
       inFlight = command;
       await connection.sendCommand(command);
       sent.push(command);
       inFlight = undefined;
     }
-    await checkInstrumentErrors(sent);
+    await checkInstrumentErrors(sent, first);
   } catch (err) {
     if (err instanceof InstrumentError) throw err;
     // Nothing was sent, or only *CLS: nothing can be applied.
@@ -104,10 +107,34 @@ export async function applyCommands(commands: string[]): Promise<void> {
   }
 }
 
-/** Drain the error queue and throw InstrumentError for real errors (stale `-113`s are ignored, see applyCommands). */
-export async function checkInstrumentErrors(sent: string[] = []): Promise<void> {
+/**
+ * True until this process sent its first setter. A previous process (or an earlier query of this one that the
+ * instrument did not answer) leaves a `-113` in the queue, or posts it up to ~4 s later, so the first setter would
+ * otherwise fail on an error it did not cause (#133).
+ */
+let firstSetterPending = true;
+
+/** For tests: make the next applyCommands (not) behave as the first setter of the process. */
+export function setFirstSetterPending(pending: boolean): void {
+  firstSetterPending = pending;
+}
+
+/** Clear the queue and re-check it until it is empty (at most 3 rounds): whatever is in it now was not caused by us. */
+async function clearStaleQueue(): Promise<void> {
+  for (let round = 0; round < 3; round++) {
+    const stale = await drainErrorQueue();
+    if (stale.length === 0) return;
+    await connection.sendCommand("*CLS");
+  }
+}
+
+/**
+ * Drain the error queue and throw InstrumentError for real errors (stale `-113`s are ignored, see applyCommands;
+ * `firstSetter` also ignores them: one from a previous process can arrive during the first setter).
+ */
+export async function checkInstrumentErrors(sent: string[] = [], firstSetter = false): Promise<void> {
   let errors = await drainErrorQueue();
-  if (connection.msSinceQueryTimeout() < STALE_ERROR_WINDOW_MS) {
+  if (firstSetter || connection.msSinceQueryTimeout() < STALE_ERROR_WINDOW_MS) {
     errors = errors.filter((error) => !isUndefinedHeader(error));
   }
   if (errors.length > 0) throw new InstrumentError(errors, sent);
