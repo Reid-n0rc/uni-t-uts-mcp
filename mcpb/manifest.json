@@ -50,6 +50,10 @@
       "description": "Read the analyzer identification: manufacturer, model, serial number and firmware."
     },
     {
+      "name": "list_instruments",
+      "description": "List the named instruments, which are connected and which one calls use by default (read-only)."
+    },
+    {
       "name": "scpi_query",
       "description": "Send one raw SCPI query and return the reply."
     },

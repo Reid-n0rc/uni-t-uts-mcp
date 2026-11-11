@@ -57,6 +57,7 @@ Run S1 once, right after CN2, before any setter. It needs a connection, so do CN
 |------|--------|----------|--------|
 | CN1 | `discover_instruments` (no arguments), analyzer on the local subnet | The analyzer is listed with `vxi11: true` and `raw: true` and its model and firmware, without a serial number. Finding nothing is not an error | Pass/fail, model, firmware as listed |
 | CN2 | `connect` with `host: "192.168.1.100"` (your address), `transport: "raw"` | Success text with the transport, model and firmware, and a note that the panel stays locked until Esc | Pass/fail, connect time |
+| CN6 | `list_instruments` | One entry, `connected: true`, `isDefault: true`, the host and transport of CN2; no serial number. (With one analyzer only the single-instrument path can be checked on real hardware; two-instrument behaviour is tested with fakes) | Pass/fail |
 | CN3 | `identify` | Four comma-separated fields and a `Transport:` line | Model, firmware (serial blanked) |
 | CN4 | `disconnect`, then `identify` | The `identify` call fails with a not-connected message that tells you to call `connect` | Pass/fail |
 | CN5 | `connect` with `transport: "vxi11"` (the same host), then `identify` | `Transport:` says VXI-11; the same model and firmware as CN3 | Pass/fail, connect time |

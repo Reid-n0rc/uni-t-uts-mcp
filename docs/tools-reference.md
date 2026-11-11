@@ -16,7 +16,8 @@ Device: UNI-T,UTS3036B,<serial>,<firmware>
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `host` | string | No | `UTS_IP` env var | Hostname or IP address (letters, digits, `.`, `-`, `_`, `:` only), or `auto` to find the analyzer with `discover_instruments` first: it connects if exactly one UNI-T analyzer answers on the local subnet(s), and otherwise returns an error that lists what was found (or says none was) and asks for an explicit `host`. The result says the host was auto-selected and shows the model and firmware (quoted) so you can check it; discovery is unauthenticated |
+| `name` | string (1-32 letters, digits, `_`, `-`) | No | the `default` instrument, or the only one configured | Which instrument to connect. A new name is registered by this call (a first connect that fails leaves it unregistered). The host and port default to the target declared for that name in `UTS_INSTRUMENTS`; `UTS_IP`/`UTS_PORT` belong to `default` only. Connecting a name again replaces only that instrument's link. See `list_instruments` |
+| `host` | string | No | `UTS_IP` env var (`default`) or the `UTS_INSTRUMENTS` target of `name` | Hostname or IP address (letters, digits, `.`, `-`, `_`, `:` only), or `auto` to find the analyzer with `discover_instruments` first: it connects if exactly one UNI-T analyzer answers on the local subnet(s), and otherwise returns an error that lists what was found (or says none was) and asks for an explicit `host`. The result says the host was auto-selected and shows the model and firmware (quoted) so you can check it; discovery is unauthenticated |
 | `port` | integer 1-65535 | No | `UTS_PORT` env var, then `5025` | TCP port of the raw transport. VXI-11 finds its own port through the portmapper (TCP port 111), so an explicit `port` together with `transport: "vxi11"` is an error; a `port` (or `UTS_PORT`) without any transport choice selects `raw` |
 | `transport` | `raw`, `vxi11` or `auto` | No | `UTS_TRANSPORT` env var, then `auto` (`raw` when only a port is given) | `raw`: raw SCPI over TCP. `vxi11`: VXI-11 core channel; fails if it cannot be opened. `auto`: VXI-11 if the portmapper on port 111 registers the VXI-11 core program and the link opens, otherwise raw (the reason for the fallback is logged to stderr and shown in the `Transport:` line) |
 
@@ -42,11 +43,17 @@ Returns JSON: `instruments` (each with `host`, `vxi11`, `vxi11Port`, `raw`, `ana
 
 ### `disconnect`
 
-Disconnect from the analyzer. Safe to call when not connected. No parameters. The result reminds the user that the analyzer is not known to return to local mode on its own: if its front panel is still locked, press Esc on the analyzer.
+Disconnect from the analyzer. Safe to call when not connected. Optional `name`: which instrument to disconnect (default: the default one); the others stay connected and the name stays registered, so `connect` with that name reconnects it. An unknown name is an error listing the configured ones. The result reminds the user that the analyzer is not known to return to local mode on its own: if its front panel is still locked, press Esc on the analyzer.
+
+### `list_instruments`
+
+List the instruments this server knows by name: the `default` one (`UTS_IP`), those from `UTS_INSTRUMENTS` and any added by `connect` with a `name`. Read-only, reads the registry only (it never waits for a running sweep), and shows no serial number. No parameters.
+
+Returns JSON: `instruments` (each with `name`, `connected`, `isDefault`, and when connected `connection` (host and port) and `transport`; `configured` shows the host[:port] declared for it) and a `hint`. `isDefault` marks the instrument a call without a name uses: `default` if it exists, else the only one. With several instruments and none called `default`, name the one you mean (`name` for `connect`, `disconnect`, `identify`; the optional `instrument` argument on every other tool follows in the next sub-issue of #67). `UTS_INSTRUMENTS` is `name=host[:port],name2=...` or JSON (`{"sa1":"192.168.1.100:5026"}`); an invalid value is logged at startup and ignored.
 
 ### `identify`
 
-Query `*IDN?` (manufacturer, model, serial number, firmware version). Read-only. No parameters. The output ends with a `Transport:` line naming the transport in use (raw SCPI over TCP or VXI-11). An empty reply or one without four comma-separated fields is an error that quotes the reply.
+Query `*IDN?` (manufacturer, model, serial number, firmware version). Read-only. Optional `name`: which instrument to query (default: the default one). The output ends with a `Transport:` line naming the transport in use (raw SCPI over TCP or VXI-11). An empty reply or one without four comma-separated fields is an error that quotes the reply.
 
 ## Raw SCPI
 
@@ -320,4 +327,5 @@ An MCP client may send several tool calls at once. The analyzer has one command 
 | `UTS_TRANSPORT` | `auto` (default: VXI-11 if the instrument registers it with the portmapper, else raw), `raw` or `vxi11`; default for the `connect` tool's `transport` parameter. Setting `UTS_PORT` without `UTS_TRANSPORT` means `raw` |
 | `UTS_VXI11_DEVICE` | VXI-11 logical device name, default `inst0` |
 | `UTS_VXI11_PROBE_TIMEOUT_S` | Total seconds (1 to 120, default `15`) `auto` and `vxi11` may spend reaching VXI-11: up to three attempts to reach the portmapper on port 111 and open the link, with doubling pauses, all inside this budget. Raise it for a slow routed path (VPN, Tailscale) |
+| `UTS_INSTRUMENTS` | Additional named instruments, `name=host[:port],...` or JSON; each is connected at startup on its own connection (own queue and lock). See `list_instruments` |
 | `UTS_BUSY_TIMEOUT_S` | How long a tool call waits for another one to finish before failing with `Instrument busy`, in seconds (default `120`); see Concurrency |
