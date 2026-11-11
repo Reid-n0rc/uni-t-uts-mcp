@@ -289,7 +289,7 @@ function sci(v: number): string {
 
 const fmtNum = sci;
 
-const PRIVATE_QUERIES: Record<string, (m: UtsModel) => string> = {
+const PRIVATE_QUERIES = new Map<string, (m: UtsModel) => string>(Object.entries({
   "*IDN?": () => "UNI-TREND,UTS3036B,SN000000,V1.04.0040", // serial deliberately not recorded in the repo
   "*OPC?": () => "1",
   "*ESR?": () => "0",
@@ -297,7 +297,7 @@ const PRIVATE_QUERIES: Record<string, (m: UtsModel) => string> = {
   "*ESE?": (m) => String(m.num("ese")),
   "*SRE?": (m) => String(m.num("sre")),
   ":INSTrument:SELect?": () => "SA",
-};
+}));
 
 interface PendingError { code: number; text: string; at: number }
 
@@ -472,7 +472,7 @@ export class UtsModel {
   }
 
   private query(header: string, args: string, line: string): Out[] {
-    const special = PRIVATE_QUERIES[header + "?"];
+    const special = PRIVATE_QUERIES.get(header + "?");
     if (special) return [{ text: special(this) }];
     if (/^:SYST(EM)?:ERR(OR)?$/.test(header)) return [{ text: this.nextError() }];
     if (/^:(TRAC|TRACE):DATA$/.test(header)) return this.traceData(args);
@@ -570,7 +570,7 @@ export class UtsModel {
     const suffix = m[2]!.toUpperCase();
     let factor = 1;
     if (suffix !== "") {
-      const f = spec.units?.[suffix];
+      const f = spec.units !== undefined && Object.hasOwn(spec.units, suffix) ? spec.units[suffix] : undefined;
       if (f === undefined) {
         this.post(-224, "Illegal parameter value"); // "`:FREQuency:CENTer 1 XYZ` gives -224 plus -131"
         this.post(-131, "Invalid suffix");

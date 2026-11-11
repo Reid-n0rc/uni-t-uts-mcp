@@ -301,3 +301,15 @@ describe("over a real socket", () => {
     }
   });
 });
+
+describe("hostile input", () => {
+  it("prototype property names are not commands or unit suffixes", () => {
+    const r = rig();
+    expect(r.send("constructor?")).toEqual([]);
+    expect(r.send("__proto__?")).toEqual([]);
+    r.advance(STALL_MS + 1); // the unsupported queries above stall the instrument
+    r.send(":FREQuency:CENTer 1 constructor");
+    expect(r.err()).toBe('-224,"Illegal parameter value"');
+    expect(r.ask(":FREQuency:CENTer?")).toBe("1.805000e+09");
+  });
+});
