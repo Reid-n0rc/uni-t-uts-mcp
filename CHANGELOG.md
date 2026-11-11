@@ -44,6 +44,7 @@ The text of a release's section is also used as its GitHub release notes.
 
 ### Documentation
 
+- Research on analog demodulation support (#173): `docs/research/analog-demodulation.md` summarises the module switch, the documented AD commands with page numbers, a proposed tool list, risks and a split into small issues. Research only; nothing was run on an instrument.
 - Documented the front-panel lock behaviour of the UTS3036B (verified-hardware.md, programming-guide.md corrections, live-testing rule in AGENTS.md and the release hardware checklist); `:SYSTem:LOCK 0` does not unlock on V1.04.0040 (#152).
 - The wiki, README and site no longer call the limit line and tracking generator tools "not implemented"; they are on `main` and ship in the next release (#143).
 - Corrected the VXI-11 SRQ and status-byte documentation (#139). The analyzer's status model does work over SCPI for error events (`*STB?` 100 / `*ESR?` 32 after a -113 with `*ESE 32` / `*SRE 32`); OPC and MAV never set, `device_readstb` always returns 0 (a stub), and the analyzer never connected back to the SRQ listener. A dropped callback on the routed path is not fully ruled out (no packet capture). Blocking `*OPC?` remains the sweep sync.
