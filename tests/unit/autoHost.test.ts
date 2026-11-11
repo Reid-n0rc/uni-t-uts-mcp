@@ -47,4 +47,20 @@ describe("resolveAutoHost", () => {
     });
     expect((r as { error: string }).error).toContain("boom");
   });
+
+  describe("with analyzers that are already connected (several instruments)", () => {
+    const connected = new Set(["192.168.1.100"]);
+    it("leaves them out when counting, so the one new analyzer is picked", async () => {
+      expect(await resolveAutoHost(found(inst("192.168.1.100"), inst("192.168.1.101")), connected)).toMatchObject({ host: "192.168.1.101" });
+    });
+    it("says so when the only analyzer found is already connected", async () => {
+      const r = await resolveAutoHost(found(inst("192.168.1.100")), connected);
+      expect((r as { error: string }).error).toMatch(/already connected/i);
+      expect((r as { error: string }).error).toContain("192.168.1.100");
+    });
+    it("still lists every new analyzer when several are found", async () => {
+      const r = await resolveAutoHost(found(inst("192.168.1.100"), inst("192.168.1.101"), inst("192.168.1.102")), connected);
+      expect((r as { error: string }).error).toMatch(/2 .*analyzers/i);
+    });
+  });
 });
