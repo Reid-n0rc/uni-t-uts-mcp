@@ -277,9 +277,11 @@ function saCommands(s: SaState): string[] {
   ];
 }
 
-function saWarnings(want: SaState, got: SaState): string[] {
-  const out: string[] = [];
-  const num = (name: string, w: number, g: number) => { if (!close(w, g)) out.push(`${name} is ${g}, was ${w}`); };
+/** Fields of `got` that differ from `want`: `name` plus a description naming the actual and the wanted value. */
+function saMismatches(want: SaState, got: SaState): Array<{ name: string; text: string }> {
+  const out: Array<{ name: string; text: string }> = [];
+  const add = (name: string, g: unknown, w: unknown) => out.push({ name, text: `${name} is ${g}, was ${w}` });
+  const num = (name: string, w: number, g: number) => { if (!close(w, g)) add(name, g, w); };
   num("center_hz", want.center_hz, got.center_hz);
   num("span_hz", want.span_hz, got.span_hz);
   for (const [name, wantAuto, gotAuto, w, g] of [
@@ -287,10 +289,10 @@ function saWarnings(want: SaState, got: SaState): string[] {
     ["vbw", want.vbw_auto, got.vbw_auto, want.vbw_hz, got.vbw_hz],
     ["sweep_time", want.sweep_time_auto, got.sweep_time_auto, want.sweep_time_s, got.sweep_time_s],
   ] as const) {
-    if (wantAuto !== gotAuto) out.push(`${name}_auto is ${gotAuto}, was ${wantAuto}`);
-    else if (!wantAuto) num(`${name}`, w, g);
+    if (wantAuto !== gotAuto) add(`${name}_auto`, gotAuto, wantAuto);
+    else if (!wantAuto) num(name === "sweep_time" ? "sweep_time_s" : `${name}_hz`, w, g);
   }
-  if (want.continuous !== got.continuous) out.push(`continuous is ${got.continuous}, was ${want.continuous}`);
+  if (want.continuous !== got.continuous) add("continuous", got.continuous, want.continuous);
   return out;
 }
 
@@ -311,8 +313,20 @@ async function exitMeasurement(restore: SaState | undefined): Promise<{ warnings
   }
   if (!restore) return { warnings: [] };
   await applyCommands(saCommands(restore));
-  const after = await readBack(readSa);
-  return { warnings: saWarnings(restore, after).map((w) => `restore: ${w}`) };
+  let mismatches = saMismatches(restore, await readBack(readSa));
+  if (mismatches.length === 0) return { warnings: [] };
+  // A setter can be lost (#133: the span once stayed at the measurement's 8 MHz although everything reported success): send everything once more.
+  const first = mismatches;
+  await new Promise((resolve) => setTimeout(resolve, probeTuning.settleMs));
+  await applyCommands(saCommands(restore));
+  mismatches = saMismatches(restore, await readBack(readSa));
+  if (mismatches.length > 0) {
+    throw new Error(
+      `The settings could not be restored: ${mismatches.map((m) => m.text).join("; ")} (read back after sending them twice). ` +
+        "The instrument is back in spectrum analyzer mode but these values are wrong; set them again or check the instrument."
+    );
+  }
+  return { warnings: [`restore: ${first.map((m) => m.name).join(", ")} did not read back as saved after the first attempt (${first.map((m) => m.text).join("; ")}); the second attempt restored it`] };
 }
 
 // ---------------- configure / read ----------------
