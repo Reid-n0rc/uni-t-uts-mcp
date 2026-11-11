@@ -41,3 +41,13 @@ If you have a UTS1000B/T or UTS3000B, please say which model and firmware you te
 ## Reporting bugs
 
 Include: analyzer model and firmware, connection method, the tool call, and the error or unexpected output. Don't post serial numbers or private network details.
+
+## Flaky tests
+
+A test that fails without a code change is a bug, not noise.
+
+- Do not add automatic retries (no vitest `retry`, no re-run loops in workflows): they hide real timing and ordering bugs.
+- Open an issue labelled `flaky` with the failing run's link; fix it, or quarantine it (`it.skip` with the issue number in a comment) within a week. A quarantined test never stays skipped silently.
+- Tests of timing use injected clocks or generous margins, never tight sleeps; tests that open sockets use port 0 and close everything in `afterEach`/`finally`.
+- Hardware is never needed for CI; live validation is a separate, manual step (see docs/releasing.md).
+

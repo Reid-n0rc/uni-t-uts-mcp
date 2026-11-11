@@ -12,6 +12,10 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- CI: a dependency audit job (also weekly), Dependabot for npm, and a written flaky-test policy in CONTRIBUTING.md (#145, part of #35).
+
 ### Documentation
 
 - The wiki, README and site no longer call the limit line and tracking generator tools "not implemented"; they are on `main` and ship in the next release (#143).
