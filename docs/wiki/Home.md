@@ -26,6 +26,7 @@ Every setter reads the instrument back and tells you when the analyzer changed o
 - [Architecture](Architecture): how the server is built and how a tool call flows through it
 - [Safety and Security](Safety-and-Security): the command denylist and how to report vulnerabilities
 - [Troubleshooting](Troubleshooting): common problems and what they mean
+- [Manual Testing](Manual-Testing): check every tool group on a real analyzer
 - [Development](Development): workflow, tests, adding a tool, hardware testing rules, how this wiki is kept up to date
 - [Roadmap](Roadmap): open and completed issues
 

@@ -15,6 +15,7 @@ The text of a release's section is also used as its GitHub release notes.
 ### Added
 
 - Simulator conformance suite (#147): one scripted SCPI exchange (`scripts/conformance-lib.mjs`) runs against the simulator in CI and, on demand only (`UTS_IP`, `UTS_CONFORMANCE_LIVE=1`, never in CI), against a real analyzer with `scripts/conformance.mjs`, diffing a redacted transcript against `tests/fixtures/conformance/exchange.txt`. Procedure in docs/releasing.md.
+- Docs: `docs/manual-testing-guide.md`, a step-by-step hardware checklist for every tool group on raw and VXI-11 (prerequisites, safe setup, remote-mode and front-panel lock behavior, expected results, what to record, restore steps, reporting template, troubleshooting), linked from the README, CONTRIBUTING, the release checklist and a new wiki page; a test fails when a registered tool has no checklist step (#24).
 
 ### Fixed
 

@@ -8,6 +8,7 @@
 - [Architecture](Architecture)
 - [Safety and Security](Safety-and-Security)
 - [Troubleshooting](Troubleshooting)
+- [Manual Testing](Manual-Testing)
 - [Development](Development)
 - [Roadmap](Roadmap)
 
