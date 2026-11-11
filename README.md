@@ -42,6 +42,7 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 - `src/tools/` – one file per tool group, registered in `src/server.ts`
 - `tests/` – unit and mocked integration tests, a fake SCPI server, a transport contract suite (`transportContract.ts`), and captured instrument fixtures
 - `mcpb/manifest.json`, `scripts/build-mcpb.mjs` – the Claude Desktop MCP bundle (`.mcpb`): manifest and the Node-only build script (`npm run build:mcpb`)
+- `scripts/client-snippets.mjs` – single source for the per-client configs and links (README table, wiki page, site section); `npm run clients:sync` regenerates them
 - `scripts/client-config.mjs` – the `npm run client-config` printer; also the single place that holds the install specs and the `NPM_PUBLISHED` switch
 - `scripts/sync-wiki.mjs` – builds the wiki page set from the docs (see [Wiki](#wiki)); `docs/wiki/` holds the hand-written wiki pages
 - `docs/` – [tools-reference.md](docs/tools-reference.md), [verified-hardware.md](docs/verified-hardware.md), [programming-guide.md](docs/programming-guide.md), [references.md](docs/references.md)
@@ -51,6 +52,23 @@ Modeled on [siglent-sds-mcp](https://github.com/MagnusJohansson/siglent-sds-mcp)
 Everything in this section works today (v0.3.0, also on npm). You need Node.js 22 or newer (or Docker). Use your analyzer's address in place of `192.168.1.100`.
 
 `UTS_IP` is optional. Set it to `auto` (or ask the assistant to connect with host `auto`) to find the analyzer on your local subnet without knowing its address; this works when exactly one analyzer answers and is unauthenticated, so check the model and address it reports. If you leave it out, tell the assistant "connect to the analyzer at 192.168.1.100" and it will use the `connect` tool.
+
+### Add to your client
+
+<!-- clients:begin -->
+| Client | How | One-click |
+|---|---|---|
+| Claude Code | terminal, or `.mcp.json` in a project | - |
+| Claude Desktop | download the `.mcpb`, or `claude_desktop_config.json` | [Download the .mcpb (GitHub releases)](https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v0.3.0) |
+| Cursor | install link, or `~/.cursor/mcp.json` / `.cursor/mcp.json` | [Add to Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=uni-t-uts&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInVuaS10LXV0cy1tY3AiXX0=) |
+| VS Code | `.vscode/mcp.json`, or `code --add-mcp` | - |
+| Windsurf | `mcp_config.json` (Cascade > Open MCP config file) | - |
+| Other stdio clients | any client that launches an MCP server over stdio | - |
+
+Copy-paste configs for each client, and what has and has not been verified, are on the [Add to Client wiki page](https://github.com/Reid-n0rc/uni-t-uts-mcp/wiki/Add-to-Client) and the [project site](https://reid-n0rc.github.io/uni-t-uts-mcp/#add-to-client).
+<!-- clients:end -->
+
+More detail follows per client.
 
 ### Claude Code
 

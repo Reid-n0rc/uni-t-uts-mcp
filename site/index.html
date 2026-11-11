@@ -243,6 +243,11 @@ pre.code {
 pre.code .c { color: #a98fe0; }
 pre.code .k { color: var(--pink); }
 pre.code .s { color: var(--butter); }
+.ctabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+.ctab { font-family: var(--font-display); font-size: .95rem; cursor: pointer; padding: 8px 16px; border: 3px solid #1a0f33; background: var(--card); color: #1a0f33; }
+.ctab[aria-selected="true"] { background: var(--teal); box-shadow: 4px 4px 0 #1a0f33; }
+.cpanel h4.win-title { font-size: .85rem; margin: 0; }
+.js .cpanel[hidden] { display: none; }
 .code-wrap { position: relative; }
 .copy {
   position: absolute; right: 10px; top: 10px; font-family: var(--font-mono); font-size: .75rem; cursor: pointer;
@@ -559,6 +564,329 @@ npm run client-config -- --host 192.168.1.100</code></pre></div></div>
     </div>
   </section>
 
+  <section class="block" id="add-to-client">
+    <div class="wrap">
+      <h2 class="reveal">Add to <span class="hl">your client</span></h2>
+      <p class="sub reveal">Pick your MCP client for a copy-paste config. <code>192.168.1.100</code> is a placeholder for your analyzer's address. Each tab says what has and has not been verified.</p>
+      <div id="clients">
+<!-- clients:begin -->
+<div class="ctabs" role="tablist" aria-label="MCP client">
+        <button type="button" role="tab" class="ctab" id="tab-claude-code" aria-controls="panel-claude-code" aria-selected="true" data-client="claude-code">Claude Code</button>
+        <button type="button" role="tab" class="ctab" id="tab-claude-desktop" aria-controls="panel-claude-desktop" aria-selected="false" data-client="claude-desktop">Claude Desktop</button>
+        <button type="button" role="tab" class="ctab" id="tab-cursor" aria-controls="panel-cursor" aria-selected="false" data-client="cursor">Cursor</button>
+        <button type="button" role="tab" class="ctab" id="tab-vscode" aria-controls="panel-vscode" aria-selected="false" data-client="vscode">VS Code</button>
+        <button type="button" role="tab" class="ctab" id="tab-windsurf" aria-controls="panel-windsurf" aria-selected="false" data-client="windsurf">Windsurf</button>
+        <button type="button" role="tab" class="ctab" id="tab-generic" aria-controls="panel-generic" aria-selected="false" data-client="generic">Other stdio clients</button>
+      </div>
+        <div role="tabpanel" class="cpanel" id="panel-claude-code" aria-labelledby="tab-claude-code">
+          <h3>Claude Code</h3>
+          
+          <ul><li>Run the command once in a terminal. Add <code>--scope user</code> to make it available in every project (<code>local</code> is the default, <code>project</code> writes <code>.mcp.json</code>).</li><li>UTS_IP is optional: without it, tell the assistant &quot;connect to the analyzer at 192.168.1.100&quot;.</li></ul>
+          <div class="win"><div class="win-bar"><h4 class="win-title">npx (macOS / Linux)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp">Copy</button>
+<pre class="code"><code>claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y uni-t-uts-mcp</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">npx (Windows)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y uni-t-uts-mcp">Copy</button>
+<pre class="code"><code>claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y uni-t-uts-mcp</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">Docker</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:0.3.0">Copy</button>
+<pre class="code"><code>claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:0.3.0</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">.mcp.json (project scope)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;npx&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [
+        &quot;-y&quot;,
+        &quot;uni-t-uts-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;
+      }
+    }
+  }
+}</code></pre></div></div>
+          <p class="callout">Command form and <code>.mcp.json</code> format checked against the Claude Code docs. Not run by the maintainer on a fresh machine. Source: <code>https://code.claude.com/docs/en/mcp</code></p>
+        </div>
+        <div role="tabpanel" class="cpanel" id="panel-claude-desktop" aria-labelledby="tab-claude-desktop" data-later>
+          <h3>Claude Desktop</h3>
+          <p><a class="btn alt" href="https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v0.3.0">Download the .mcpb (GitHub releases)</a></p>
+          <ul><li>Easiest: download <code>uni-t-uts-mcp-0.3.0.mcpb</code> from the release and double-click it; the install dialog asks for the analyzer address. (Not verified in Claude Desktop yet.)</li><li>Or edit the config file (Settings &gt; Developer &gt; Edit Config): macOS <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>, Windows <code>%APPDATA%\Claude\claude_desktop_config.json</code>, Linux <code>~/.config/Claude/claude_desktop_config.json</code>. Restart Claude Desktop completely afterwards.</li><li>UTS_IP is optional: without it, tell the assistant &quot;connect to the analyzer at 192.168.1.100&quot;.</li></ul>
+          <div class="win"><div class="win-bar"><h4 class="win-title">npx (macOS / Linux)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;npx&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [
+        &quot;-y&quot;,
+        &quot;uni-t-uts-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;
+      }
+    }
+  }
+}</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">npx (Windows)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;cmd&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;/c&quot;,&#10;        &quot;npx&quot;,&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;cmd&quot;,
+      &quot;args&quot;: [
+        &quot;/c&quot;,
+        &quot;npx&quot;,
+        &quot;-y&quot;,
+        &quot;uni-t-uts-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;
+      }
+    }
+  }
+}</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">Docker</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;docker&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;run&quot;,&#10;        &quot;-i&quot;,&#10;        &quot;--rm&quot;,&#10;        &quot;-e&quot;,&#10;        &quot;UTS_IP=192.168.1.100&quot;,&#10;        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.3.0&quot;&#10;      ]&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;docker&quot;,
+      &quot;args&quot;: [
+        &quot;run&quot;,
+        &quot;-i&quot;,
+        &quot;--rm&quot;,
+        &quot;-e&quot;,
+        &quot;UTS_IP=192.168.1.100&quot;,
+        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.3.0&quot;
+      ]
+    }
+  }
+}</code></pre></div></div>
+          <p class="callout">The <code>claude_desktop_config.json</code> format and paths are from the MCP docs. Installing the <code>.mcpb</code> in Claude Desktop itself is NOT verified yet (issue #86 tracks the manual check). Source: <code>https://modelcontextprotocol.io/docs/develop/connect-local-servers</code></p>
+        </div>
+        <div role="tabpanel" class="cpanel" id="panel-cursor" aria-labelledby="tab-cursor" data-later>
+          <h3>Cursor</h3>
+          <p><a class="btn alt" href="cursor://anysphere.cursor-deeplink/mcp/install?name=uni-t-uts&amp;config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInVuaS10LXV0cy1tY3AiXX0=">Add to Cursor</a></p>
+          <ul><li>The install link opens Cursor&#39;s install dialog with the npx command (no analyzer address; tell the assistant where it is, or add <code>UTS_IP</code> under <code>env</code> afterwards). On Windows use the config file below.</li><li>Or put the JSON in <code>~/.cursor/mcp.json</code> (all projects) or <code>.cursor/mcp.json</code> (one project).</li></ul>
+          <div class="win"><div class="win-bar"><h4 class="win-title">npx (macOS / Linux)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;npx&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [
+        &quot;-y&quot;,
+        &quot;uni-t-uts-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;
+      }
+    }
+  }
+}</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">npx (Windows)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;cmd&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;/c&quot;,&#10;        &quot;npx&quot;,&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;cmd&quot;,
+      &quot;args&quot;: [
+        &quot;/c&quot;,
+        &quot;npx&quot;,
+        &quot;-y&quot;,
+        &quot;uni-t-uts-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;
+      }
+    }
+  }
+}</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">Docker</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;docker&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;run&quot;,&#10;        &quot;-i&quot;,&#10;        &quot;--rm&quot;,&#10;        &quot;-e&quot;,&#10;        &quot;UTS_IP=192.168.1.100&quot;,&#10;        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.3.0&quot;&#10;      ]&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;docker&quot;,
+      &quot;args&quot;: [
+        &quot;run&quot;,
+        &quot;-i&quot;,
+        &quot;--rm&quot;,
+        &quot;-e&quot;,
+        &quot;UTS_IP=192.168.1.100&quot;,
+        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.3.0&quot;
+      ]
+    }
+  }
+}</code></pre></div></div>
+          <p class="callout">File locations and the install-link format are from Cursor&#39;s docs (https://cursor.com/docs/mcp/install-links). Not clicked in Cursor by the maintainer. Source: <code>https://cursor.com/docs/context/mcp</code></p>
+        </div>
+        <div role="tabpanel" class="cpanel" id="panel-vscode" aria-labelledby="tab-vscode" data-later>
+          <h3>VS Code</h3>
+          
+          <ul><li>Workspace: save the JSON as <code>.vscode/mcp.json</code>. For your user profile run <code>code --add-mcp</code> with the JSON below, or use the Command Palette: MCP: Add Server.</li><li>UTS_IP is optional: without it, tell the assistant &quot;connect to the analyzer at 192.168.1.100&quot;.</li></ul>
+          <div class="win"><div class="win-bar"><h4 class="win-title">.vscode/mcp.json (macOS / Linux)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;servers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;type&quot;: &quot;stdio&quot;,&#10;      &quot;command&quot;: &quot;npx&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;servers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;type&quot;: &quot;stdio&quot;,
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [
+        &quot;-y&quot;,
+        &quot;uni-t-uts-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;
+      }
+    }
+  }
+}</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">.vscode/mcp.json (Windows)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;servers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;type&quot;: &quot;stdio&quot;,&#10;      &quot;command&quot;: &quot;cmd&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;/c&quot;,&#10;        &quot;npx&quot;,&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;servers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;type&quot;: &quot;stdio&quot;,
+      &quot;command&quot;: &quot;cmd&quot;,
+      &quot;args&quot;: [
+        &quot;/c&quot;,
+        &quot;npx&quot;,
+        &quot;-y&quot;,
+        &quot;uni-t-uts-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;
+      }
+    }
+  }
+}</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">code --add-mcp (macOS / Linux)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="code --add-mcp &#39;{&quot;name&quot;:&quot;uni-t-uts&quot;,&quot;type&quot;:&quot;stdio&quot;,&quot;command&quot;:&quot;npx&quot;,&quot;args&quot;:[&quot;-y&quot;,&quot;uni-t-uts-mcp&quot;],&quot;env&quot;:{&quot;UTS_IP&quot;:&quot;192.168.1.100&quot;}}&#39;">Copy</button>
+<pre class="code"><code>code --add-mcp &#39;{&quot;name&quot;:&quot;uni-t-uts&quot;,&quot;type&quot;:&quot;stdio&quot;,&quot;command&quot;:&quot;npx&quot;,&quot;args&quot;:[&quot;-y&quot;,&quot;uni-t-uts-mcp&quot;],&quot;env&quot;:{&quot;UTS_IP&quot;:&quot;192.168.1.100&quot;}}&#39;</code></pre></div></div>
+          <p class="callout">The <code>servers</code> format, file locations and <code>code --add-mcp</code> are from the VS Code docs (which note the <code>servers</code> format belongs to the Local harness, deprecated from February 2027). No one-click link: the <code>vscode:mcp/install</code> format is not in the official docs, so none is offered. Not run by the maintainer. Source: <code>https://code.visualstudio.com/docs/agents/reference/mcp-configuration</code></p>
+        </div>
+        <div role="tabpanel" class="cpanel" id="panel-windsurf" aria-labelledby="tab-windsurf" data-later>
+          <h3>Windsurf</h3>
+          
+          <ul><li>Open the file with Cascade&#39;s Open MCP config file action (or Settings &gt; Tools &gt; Windsurf Settings &gt; Add Server) and add the entry.</li><li>UTS_IP is optional: without it, tell the assistant &quot;connect to the analyzer at 192.168.1.100&quot;.</li></ul>
+          <div class="win"><div class="win-bar"><h4 class="win-title">npx (macOS / Linux)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;npx&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [
+        &quot;-y&quot;,
+        &quot;uni-t-uts-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;
+      }
+    }
+  }
+}</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">npx (Windows)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;cmd&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;/c&quot;,&#10;        &quot;npx&quot;,&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;cmd&quot;,
+      &quot;args&quot;: [
+        &quot;/c&quot;,
+        &quot;npx&quot;,
+        &quot;-y&quot;,
+        &quot;uni-t-uts-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;
+      }
+    }
+  }
+}</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">Docker</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;docker&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;run&quot;,&#10;        &quot;-i&quot;,&#10;        &quot;--rm&quot;,&#10;        &quot;-e&quot;,&#10;        &quot;UTS_IP=192.168.1.100&quot;,&#10;        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.3.0&quot;&#10;      ]&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;docker&quot;,
+      &quot;args&quot;: [
+        &quot;run&quot;,
+        &quot;-i&quot;,
+        &quot;--rm&quot;,
+        &quot;-e&quot;,
+        &quot;UTS_IP=192.168.1.100&quot;,
+        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.3.0&quot;
+      ]
+    }
+  }
+}</code></pre></div></div>
+          <p class="callout">The <code>mcpServers</code> format is from the Windsurf docs. Their path has moved: the current docs say <code>~/.config/devin/mcp_config.json</code> (macOS / Linux) or <code>%AppData%/devin/mcp_config.json</code> (Windows), older ones <code>~/.codeium/windsurf/mcp_config.json</code>. Use Cascade&#39;s Open MCP config file action to find the right one. No install link is documented. Not run by the maintainer. Source: <code>https://docs.devin.ai/windsurf/plugins/cascade/mcp</code></p>
+        </div>
+        <div role="tabpanel" class="cpanel" id="panel-generic" aria-labelledby="tab-generic" data-later>
+          <h3>Other stdio clients</h3>
+          
+          <ul><li>Command <code>npx</code>, arguments <code>-y uni-t-uts-mcp</code>, environment variable <code>UTS_IP</code> (optional, <code>UTS_PORT</code> defaults to 5025).</li><li>On Windows, where <code>npx</code> is a <code>.cmd</code> file, use <code>cmd</code> with arguments <code>/c npx -y uni-t-uts-mcp</code>.</li></ul>
+          <div class="win"><div class="win-bar"><h4 class="win-title">npx (macOS / Linux)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;npx&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [
+        &quot;-y&quot;,
+        &quot;uni-t-uts-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;
+      }
+    }
+  }
+}</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">npx (Windows)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;cmd&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;/c&quot;,&#10;        &quot;npx&quot;,&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;cmd&quot;,
+      &quot;args&quot;: [
+        &quot;/c&quot;,
+        &quot;npx&quot;,
+        &quot;-y&quot;,
+        &quot;uni-t-uts-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;
+      }
+    }
+  }
+}</code></pre></div></div>
+          <div class="win"><div class="win-bar"><h4 class="win-title">Docker</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;docker&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;run&quot;,&#10;        &quot;-i&quot;,&#10;        &quot;--rm&quot;,&#10;        &quot;-e&quot;,&#10;        &quot;UTS_IP=192.168.1.100&quot;,&#10;        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.3.0&quot;&#10;      ]&#10;    }&#10;  }&#10;}">Copy</button>
+<pre class="code"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;uni-t-uts&quot;: {
+      &quot;command&quot;: &quot;docker&quot;,
+      &quot;args&quot;: [
+        &quot;run&quot;,
+        &quot;-i&quot;,
+        &quot;--rm&quot;,
+        &quot;-e&quot;,
+        &quot;UTS_IP=192.168.1.100&quot;,
+        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.3.0&quot;
+      ]
+    }
+  }
+}</code></pre></div></div>
+          <p class="callout">Plain MCP stdio: the client starts the command and talks over stdin/stdout. Key names differ per client; check its docs. Source: <code>https://modelcontextprotocol.io/docs/develop/connect-local-servers</code></p>
+        </div>
+<!-- clients:end -->
+      </div>
+    </div>
+  </section>
+
   <section class="block" id="roadmap">
     <div class="wrap">
       <h2 class="reveal">Coming <span class="hl">next</span></h2>
@@ -801,6 +1129,20 @@ npm run client-config -- --host 192.168.1.100</code></pre></div></div>
       entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); } });
     }, { rootMargin: "0px 0px -8% 0px" });
     for (var z = 0; z < items.length; z++) io.observe(items[z]);
+  }
+
+  // ---- client tabs (without scripts every panel is shown) ----
+  var tabs = document.querySelectorAll(".ctab");
+  if (tabs.length) {
+    document.documentElement.classList.add("js");
+    var show = function (id) {
+      Array.prototype.forEach.call(tabs, function (t) { t.setAttribute("aria-selected", String(t.getAttribute("data-client") === id)); });
+      Array.prototype.forEach.call(document.querySelectorAll(".cpanel"), function (p) { p.hidden = p.id !== "panel-" + id; });
+    };
+    Array.prototype.forEach.call(tabs, function (t) { t.addEventListener("click", function () { show(t.getAttribute("data-client")); }); });
+    show(tabs[0].getAttribute("data-client"));
+    var want = (location.hash || "").replace("#client-", "");
+    if (want && document.getElementById("panel-" + want)) show(want);
   }
 
   // ---- copy buttons ----

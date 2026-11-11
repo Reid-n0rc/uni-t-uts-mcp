@@ -20,6 +20,8 @@ The server is pure Node (no native modules, no VISA).
 
 Release v0.3.0 is out. Pick one of these; each registers the server under the name `uni-t-uts`. `UTS_IP` is optional: without it, tell the assistant "connect to the analyzer at 192.168.1.100" and it uses the `connect` tool.
 
+Using Cursor, VS Code, Windsurf or another client? See [Add to Client](Add-to-Client).
+
 ### Claude Code
 
 ```sh

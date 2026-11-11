@@ -14,6 +14,7 @@ The text of a release's section is also used as its GitHub release notes.
 
 ### Added
 
+- "Add to your client" help (#88): copy-paste configs and install links for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf and generic stdio clients, generated from `scripts/client-snippets.mjs` into the README table, the new wiki page `Add-to-Client` and a tabbed site section (`npm run clients:sync` / `clients:check`). Each client is marked with what was verified against its docs; the Cursor install link follows Cursor's documented format; no VS Code or Windsurf link is offered because their formats are not documented; Claude Desktop `.mcpb` installation is still unverified.
 - Limit line tools `get_limit_line`, `set_limit_line` and `delete_limit_line` (#21): type, trace, margin, display and a point list of up to 10 points per line, verified on the UTS3036B. There is no pass/fail tool because the manual documents no such read-back.
 
 - VXI-11 interrupt channel client (`Vxi11Client.enableSrq`/`waitForSrq`/`disableSrq`, bounded `IntrServer` for `device_intr_srq`), tested against a fake instrument. Live test on the UTS3036B (#128): the interrupt channel is accepted but the analyzer never connects back and its status byte never changes, so no tool uses it; documented in verified-hardware.md.
