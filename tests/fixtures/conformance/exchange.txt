@@ -1,0 +1,110 @@
+> *IDN?
+< UNI-TREND,UTS3036B,<serial>,V1.04.0040
+> *CLS
+> :SYSTem:ERRor?
+< 0,"No error"
+> :SENSe:FREQuency:CENTer 1 GHz
+> :SENSe:FREQuency:CENTer?
+< 1.0000000000e+09 
+> :SENSe:FREQuency:SPAN 100 MHz
+> :SENSe:FREQuency:SPAN?
+< 1.0000000000e+08 
+> :SENSe:FREQuency:STARt?
+< 9.5000000000e+08 
+> :SENSe:FREQuency:STOP?
+< 1.0500000000e+09 
+> :SENSe:FREQuency:SPAN 10 GHz
+> :SENSe:FREQuency:SPAN?
+< 3.6100000000e+09 
+> :SENSe:FREQuency:CENTer?
+< 1.8050000000e+09 
+> :SENSe:FREQuency:STARt?
+< 0.0000000000e+00 
+> :SENSe:FREQuency:STOP?
+< 3.6100000000e+09 
+> :SENSe:FREQuency:CENTer 1 GHz
+> :SENSe:FREQuency:SPAN 3 GHz
+> :SENSe:FREQuency:SPAN?
+< 3.0000000000e+09 
+> :SENSe:FREQuency:CENTer?
+< 1.5000000000e+09 
+> :SENSe:FREQuency:CENTer 100 kHz
+> :SENSe:FREQuency:SPAN?
+< 2.0000000000e+05 
+> :SENSe:FREQuency:STARt?
+< 0.0000000000e+00 
+> :SENSe:FREQuency:CENTer 1 GHz
+> :SENSe:FREQuency:SPAN 100 MHz
+> :DISPlay:WINDow:TRACe:Y:SCALe:RLEVel -10 dBm
+> :DISPlay:WINDow:TRACe:Y:SCALe:RLEVel?
+< -1.000000e+01
+> :POWer:ATTenuation:AUTO?
+< 1
+> :POWer:ATTenuation 20
+> :POWer:ATTenuation?
+< 20
+> :POWer:ATTenuation:AUTO?
+< 0
+> :UNIT:POWer DBMV
+> :UNIT:POWer?
+< DBMV
+> :DISPlay:WINDow:TRACe:Y:SCALe:RLEVel?
+< 3.698970e+01 
+> :UNIT:POWer DBM
+> :SENSe:BANDwidth:RESolution 50 kHz
+> :SENSe:BANDwidth:RESolution?
+< 3.0000000000e+04 
+> :SENSe:BANDwidth:RESolution:AUTO?
+< 0
+> :SENSe:BANDwidth:VIDeo 1 kHz
+> :SENSe:BANDwidth:VIDeo?
+< 1.0000000000e+03 
+> :SENSe:BANDwidth:VIDeo:AUTO?
+< 0
+> :SENSe:BANDwidth:RESolution:AUTO ON
+> :SENSe:BANDwidth:RESolution:AUTO?
+< 1
+> :SENSe:DETector:TRACe1 POSitive
+> :SENSe:DETector:TRACe1?
+< POSitive
+> :SENSe:DETector:TRACe1:AUTO?
+< 0
+> :TRACe2:TYPE MAXHold
+> :TRACe2:TYPE?
+< MAXHold
+> :CALCulate:MARKer1:MODE POSition
+> :CALCulate:MARKer1:MODE?
+< POSition
+> :CALCulate:MARKer1:X 1 GHz
+> :CALCulate:MARKer1:X?
+< 1.0000000000e+09 
+> :CALCulate:MARKer1:MODE OFF
+> :CALCulate:MARKer1:MODE?
+< OFF
+> :OUTPut:STATe?
+< 0
+> :SOURce:POWer -20 dBm
+> :SOURce:POWer?
+< -2.000000e+01
+> :FORMat?
+< ASC8
+> :SYSTem:PICture:FORMat?
+< BMP
+> :SENSe:FREQuency:CENTer 1 XYZ
+> :SYSTem:ERRor?
+< -224,"Illegal parameter value"
+> :SYSTem:ERRor?
+< -131,"Invalid suffix"
+> :SYSTem:ERRor?
+< 0,"No error"
+> :CALCulate:MARKer1:MODE BOGUS
+> :SYSTem:ERRor?
+< -224,"Illegal parameter value"
+> :SYSTem:ERRor?
+< -224,"Illegal parameter value"
+> :INPut:IMPedance?
+< <no reply>
+> :SYSTem:ERRor?
+< -113,"Undefined header"
+> :SYSTem:ERRor?
+< 0,"No error"

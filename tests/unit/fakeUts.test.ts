@@ -30,8 +30,8 @@ describe("framing and identity", () => {
   it("accepts short and long forms in any case and ignores the optional [:SENSe]", () => {
     const r = rig();
     r.send(":freq:cent 500 MHz");
-    expect(r.ask(":SENSe:FREQuency:CENTer?")).toBe("5.000000e+08");
-    expect(r.ask(":FREQUENCY:CENTER?")).toBe("5.000000e+08");
+    expect(r.ask(":SENSe:FREQuency:CENTer?")).toBe("5.0000000000e+08 ");
+    expect(r.ask(":FREQUENCY:CENTER?")).toBe("5.0000000000e+08 ");
   });
 });
 
@@ -47,12 +47,12 @@ describe("error queue", () => {
     const r = rig();
     r.send(":FREQuency:CENTer 1 XYZ");
     expect([r.err(), r.err(), r.err()]).toEqual(['-224,"Illegal parameter value"', '-131,"Invalid suffix"', '0,"No error"']);
-    expect(r.ask(":FREQuency:CENTer?")).toBe("1.805000e+09");
+    expect(r.ask(":FREQuency:CENTer?")).toBe("1.8050000000e+09 ");
   });
   it("an invalid enum gives -224", () => {
     const r = rig();
     r.send(":UNIT:POWer BOGUS");
-    expect(r.err()).toBe('-224,"Illegal parameter value"');
+    expect([r.err(), r.err(), r.err()]).toEqual(['-224,"Illegal parameter value"', '-224,"Illegal parameter value"', '0,"No error"']); // twice, verified #147
   });
   it("*CLS clears the queue", () => {
     const r = rig();
@@ -85,25 +85,25 @@ describe("unsupported queries", () => {
 
 describe("setters clamp silently (no error queued)", () => {
   const cases: Array<[string, string, string]> = [
-    [":FREQuency:CENTer 5 GHz", ":FREQuency:CENTer?", "3.60999995e+09"],
-    [":FREQuency:SPAN 10 GHz", ":FREQuency:SPAN?", "3.610000e+09"],
-    [":FREQuency:STOP 5 GHz", ":FREQuency:STOP?", "3.610000e+09"],
-    [":DISPlay:WINDow:TRACe:Y:RLEVel 100", ":DISPlay:WINDow:TRACe:Y:RLEVel?", "3.000000e+01"],
+    [":FREQuency:CENTer 5 GHz", ":FREQuency:CENTer?", "3.6099999500e+09 "],
+    [":FREQuency:SPAN 10 GHz", ":FREQuency:SPAN?", "3.6100000000e+09 "],
+    [":FREQuency:STOP 5 GHz", ":FREQuency:STOP?", "3.6100000000e+09 "],
+    [":DISPlay:WINDow:TRACe:Y:RLEVel 100", ":DISPlay:WINDow:TRACe:Y:RLEVel?", "3.000000e+01 "],
     [":DISPlay:WINDow:TRACe:Y:RLEVel -500", ":DISPlay:WINDow:TRACe:Y:RLEVel?", "-1.000000e+02"],
-    [":DISPlay:WINDow:TRACe:Y:RLEVel:OFFSet 1000", ":DISPlay:WINDow:TRACe:Y:RLEVel:OFFSet?", "3.276000e+02"],
+    [":DISPlay:WINDow:TRACe:Y:RLEVel:OFFSet 1000", ":DISPlay:WINDow:TRACe:Y:RLEVel:OFFSet?", "3.276000e+02 "],
     [":POWer:ATTenuation 7.6", ":POWer:ATTenuation?", "8"],
-    [":SENSe:CORRection:IMPedance:INPut:MAGNitude 60", ":SENSe:CORRection:IMPedance:INPut:MAGNitude?", "5.000000e+01"],
-    [":SENSe:BANDwidth:RESolution 50 kHz", ":SENSe:BANDwidth:RESolution?", "3.000000e+04"],
-    [":SENSe:BANDwidth:RESolution 0", ":SENSe:BANDwidth:RESolution?", "1.000000e+00"],
-    [":SENSe:BANDwidth:RESolution 1 GHz", ":SENSe:BANDwidth:RESolution?", "3.000000e+06"],
-    [":SENSe:BANDwidth:VIDeo:RATio 1e-7", ":SENSe:BANDwidth:VIDeo:RATio?", "1.000000e-05"],
+    [":SENSe:CORRection:IMPedance:INPut:MAGNitude 60", ":SENSe:CORRection:IMPedance:INPut:MAGNitude?", "5.000000e+01 "],
+    [":SENSe:BANDwidth:RESolution 50 kHz", ":SENSe:BANDwidth:RESolution?", "3.0000000000e+04 "],
+    [":SENSe:BANDwidth:RESolution 0", ":SENSe:BANDwidth:RESolution?", "1.0000000000e+00 "],
+    [":SENSe:BANDwidth:RESolution 1 GHz", ":SENSe:BANDwidth:RESolution?", "3.0000000000e+06 "],
+    [":SENSe:BANDwidth:VIDeo:RATio 1e-7", ":SENSe:BANDwidth:VIDeo:RATio?", "1.000000e-05 "],
     [":SENSe:SWEep:POINts 1001.6", ":SENSe:SWEep:POINts?", "1001"],
     [":SENSe:SWEep:POINts 5", ":SENSe:SWEep:POINts?", "11"],
-    [":TRIGger:SEQuence:VIDeo:LEVel 100", ":TRIGger:SEQuence:VIDeo:LEVel?", "3.000000e+01"],
+    [":TRIGger:SEQuence:VIDeo:LEVel 100", ":TRIGger:SEQuence:VIDeo:LEVel?", "3.000000e+01 "],
     [":SOURce:POWer -120", ":SOURce:POWer?", "-4.000000e+01"],
-    [":CALCulate:MARKer:FCOunt:GATetime 9", ":CALCulate:MARKer:FCOunt:GATetime?", "5.000000e-01"],
+    [":CALCulate:MARKer:FCOunt:GATetime 9", ":CALCulate:MARKer:FCOunt:GATetime?", "5.000000e-01 "],
     [":CALCulate:MARKer1:BANDwidth:NDB 5", ":CALCulate:MARKer1:BANDwidth:NDB?", "-1.000000e-02"],
-    [":CALCulate:LLINe1:MARGin 99", ":CALCulate:LLINe1:MARGin?", "4.000000e+01"],
+    [":CALCulate:LLINe1:MARGin 99", ":CALCulate:LLINe1:MARGin?", "4.000000e+01 "],
     [":SENSe:AVERage:COUNt 1000", ":SENSe:AVERage:COUNt?", "1000"],
     [":SENSe:AVERage:COUNt 0", ":SENSe:AVERage:COUNt?", "1"],
   ];
@@ -127,7 +127,7 @@ describe("coupling and side effects", () => {
   it("defaults are the verified idle state", () => {
     const r = rig();
     expect([r.ask(":FREQuency:STARt?"), r.ask(":FREQuency:STOP?"), r.ask(":SENSe:SWEep:POINts?"), r.ask(":INITiate:CONTinuous?")])
-      .toEqual(["1.000000e+07", "3.600000e+09", "1001", "1"]);
+      .toEqual(["1.0000000000e+07 ", "3.6000000000e+09 ", "1001", "1"]);
     expect(r.ask(":SENSe:SWEep:TIME?")).toBe("2.647500e-03 ");
     expect(r.ask(":FORMat?")).toBe("ASC8");
   });
@@ -135,9 +135,29 @@ describe("coupling and side effects", () => {
     const r = rig();
     r.send(":FREQuency:CENTer 1 GHz");
     r.send(":FREQuency:SPAN 100 MHz");
-    expect([r.ask(":FREQuency:STARt?"), r.ask(":FREQuency:STOP?")]).toEqual(["9.500000e+08", "1.050000e+09"]);
+    expect([r.ask(":FREQuency:STARt?"), r.ask(":FREQuency:STOP?")]).toEqual(["9.5000000000e+08 ", "1.0500000000e+09 "]);
     r.send(":FREQuency:STARt 900 MHz");
-    expect([r.ask(":FREQuency:CENTer?"), r.ask(":FREQuency:SPAN?")]).toEqual(["9.750000e+08", "1.500000e+08"]);
+    expect([r.ask(":FREQuency:CENTer?"), r.ask(":FREQuency:SPAN?")]).toEqual(["9.7500000000e+08 ", "1.5000000000e+08 "]);
+  });
+  it("setting the span moves the center to stay inside the range; setting the center shrinks the span (verified #147)", () => {
+    const r = rig();
+    r.send(":FREQuency:CENTer 1 GHz");
+    expect(r.ask(":FREQuency:SPAN?")).toBe("2.0000000000e+09 "); // 3.59 GHz does not fit around 1 GHz
+    r.send(":FREQuency:SPAN 10 GHz");
+    expect([r.ask(":FREQuency:SPAN?"), r.ask(":FREQuency:CENTer?"), r.ask(":FREQuency:STARt?"), r.ask(":FREQuency:STOP?")])
+      .toEqual(["3.6100000000e+09 ", "1.8050000000e+09 ", "0.0000000000e+00 ", "3.6100000000e+09 "]);
+    r.send(":FREQuency:CENTer 1 GHz");
+    r.send(":FREQuency:SPAN 3 GHz");
+    expect([r.ask(":FREQuency:SPAN?"), r.ask(":FREQuency:CENTer?")]).toEqual(["3.0000000000e+09 ", "1.5000000000e+09 "]);
+    r.send(":FREQuency:CENTer 100 kHz");
+    expect([r.ask(":FREQuency:SPAN?"), r.ask(":FREQuency:STARt?")]).toEqual(["2.0000000000e+05 ", "0.0000000000e+00 "]);
+  });
+  it("numeric replies print a trailing space unless negative; frequency-like values have 10 decimals, others 6 (verified #147)", () => {
+    const r = rig();
+    expect(r.ask(":SENSe:FREQuency:OFFSet?")).toBe("0.0000000000e+00 ");
+    expect(r.ask(":DISPlay:WINDow:TRACe:Y:SCALe:PDIVision?")).toBe("1.000000e+01 ");
+    expect(r.ask(":TRIGger:SEQuence:VIDeo:LEVel?")).toBe("-2.500000e+01");
+    expect(r.ask(":SOURce:POWer?")).toBe("-3.000000e+01");
   });
   it("manual attenuation turns auto off; auto follows the reference level", () => {
     const r = rig();
@@ -158,7 +178,7 @@ describe("coupling and side effects", () => {
     const r = rig();
     r.send(":SENSe:BANDwidth:RESolution 100 kHz");
     expect(r.ask(":SENSe:BANDwidth:RESolution:AUTO?")).toBe("0");
-    expect(r.ask(":SENSe:BANDwidth:VIDeo?")).toBe("1.000000e+05");
+    expect(r.ask(":SENSe:BANDwidth:VIDeo?")).toBe("1.0000000000e+05 ");
   });
   it("setting the video trigger level switches the source; EXTernal is rejected", () => {
     const r = rig();
@@ -183,7 +203,10 @@ describe("coupling and side effects", () => {
     expect([r.ask(":TRACe5:UPDate:STATe?"), r.ask(":TRACe5:DISPlay:STATe?")]).toEqual(["1", "1"]);
     r.send(":TRACe2:TYPE MAXHold");
     expect(r.ask(":TRACe2:TYPE?")).toBe("MAXHold");
-    r.send(":TRACe:SELect 9");
+    r.send(":TRACe:SELect 9"); // verified #147: ignored without an error
+    expect(r.err()).toBe('0,"No error"');
+    expect(r.ask(":TRACe:SELect?")).toBe("1");
+    r.send(":TRACe:SELect 0");
     expect(r.err()).toBe('-224,"Illegal parameter value"');
     expect(r.ask(":TRACe:SELect?")).toBe("1");
   });
@@ -193,7 +216,7 @@ describe("coupling and side effects", () => {
     r.send(":CALCulate:MARKer1:MAXimum");
     expect(r.ask(":CALCulate:MARKer1:MODE?")).toBe("POSition");
     r.send(":CALCulate:MARKer2:X 5 GHz");
-    expect(r.ask(":CALCulate:MARKer2:X?")).toBe("5.000000e+09");
+    expect(r.ask(":CALCulate:MARKer2:X?")).toBe("5.0000000000e+09 ");
     r.send(":CALCulate:MARKer:AOFF");
     expect(r.ask(":CALCulate:MARKer1:MODE?")).toBe("OFF");
   });
@@ -293,7 +316,7 @@ describe("over a real socket", () => {
     try {
       expect(await talk(socket, "*IDN?")).toBe("UNI-TREND,UTS3036B,SN000000,V1.04.0040\r\n");
       expect(await talk(socket, ":FREQuency:CENTer 1 GHz")).toBe("");
-      expect(await talk(socket, ":FREQuency:CENTer?")).toBe("1.000000e+09\r\n");
+      expect(await talk(socket, ":FREQuency:CENTer?")).toBe("1.0000000000e+09 \r\n");
       expect(await talk(socket, ":INPut:IMPedance?")).toBe(""); // unsupported: silence
     } finally {
       socket.destroy();
@@ -310,6 +333,6 @@ describe("hostile input", () => {
     r.advance(STALL_MS + 1); // the unsupported queries above stall the instrument
     r.send(":FREQuency:CENTer 1 constructor");
     expect(r.err()).toBe('-224,"Illegal parameter value"');
-    expect(r.ask(":FREQuency:CENTer?")).toBe("1.805000e+09");
+    expect(r.ask(":FREQuency:CENTer?")).toBe("1.8050000000e+09 ");
   });
 });
