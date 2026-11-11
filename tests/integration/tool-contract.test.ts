@@ -282,7 +282,8 @@ describe("instrument selection", () => {
     }
   });
 
-  const selecting = entries.filter(([name]) => !NO_INSTRUMENT_TOOLS.includes(name));
+  // `connect` registers an unknown name instead of refusing it (covered in multi-connection-tools.test.ts).
+  const selecting = entries.filter(([name]) => !NO_INSTRUMENT_TOOLS.includes(name) && name !== "connect");
   it.each(selecting)("%s: an unknown instrument is refused before anything is sent", async (name, entry) => {
     fake.reset();
     const arg = NAME_TOOLS.includes(name) ? "name" : "instrument";

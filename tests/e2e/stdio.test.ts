@@ -76,7 +76,7 @@ describe("stdio end to end against the fake UTS", () => {
   it("every instrument tool refuses an unknown `instrument` (the connection tools: `name`) and the listing tools take none", async () => {
     const c = ctx();
     for (const name of toolNames) {
-      if (["discover_instruments", "list_instruments"].includes(name)) continue;
+      if (["discover_instruments", "list_instruments", "connect"].includes(name)) continue; // connect registers a new name
       const arg = ["connect", "disconnect", "identify"].includes(name) ? "name" : "instrument";
       const res = await c.call(name, { [arg]: "nope" });
       expect(res.isError, `${name}: ${res.text}`).toBe(true);
