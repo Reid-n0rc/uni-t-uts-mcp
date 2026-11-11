@@ -66,6 +66,9 @@ export const E2E: Record<string, Entry> = {
     steps: [],
     skip: "scans the local network (UDP broadcast and TCP probes), which a hermetic test must not do; covered with fakes in tests/integration/discover-tools.test.ts",
   },
+  list_instruments: {
+    steps: [{ args: {}, check: (r) => { ok(r); expect(r.json.instruments).toEqual([expect.objectContaining({ name: "default", connected: true, isDefault: true })]); } }],
+  },
   identify: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.text).toMatch(/UTS3036B/); expect(r.text).toMatch(/V1\.04\.0040/); } }] },
   scpi_query: {
     steps: [
@@ -339,5 +342,5 @@ export const ORDER = [
   "set_marker_ndb", "get_marker_ndb", "set_frequency_counter", "get_frequency_counter",
   "set_limit_line", "get_limit_line", "delete_limit_line", "set_tracking_generator", "get_tracking_generator",
   "get_measurement", "configure_measurement", "read_measurement", "exit_measurement", "measure",
-  "discover_instruments", "disconnect",
+  "discover_instruments", "list_instruments", "disconnect",
 ];

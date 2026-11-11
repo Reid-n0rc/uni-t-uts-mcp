@@ -51,6 +51,7 @@ export const CONTRACT: Record<string, ContractEntry> = {
   },
   disconnect: { kind: "disconnect", args: {} },
   discover_instruments: { kind: "discover", args: {}, invalid: [{ timeout_ms: 50 }, { timeout_ms: 60000 }] },
+  list_instruments: { kind: "discover", args: {} }, // reads the registry only, never the instrument
   identify: { kind: "getter", args: {} },
   scpi_query: {
     kind: "rawQuery",
