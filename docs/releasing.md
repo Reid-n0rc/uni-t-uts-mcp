@@ -156,6 +156,12 @@ gh api -X PUT repos/Reid-n0rc/uni-t-uts-mcp/rulesets/26951437 --input ruleset-pu
 Do not make a check required before it has reported on a pull request at least once, and apply a removal or rename
 right after the workflow change merges (or before, when the old name would otherwise never report).
 
+## Hardware checklist (live runs)
+
+- Record the instrument state first (frequency, span, sweep mode, format) and restore it afterwards; `:SYSTem:ERRor?` must be clean.
+- At the end, query `:SYSTem:LOCK?` and `:KEY:LED?` and leave the front panel unlocked (red [Touch/Lock] indicator off). Do not send `:SYSTem:LOCK` or `:KEY:*:LOCK` setters except to unlock on the owner's explicit request. See "Front-panel lock" in docs/verified-hardware.md.
+- No serial number or real IP address in anything committed.
+
 ## What the CI smoke tests cover
 
 Pull requests and `main` run these in addition to the test matrix (`.github/workflows/ci.yml`), so a broken
