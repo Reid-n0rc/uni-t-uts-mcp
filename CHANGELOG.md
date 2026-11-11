@@ -14,6 +14,7 @@ The text of a release's section is also used as its GitHub release notes.
 
 ### Added
 
+- Several instruments at once, part 4 (#166, epic #67, completes it): tests with two fake instruments (parallel calls to different instruments overlap, same-instrument sequences stay contiguous, an error, timeout, busy wait or lost link on one never touches the other, disconnecting one leaves the other alive), over stdio too (`UTS_INSTRUMENTS` with two analyzers). `connect host=auto` and `UTS_IP=auto` leave out analyzers that are already connected or named in `UTS_INSTRUMENTS`. Docs: manual-testing-guide group G15, wiki Getting-Started, Troubleshooting and Architecture, AGENTS.md concurrency rules.
 - Several instruments at once, part 3 (#165, epic #67): every tool except `discover_instruments` and `list_instruments` takes an optional `instrument` argument (added once in `defineTool`); the call runs on that instrument's own connection and session. An unknown name is refused with the list of configured names before anything is sent. Omitting it uses the default instrument (or the only one), so nothing changes with one instrument.
 - Several instruments at once, part 2 (#164, epic #67): `connect`, `disconnect` and `identify` take an optional `name` (a new name is registered by `connect`, taking host and port from `UTS_INSTRUMENTS` when not given), and the new read-only tool `list_instruments` shows each name, whether it is connected, where, and which one is the default. `discover_instruments` skips every connected host. Without a name nothing changes.
 - Several instruments at once, part 1 (#163, epic #67): `InstrumentRegistry` (`src/registry.ts`) keeps named connections, each with its own queue, hold-off state and exclusive session lock; `UTS_IP`/`UTS_PORT` define the `default` instrument and the optional `UTS_INSTRUMENTS` (`name=host:port,...` or JSON) defines more, validated strictly, and every configured instrument is connected at startup in parallel. Nothing changes with one instrument; the `instrument` tool argument and `list_instruments` follow in #164/#165.
@@ -23,6 +24,7 @@ The text of a release's section is also used as its GitHub release notes.
 
 ### Fixed
 
+- The "first setter clears the stale error queue" step (#133) was once per process; it is now once per instrument, so the first setter on a second analyzer no longer fails on a stale `-113` (#166).
 - `measure` and `exit_measurement` restore the tracking generator output, level and offset that entering a measurement switches off (readback verified, one resend, an error naming the field if it stays wrong), and `set_tracking_generator` / `get_tracking_generator` say the generator cannot be changed while a measurement is active (call `exit_measurement`) instead of blaming a missing option (#161).
 - Simulator replies now match the analyzer: 10-decimal frequency values, a trailing space on non-negative numbers, the span setter moves the center, an invalid enum value posts `-224` twice, `:TRACe:SELect` above 6 is ignored (#147).
 

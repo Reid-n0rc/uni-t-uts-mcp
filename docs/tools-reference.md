@@ -23,7 +23,7 @@ Device: UNI-T,UTS3036B,<serial>,<firmware>
 
 The VXI-11 device name comes from `UTS_VXI11_DEVICE` (default `inst0`; 1 to 64 characters from letters, digits and `. _ , -`). An invalid `transport`, `UTS_TRANSPORT` or `UTS_VXI11_DEVICE` is an error that names the offending value or variable and sends nothing. Error and timeout messages name the transport when it is not raw, for example `Query timeout after 5000ms for command: :FOO? (over VXI-11)`. Over VXI-11 a blocking `*OPC?` read is used to wait for a sweep (see `single_sweep`), a query timeout is reported about 0.5 s after the requested one, and the link stays up. Large replies are not truncated over VXI-11 (see `scpi_query` and `screenshot`).
 
-`UTS_IP=auto` works the same way (also for the startup auto-connect, which logs the auto-selected host). An explicit `host` parameter always wins over `UTS_IP=auto` and never triggers discovery.
+`UTS_IP=auto` works the same way (also for the startup auto-connect, which logs the auto-selected host). An explicit `host` parameter always wins over `UTS_IP=auto` and never triggers discovery. With several instruments, discovery leaves out analyzers that are already connected under another name (they are not probed again or counted), and `UTS_IP=auto` never picks a host that `UTS_INSTRUMENTS` names; if the only analyzer found is already connected the error says so.
 
 If `UTS_IP` is set, the server also connects automatically at startup, using `UTS_TRANSPORT` and `UTS_VXI11_DEVICE`; a failed auto-connect is logged to stderr and does not stop the server.
 

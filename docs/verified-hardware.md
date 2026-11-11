@@ -121,6 +121,10 @@ Parallel tool calls through the built server over stdio (one MCP client firing `
 - A sweep started with `start_sweep` `wait=false` returns, and so releases the lock, while the instrument is still sweeping: a call made then is lost to the instrument (documented in the tools reference).
 - Restored afterwards: 10 MHz-3.6 GHz, continuous sweep, sweep time auto, 0 dBm, 10 dB/div, LOG, offset 0, DBM, auto attenuation (10 dB), preamp off, 50 ohm, RBW/VBW auto, 1001 points, detectors and traces 1-6 as found (all seven getters compared equal before and after); `:SYSTem:ERRor?` clean.
 
+## Several instruments (issue #67)
+
+Not verified on hardware: only one analyzer is available. Calls to different instruments are independent by construction (each name owns its own connection, queue, hold-off state, error-queue handling and session lock) and are tested with two fake instruments (`tests/integration/multi-instrument.test.ts`, `tests/e2e/multi.test.ts`). With one instrument the behavior is unchanged: the single-instrument path was checked live with the owner's analyzer. Before the multi-instrument code, the "first setter clears a stale `-113`" rule (#133) was a process-wide flag; it is now per instrument, because each analyzer can carry its own stale error.
+
 ## Trace configuration (2026-11-10, issue #14, firmware V1.04.0040)
 
 Probed with raw SCPI, then through the built server (`get_trace`, `set_trace`, `restart_trace`, `set_trace_math`). Originals recorded first (trace 1-6 type WRITe, update/display 1,1,1,0,0,0, selected trace 1, average count 100, average type LOG) and restored afterwards; `:SYSTem:ERRor?` ended clean.
