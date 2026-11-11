@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { connection, instruments, UtsConnection } from "../../src/connection.js";
+import { connection, UtsConnection } from "../../src/connection.js";
+import { instruments } from "../../src/registry.js";
 import { startFakeScpi, idnHandler, type FakeScpi } from "../fakeScpiServer.js";
 
 const servers: FakeScpi[] = [];

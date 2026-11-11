@@ -3,7 +3,8 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./server.js";
 import { autoConnectAll } from "./autoconnect.js";
-import { instruments } from "./connection.js";
+import { instruments } from "./registry.js";
+import "./connection.js";
 import { installShutdownHandlers } from "./shutdown.js";
 
 // Prevent uncaught errors from killing the MCP server process.

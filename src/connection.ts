@@ -1,4 +1,4 @@
-import { InstrumentRegistry } from "./registry.js";
+import { instruments } from "./registry.js";
 import { SessionLock, busyTimeoutFromEnv, type RunOptions } from "./sessionLock.js";
 import { RawTransport } from "./transports/raw.js";
 import {
@@ -441,8 +441,7 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/** The configured instruments (issue #163); the default one always exists once something asks for it. */
-export const instruments = new InstrumentRegistry<UtsConnection>(() => new UtsConnection());
+instruments.useFactory(() => new UtsConnection());
 
 /**
  * What the tool modules import. It forwards every property to the instrument selected for the running

@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import type { UtsConnection } from "./connection.js";
 import { isValidHost, isValidPort } from "./target.js";
 
 /**
@@ -152,7 +153,16 @@ export class InstrumentRegistry<C> {
   private readonly targets = new Map<string, InstrumentTarget | undefined>();
   private readonly selected = new AsyncLocalStorage<C>();
 
-  constructor(private readonly factory: (name: string) => C) {}
+  private factory: ((name: string) => C) | undefined;
+
+  constructor(factory?: (name: string) => C) {
+    this.factory = factory;
+  }
+
+  /** Set how connections are made (src/connection.ts does this at load, which keeps this module free of a runtime import cycle). */
+  useFactory(factory: (name: string) => C): void {
+    this.factory = factory;
+  }
 
   /** Add the instrument (or return the existing one), remembering its configured target. */
   declare(name: string, target?: InstrumentTarget): C {
@@ -161,6 +171,7 @@ export class InstrumentRegistry<C> {
     }
     let conn = this.connections.get(name);
     if (!conn) {
+      if (!this.factory) throw new Error("No connection factory configured for the instrument registry");
       conn = this.factory(name);
       this.connections.set(name, conn);
     }
@@ -233,3 +244,6 @@ export class InstrumentRegistry<C> {
     );
   }
 }
+
+/** The process-wide registry of `UtsConnection`s (its factory is installed by src/connection.ts). */
+export const instruments = new InstrumentRegistry<UtsConnection>();
