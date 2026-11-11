@@ -1,0 +1,17 @@
+{
+  "name": "uni-t-uts-mcp",
+  "description": "MCP server for UNI-T UTS spectrum analyzers",
+  "owner": {
+    "name": "Reid Crowe",
+    "url": "https://github.com/Reid-n0rc"
+  },
+  "plugins": [
+    {
+      "name": "uni-t-uts",
+      "source": "./plugins/uni-t-uts",
+      "description": "Read and control a UNI-T UTS1000B/UTS3000B spectrum analyzer over the local network (SCPI over LAN); runs the published npm package uni-t-uts-mcp",
+      "category": "hardware",
+      "tags": ["spectrum-analyzer", "scpi", "mcp"]
+    }
+  ]
+}

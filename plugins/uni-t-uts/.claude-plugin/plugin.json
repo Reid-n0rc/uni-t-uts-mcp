@@ -1,0 +1,49 @@
+{
+  "name": "uni-t-uts",
+  "displayName": "UNI-T UTS Spectrum Analyzer",
+  "version": "0.3.0",
+  "description": "MCP server for UNI-T UTS1000B/UTS3000B spectrum analyzers over the local network (SCPI over LAN)",
+  "author": {
+    "name": "Reid Crowe"
+  },
+  "homepage": "https://reid-n0rc.github.io/uni-t-uts-mcp/",
+  "repository": "https://github.com/Reid-n0rc/uni-t-uts-mcp",
+  "license": "MIT",
+  "keywords": [
+    "spectrum-analyzer",
+    "scpi",
+    "uni-t",
+    "uts",
+    "mcp"
+  ],
+  "userConfig": {
+    "analyzer_host": {
+      "type": "string",
+      "title": "Analyzer address",
+      "description": "Hostname or IP address of the analyzer, for example 192.168.1.100, or \"auto\" to discover it. Optional: leave it empty and ask Claude to connect to the analyzer at an address.",
+      "required": false,
+      "default": ""
+    },
+    "analyzer_port": {
+      "type": "number",
+      "title": "Port",
+      "description": "TCP port of the raw SCPI connection. The analyzer uses 5025; change it only if yours differs.",
+      "required": false,
+      "default": 5025,
+      "min": 1,
+      "max": 65535
+    },
+    "transport": {
+      "type": "string",
+      "title": "Transport",
+      "description": "auto (VXI-11 when the analyzer offers it, otherwise raw), raw (TCP port 5025) or vxi11.",
+      "required": false,
+      "default": "auto",
+      "options": [
+        "auto",
+        "raw",
+        "vxi11"
+      ]
+    }
+  }
+}

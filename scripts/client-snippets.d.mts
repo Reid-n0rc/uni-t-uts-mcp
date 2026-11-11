@@ -19,3 +19,6 @@ export function renderWiki(c: Client[]): string;
 export function renderSiteSection(c: Client[]): string;
 export function replaceRegion(text: string, body: string, file?: string): string;
 export function sync(opts?: { root?: string; write?: boolean; version?: string }): string[];
+export const PLUGIN_DIR: string;
+export const MARKETPLACE: string;
+export function pluginFiles(version: string): Record<string, string>;
