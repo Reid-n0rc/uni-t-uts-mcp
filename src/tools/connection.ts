@@ -1,19 +1,31 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { connection } from "../connection.js";
+import { DEFAULT_INSTRUMENT, instruments, isValidInstrumentName } from "../registry.js";
 import { DEFAULT_PORT, isValidHost, portFromEnv } from "../target.js";
 import { AUTO_HOST, autoSelectedNote, resolveAutoHost } from "../autoHost.js";
 import { discoverInstruments } from "../discovery.js";
 import { TRANSPORT_CHOICES, resolveTransport, vxi11DeviceFromEnv, vxi11ProbeBudgetFromEnv } from "../transports/select.js";
 import { errorResult, textResult, defineTool } from "./util.js";
 
-/** Hosts in `discover_instruments` results that must not be probed again: the one this server is connected to. */
+/** Hosts in `discover_instruments` results that must not be probed again: the ones this server is connected to. */
 function connectedHosts(): Set<string> {
-  if (!connection.isConnected()) return new Set();
-  const info = connection.getConnectionInfo();
-  const host = /^[^\s:]+/.exec(info)?.[0];
-  return new Set(host ? [host] : []);
+  const hosts = new Set<string>();
+  const conns = instruments.names().length > 0 ? instruments.names().map((n) => instruments.get(n)!) : [connection];
+  for (const c of conns) {
+    if (!c.isConnected()) continue;
+    const host = /^[^\s:]+/.exec(c.getConnectionInfo())?.[0];
+    if (host) hosts.add(host);
+  }
+  return hosts;
 }
+
+const NAME_DESCRIPTION =
+  "Instrument name (1-32 letters, digits, '_' or '-'). Default: the `default` instrument, or the only one configured. See list_instruments";
+
+const nameShape = (extra: string) => ({
+  name: z.string().refine(isValidInstrumentName, "name must be 1-32 characters: letters, digits, '_' or '-'").optional().describe(NAME_DESCRIPTION + extra),
+});
 
 /** Seen on a UTS3036B V1.04.0040 over raw TCP (issue #155); VXI-11 was not separately isolated. */
 const PANEL_NOTE =
@@ -57,6 +69,7 @@ export function registerConnectionTools(server: McpServer): void {
     "connect",
     "Connect to a UNI-T UTS series spectrum analyzer over auto (default: VXI-11 when the instrument offers it, else raw SCPI/TCP), VXI-11 or raw SCPI/TCP. Returns the instrument identification and the transport in use. Use host \"auto\" (or UTS_IP=auto) to find the analyzer on the local network when exactly one answers. Using the analyzer puts it in remote mode and locks its front panel until Esc is pressed on the analyzer.",
     {
+      ...nameShape(". connect creates the name when it is new (host and port then come from the arguments or UTS_INSTRUMENTS)"),
       host: z
         .string()
         .refine(isValidHost, "host must be a hostname or IP address")
@@ -75,9 +88,13 @@ export function registerConnectionTools(server: McpServer): void {
         .describe("raw, vxi11 or auto (defaults to the UTS_TRANSPORT env var, then auto; raw when only a port is given). The VXI-11 device name comes from UTS_VXI11_DEVICE (default inst0)"),
     },
     { readOnlyHint: false, openWorldHint: true },
-    async ({ host, port, transport }) => {
+    async ({ name, host, port, transport }) => {
       try {
-        let targetHost = host || process.env.UTS_IP;
+        // Where this instrument is configured: UTS_IP/UTS_PORT belong to `default`, UTS_INSTRUMENTS to the named ones.
+        const effective = name ?? instruments.implicitName() ?? DEFAULT_INSTRUMENT;
+        const configured = instruments.target(effective);
+        const isDefault = effective === DEFAULT_INSTRUMENT;
+        let targetHost = host || configured?.host || (isDefault ? process.env.UTS_IP : undefined);
         let autoNote = "";
         if (targetHost?.toLowerCase() === AUTO_HOST) {
           const found = await resolveAutoHost();
@@ -87,14 +104,17 @@ export function registerConnectionTools(server: McpServer): void {
         }
         if (!targetHost) {
           return errorResult(
-            "No host specified. Provide a 'host' parameter or set the UTS_IP environment variable."
+            isDefault
+              ? "No host specified. Provide a 'host' parameter or set the UTS_IP environment variable."
+              : `No host specified for instrument "${effective}". Provide a 'host' parameter or define it in the UTS_INSTRUMENTS environment variable (name=host:port).`
           );
         }
         if (!isValidHost(targetHost)) {
-          return errorResult("UTS_IP is not a valid hostname or IP address");
+          return errorResult(isDefault ? "UTS_IP is not a valid hostname or IP address" : `The host of instrument "${effective}" is not a valid hostname or IP address`);
         }
-        const targetPort = port ?? portFromEnv(process.env.UTS_PORT);
-        const portGiven = port !== undefined || (process.env.UTS_PORT !== undefined && process.env.UTS_PORT !== "");
+        const envPort = isDefault ? process.env.UTS_PORT : undefined;
+        const targetPort = port ?? configured?.port ?? portFromEnv(envPort);
+        const portGiven = port !== undefined || configured?.port !== undefined || (envPort !== undefined && envPort !== "");
         const choice = resolveTransport({ param: transport, env: process.env.UTS_TRANSPORT, portGiven });
         const device = vxi11DeviceFromEnv(process.env.UTS_VXI11_DEVICE);
         const vxi11ProbeBudgetMs = vxi11ProbeBudgetFromEnv(process.env.UTS_VXI11_PROBE_TIMEOUT_S);
@@ -111,18 +131,19 @@ export function registerConnectionTools(server: McpServer): void {
           log: (message) => console.error(message),
         });
         const where = connection.transportName === "vxi11" ? targetHost : `${targetHost}:${targetPort}`;
-        return textResult(`Connected to ${where}\nTransport: ${connection.transportLabel}\nDevice: ${idn}${autoNote}\n${PANEL_NOTE}`);
+        return textResult(`Connected to ${where}\nTransport: ${connection.transportLabel}\nDevice: ${idn}${autoNote}${name !== undefined ? `\nInstrument: ${name}` : ""}\n${PANEL_NOTE}`);
       } catch (err) {
         return errorResult(err);
       }
-    }
+    },
+    { instrumentArg: { name: "name", create: true } }
   );
 
   defineTool(
     server,
     "disconnect",
-    "Disconnect from the spectrum analyzer.",
-    {},
+    "Disconnect from the spectrum analyzer (the instrument named by `name`, default: the default one). The name stays registered so it can be connected again.",
+    nameShape(""),
     { readOnlyHint: false },
     async () => {
       try {
@@ -134,14 +155,14 @@ export function registerConnectionTools(server: McpServer): void {
       }
     },
     // Must not wait behind a running operation: it fails everything queued and ends the connection.
-    { exclusive: false }
+    { exclusive: false, instrumentArg: { name: "name" } }
   );
 
   defineTool(
     server,
     "identify",
     "Query the analyzer identification (*IDN?): manufacturer, model, serial number and firmware version.",
-    {},
+    nameShape(""),
     { readOnlyHint: true },
     async () => {
       try {
@@ -157,6 +178,43 @@ export function registerConnectionTools(server: McpServer): void {
       } catch (err) {
         return errorResult(err);
       }
-    }
+    },
+    { instrumentArg: { name: "name" } }
+  );
+
+  defineTool(
+    server,
+    "list_instruments",
+    "List the instruments this server knows by name (the default one, those from UTS_INSTRUMENTS and any added with connect name=...): whether each is connected, where, over which transport, and which one is used when no name is given. Read-only; the serial number is not shown.",
+    {},
+    { readOnlyHint: true },
+    async () => {
+      try {
+        const implicit = instruments.implicitName();
+        const list = instruments.names().map((n) => {
+          const conn = instruments.get(n)!;
+          const target = instruments.target(n);
+          const connected = conn.isConnected();
+          return {
+            name: n,
+            connected,
+            isDefault: n === implicit,
+            ...(connected ? { connection: conn.getConnectionInfo(), transport: conn.transportLabel } : {}),
+            ...(target ? { configured: target.port === undefined ? target.host : `${target.host}:${target.port}` } : {}),
+          };
+        });
+        const hint =
+          list.length === 0
+            ? "No instruments yet. Use connect (host and optionally name) to add one, or set UTS_IP / UTS_INSTRUMENTS."
+            : implicit === undefined
+              ? "Several instruments and none is named \"default\": name the one you mean (argument 'name' for connect, disconnect and identify)."
+              : `Calls without a name use "${implicit}".`;
+        return textResult(JSON.stringify({ instruments: list, hint }, null, 2));
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+    // Reads the registry only; must not wait behind a long sweep.
+    { exclusive: false }
   );
 }

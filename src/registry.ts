@@ -199,6 +199,18 @@ export class InstrumentRegistry<C> {
     return this.names().map((name) => ({ name, target: this.targets.get(name) }));
   }
 
+  /** Forget an instrument (its connection object is dropped, not disconnected); false when it was not known. */
+  remove(name: string): boolean {
+    this.targets.delete(name);
+    return this.connections.delete(name);
+  }
+
+  /** The name a call without an instrument name means: `default` if declared, else the only instrument, else none. */
+  implicitName(): string | undefined {
+    if (this.connections.has(DEFAULT_INSTRUMENT)) return DEFAULT_INSTRUMENT;
+    return this.connections.size === 1 ? this.names()[0] : undefined;
+  }
+
   /**
    * The connection for a tool call. With a name it must exist. Without one: `default` if declared, else the only
    * instrument, else an error asking for the name; with nothing declared yet, `default` is created (it reports "not connected").
@@ -213,13 +225,12 @@ export class InstrumentRegistry<C> {
           : `Invalid instrument name ${JSON.stringify(name)}: expected ${NAME_RULE}. ${this.known()}`
       );
     }
-    const def = this.connections.get(DEFAULT_INSTRUMENT);
-    if (def) return def;
+    const implicit = this.implicitName();
+    if (implicit !== undefined) return this.connections.get(implicit)!;
     if (this.connections.size === 0) return this.declare(DEFAULT_INSTRUMENT);
-    if (this.connections.size === 1) return [...this.connections.values()][0]!;
     throw new InstrumentSelectionError(
       `Several instruments are configured (${this.names().join(", ")}) and none is named "${DEFAULT_INSTRUMENT}": ` +
-        "pass the 'instrument' argument naming one of them."
+        "name one of them (the 'instrument' argument; 'name' for connect, disconnect and identify)."
     );
   }
 
