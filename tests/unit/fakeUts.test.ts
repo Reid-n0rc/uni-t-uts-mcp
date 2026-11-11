@@ -85,7 +85,7 @@ describe("unsupported queries", () => {
 
 describe("setters clamp silently (no error queued)", () => {
   const cases: Array<[string, string, string]> = [
-    [":FREQuency:CENTer 5 GHz", ":FREQuency:CENTer?", "3.609999e+09"],
+    [":FREQuency:CENTer 5 GHz", ":FREQuency:CENTer?", "3.60999995e+09"],
     [":FREQuency:SPAN 10 GHz", ":FREQuency:SPAN?", "3.610000e+09"],
     [":FREQuency:STOP 5 GHz", ":FREQuency:STOP?", "3.610000e+09"],
     [":DISPlay:WINDow:TRACe:Y:RLEVel 100", ":DISPlay:WINDow:TRACe:Y:RLEVel?", "3.000000e+01"],
@@ -94,7 +94,7 @@ describe("setters clamp silently (no error queued)", () => {
     [":POWer:ATTenuation 7.6", ":POWer:ATTenuation?", "8"],
     [":SENSe:CORRection:IMPedance:INPut:MAGNitude 60", ":SENSe:CORRection:IMPedance:INPut:MAGNitude?", "5.000000e+01"],
     [":SENSe:BANDwidth:RESolution 50 kHz", ":SENSe:BANDwidth:RESolution?", "3.000000e+04"],
-    [":SENSe:BANDwidth:RESolution 0", ":SENSe:BANDwidth:RESolution?", "1"],
+    [":SENSe:BANDwidth:RESolution 0", ":SENSe:BANDwidth:RESolution?", "1.000000e+00"],
     [":SENSe:BANDwidth:RESolution 1 GHz", ":SENSe:BANDwidth:RESolution?", "3.000000e+06"],
     [":SENSe:BANDwidth:VIDeo:RATio 1e-7", ":SENSe:BANDwidth:VIDeo:RATio?", "1.000000e-05"],
     [":SENSe:SWEep:POINts 1001.6", ":SENSe:SWEep:POINts?", "1001"],
@@ -224,7 +224,7 @@ describe("sweeps", () => {
     r.advance(1600);
     expect(r.ask("*OPC?")).toBe("1");
   });
-  it("continuous mode accepts :INITiate:IMMediate without going deaf", () => {
+  it("continuous mode accepts :INITiate:IMMediate and keeps answering", () => {
     const r = rig();
     r.send(":SENSe:SWEep:TIME 2");
     r.send(":INITiate:IMMediate");

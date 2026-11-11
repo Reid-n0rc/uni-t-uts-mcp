@@ -11,7 +11,7 @@
  *
  * Modelled: LF in / CRLF out, `*IDN?`, `*OPC?`, the `:SYSTem:ERRor?` queue (`*CLS` clears it), setters that
  * clamp silently or reject with -224, an unsupported query that gets no reply, stalls the instrument for about
- * 2.15 s and posts -113 about 4 s later, the single-sweep deaf window (raw TCP drops lines, VXI-11 queues them),
+ * 2.15 s and posts -113 about 4 s later, the window in which a single sweep ignores commands (raw TCP drops lines, VXI-11 queues them),
  * trace data as ASCII or a #4 block with CRLF, and the 144,800 byte screenshot cutoff.
  * Not modelled: measurement modes (:CONFigure:...), trace averaging/hold, real signals (the trace is the fixture).
  */
@@ -304,13 +304,13 @@ interface PendingError { code: number; text: string; at: number }
 export class UtsModel {
   private values = new Map<string, V>();
   private errors: PendingError[] = [];
-  private busyUntil = 0; // single sweep: deaf (raw) or queueing (vxi11) until then
+  private busyUntil = 0; // single sweep: ignoring commands (raw) or queueing (vxi11) until then
   private stallUntil = 0; // unsupported query stall
   private queued: string[] = [];
   readonly limitPoints = new Map<number, number[]>();
   /** Every line received, including dropped ones. */
   readonly received: string[] = [];
-  /** Lines dropped while the instrument was deaf. */
+  /** Lines dropped while the instrument ignored commands. */
   readonly dropped: string[] = [];
   readonly tgSweepScale: number;
   private readonly now: () => number;
@@ -344,7 +344,11 @@ export class UtsModel {
 
   // ---- couplings (docs: "Amplitude", "Bandwidth, sweep, detector and trigger")
   spanChanged(): void {
-    const c = this.num("fc"), s = this.num("span");
+    // The span shrinks when it would reach outside the range ("Live check": center 100 kHz is accepted but the span
+    // shrinks). The exact rule is not documented; ASSUMED here: start >= 0 and stop <= the maximum frequency.
+    const c = this.num("fc");
+    const s = Math.min(this.num("span"), 2 * c, 2 * (MAX_FREQ - c));
+    this.set("span", s);
     this.set("start", c - s / 2);
     this.set("stop", c + s / 2);
   }
@@ -596,7 +600,7 @@ export class UtsModel {
     const trace = /^TRACE([1-6])$/.exec(p[0] ?? "");
     if (!trace) { this.post(-224, "Illegal parameter value"); return; }
     const ops = ["PDIF", "PDIFFERENCE", "PSUM", "LDIF", "LDIFFERENCE", "LOFF", "LOFFSET"];
-    if (p[1] === "OFF") { if (p.length > 2) { this.post(-224, "Illegal parameter value"); return; } return; }
+    if (p[1] === "OFF") { if (p.length <= 2) this.post(-224, "Illegal parameter value"); return; } // OFF alone is rejected; the tool sends operands
     if (!ops.includes(p[1] ?? "")) { this.post(-108, "Parameter not allowed"); return; }
     if (p.length < 5 || Math.abs(Number(p[4])) > 100) { this.post(p.length < 5 ? -109 : -224, p.length < 5 ? "Missing parameter" : "Illegal parameter value"); return; } // offset limit ASSUMED
     // "Enabling math on a trace switches that trace on"

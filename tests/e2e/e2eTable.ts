@@ -1,0 +1,236 @@
+/**
+ * Table of happy-path calls for tests/e2e/stdio.test.ts: EVERY registered tool needs an entry (the test fails
+ * with the list of missing tools, like the CONTRACT table in tests/toolContract.ts). To add a tool:
+ *   1. add `tool_name: { steps: [...] }` to E2E and its name to ORDER (state carries over from entry to entry,
+ *      so put a tool after the ones whose state it reads);
+ *   2. each step is one real tool call through stdio plus a `check` of the result and, for setters, of the
+ *      fake analyzer's state (`ctx.fake.model`), so a set/get round trip is proven, not just "no error";
+ *   3. if the fake (tests/fakeUts.ts) does not understand a command the tool sends, teach it there, with the
+ *      docs/verified-hardware.md section the behavior comes from.
+ * A tool that cannot run hermetically gets `skip: "reason"`.
+ */
+import { expect } from "vitest";
+import type { FakeUts } from "../fakeUts.js";
+
+export interface E2eResult {
+  isError: boolean;
+  text: string;
+  json: any;
+}
+export interface E2eContext {
+  fake: FakeUts;
+  port: number;
+  call(name: string, args?: Record<string, unknown>): Promise<E2eResult>;
+}
+export interface Step {
+  /** Tool to call; defaults to the entry's own name. */
+  tool?: string;
+  args: Record<string, unknown> | ((c: E2eContext) => Record<string, unknown>);
+  check: (res: E2eResult, c: E2eContext) => void;
+}
+export interface Entry {
+  steps: Step[];
+  skip?: string;
+  timeoutMs?: number;
+}
+
+const ok = (r: E2eResult) => expect(r.isError, r.text).toBe(false);
+const m = (c: E2eContext) => c.fake.model;
+const warns = (r: E2eResult): string[] => r.json?.warnings ?? [];
+const ping = async (c: E2eContext) => expect((await c.call("scpi_query", { command: "*IDN?" })).text).toContain("UTS3036B");
+
+export const E2E: Record<string, Entry> = {
+  connect: {
+    steps: [{
+      args: (c) => ({ host: "127.0.0.1", port: c.port, transport: "raw" }),
+      check: (r) => { ok(r); expect(r.text).toContain("UTS3036B"); },
+    }],
+  },
+  disconnect: {
+    steps: [
+      { args: {}, check: (r) => ok(r) },
+      { tool: "get_frequency", args: {}, check: (r) => { expect(r.isError).toBe(true); expect(r.text).toMatch(/not connected/i); } },
+    ],
+  },
+  discover_instruments: {
+    steps: [],
+    skip: "scans the local network (UDP broadcast and TCP probes), which a hermetic test must not do; covered with fakes in tests/integration/discover-tools.test.ts",
+  },
+  identify: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.text).toMatch(/UTS3036B/); expect(r.text).toMatch(/V1\.04\.0040/); } }] },
+  scpi_query: {
+    steps: [
+      { args: { command: "*IDN?" }, check: (r) => { ok(r); expect(r.text).toContain("UNI-TREND,UTS3036B"); } },
+      { args: { command: ":FORMat?" }, check: (r) => { ok(r); expect(r.text).toContain("ASC8"); } },
+    ],
+  },
+  scpi_command: {
+    steps: [{ args: { command: ":FREQuency:CENTer 1 GHz" }, check: (r, c) => { ok(r); expect(m(c).num("fc")).toBe(1e9); } }],
+  },
+  get_frequency: {
+    steps: [{ args: {}, check: (r, c) => { ok(r); expect(r.json.center_hz).toBe(m(c).num("fc")); expect(r.json.span_hz).toBe(m(c).num("span")); } }],
+  },
+  set_frequency: {
+    steps: [
+      { args: { center_hz: 100e6, span_hz: 10e6 }, check: (r, c) => { ok(r); expect(m(c).num("fc")).toBe(1e8); expect(m(c).num("start")).toBe(95e6); expect(warns(r)).toEqual([]); } },
+      { tool: "get_frequency", args: {}, check: (r) => { ok(r); expect(r.json.start_hz).toBe(95e6); expect(r.json.stop_hz).toBe(105e6); } },
+      // the instrument clamps silently; the tool reads back and warns (docs: "Live check of the error handling standard")
+      { args: { center_hz: 1.805e9 }, check: (r) => ok(r) },
+      { args: { span_hz: 10e9 }, check: (r, c) => { ok(r); expect(m(c).num("span")).toBe(3.61e9); expect(warns(r).join(" ")).toMatch(/span/i); } },
+      { args: { full_span: true }, check: (r, c) => { ok(r); expect(m(c).num("start")).toBe(1e7); expect(m(c).num("stop")).toBe(3.6e9); } },
+    ],
+  },
+  get_amplitude: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.text).toMatch(/"reference_level"/); } }] },
+  set_amplitude: {
+    steps: [
+      { args: { reference_level: -10, attenuation_db: 20 }, check: (r, c) => { ok(r); expect(m(c).num("rl")).toBe(-10); expect(m(c).num("att")).toBe(20); expect(m(c).bool("att.auto")).toBe(false); } },
+      { args: { reference_level: 100 }, check: (r, c) => { ok(r); expect(m(c).num("rl")).toBe(30); expect(warns(r).join(" ")).toMatch(/reference/i); } },
+      { args: { reference_level: 0, attenuation_auto: true }, check: (r, c) => { ok(r); expect(m(c).num("rl")).toBe(0); expect(m(c).bool("att.auto")).toBe(true); } },
+    ],
+  },
+  get_bandwidth: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.text).toMatch(/rbw_hz/); } }] },
+  set_bandwidth: {
+    steps: [
+      { args: { rbw_hz: 100e3 }, check: (r, c) => { ok(r); expect(m(c).num("rbw")).toBe(1e5); expect(m(c).bool("rbw.auto")).toBe(false); } },
+      { args: { rbw_hz: 50e3 }, check: (r, c) => { ok(r); expect(m(c).num("rbw")).toBe(3e4); expect(warns(r).join(" ")).toMatch(/rbw/i); } }, // snaps to 1-3-10
+      { args: { rbw_auto: true, vbw_auto: true }, check: (r, c) => { ok(r); expect(m(c).bool("rbw.auto")).toBe(true); expect(m(c).num("rbw")).toBe(3e6); } },
+    ],
+  },
+  get_sweep: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.text).toMatch(/sweep_points/); } }] },
+  set_sweep: {
+    steps: [
+      { args: { sweep_points: 501 }, check: (r, c) => { ok(r); expect(m(c).num("pts")).toBe(501); } },
+      { args: { sweep_points: 1001 }, check: (r, c) => { ok(r); expect(m(c).num("pts")).toBe(1001); } },
+    ],
+  },
+  get_detector: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.text).toMatch(/normal/i); } }] },
+  set_detector: {
+    steps: [
+      { args: { trace: 1, detector: "sample" }, check: (r, c) => { ok(r); expect(m(c).str("det", 1)).toBe("SAMPle"); expect(m(c).bool("det.auto", 1)).toBe(false); } },
+      { args: { trace: 1, auto: true }, check: (r, c) => { ok(r); expect(m(c).bool("det.auto", 1)).toBe(true); } },
+    ],
+  },
+  get_acquisition: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.json.continuous).toBe(true); } }] },
+  set_acquisition: {
+    steps: [
+      { args: { continuous: false }, check: (r, c) => { ok(r); expect(m(c).bool("cont")).toBe(false); } },
+      { args: { continuous: true }, check: (r, c) => { ok(r); expect(m(c).bool("cont")).toBe(true); } },
+    ],
+  },
+  start_sweep: { steps: [{ args: { timeout_s: 3 }, check: (r, c) => { ok(r); expect(r.json.started).toBe(true); expect(m(c).received).toContain(":INITiate:IMMediate"); } }] },
+  single_sweep: {
+    steps: [{
+      args: { timeout_s: 3 },
+      // raw TCP: the first *OPC? poll right after the start is dropped (the instrument ignores commands during the sweep), a later one answers
+      check: async (r, c) => { ok(r); expect(m(c).bool("cont")).toBe(false); expect(m(c).dropped).toContain("*OPC?"); },
+    }],
+  },
+  wait_for_sweep_complete: { steps: [{ args: { timeout_s: 3 }, check: (r) => ok(r) }] },
+  screenshot: {
+    // Over raw TCP the instrument stops after 144,800 bytes, so the tool refuses and says how to get a screenshot.
+    steps: [{ args: {}, check: (r) => { expect(r.isError).toBe(true); expect(r.text).toMatch(/144,800/); expect(r.text).toMatch(/vxi11/i); } }],
+  },
+  get_trace: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.json.selected_trace).toBe(1); expect(r.json.traces).toHaveLength(6); } }] },
+  set_trace: {
+    steps: [
+      { args: { trace: 2, type: "max_hold" }, check: (r, c) => { ok(r); expect(m(c).str("tr.type", 2)).toBe("MAXHold"); } },
+      { args: { selected_trace: 2 }, check: (r, c) => { ok(r); expect(m(c).num("tr.sel")).toBe(2); } },
+      { args: { trace: 2, type: "write" }, check: (r, c) => { ok(r); expect(m(c).str("tr.type", 2)).toBe("WRITe"); } },
+      { args: { selected_trace: 1 }, check: (r) => ok(r) },
+    ],
+  },
+  restart_trace: { steps: [{ args: { trace: 2 }, check: (r) => ok(r) }] },
+  set_trace_math: {
+    steps: [
+      { args: { trace: 4, operation: "power_sum", operand_a: 1, operand_b: 2 }, check: (r, c) => { ok(r); expect(m(c).bool("tr.disp", 4)).toBe(true); } },
+      { args: { trace: 4, operation: "off" }, check: (r) => ok(r) },
+    ],
+  },
+  get_trace_data: {
+    steps: [
+      { args: { format: "ascii" }, check: (r) => { ok(r); expect(r.json.points).toBe(1001); expect(r.json.format).toBe("ascii"); } },
+      // binary formats switch :FORMat for the read and always put it back
+      { args: { format: "real32" }, check: (r, c) => { ok(r); expect(r.json.points).toBe(1001); expect(m(c).str("fmt")).toBe("ASCii"); } },
+      { args: { format: "real64" }, check: (r, c) => { ok(r); expect(r.json.points).toBe(1001); expect(m(c).str("fmt")).toBe("ASCii"); } },
+    ],
+  },
+  set_marker: {
+    steps: [
+      { args: { marker: 1, mode: "normal", x_hz: 1e9 }, check: (r, c) => { ok(r); expect(m(c).str("mk.mode", 1)).toBe("POSition"); expect(m(c).num("mk.x", 1)).toBe(1e9); } },
+      { args: { marker: 2, mode: "delta", reference_marker: 1 }, check: (r, c) => { ok(r); expect(m(c).str("mk.mode", 2)).toBe("DELTa"); expect(m(c).num("mk.ref", 2)).toBe(1); } },
+    ],
+  },
+  get_marker: { steps: [{ args: { marker: 1 }, check: (r) => { ok(r); expect(r.json.mode).toBe("normal"); expect(r.json.x).toBe(1e9); } }] },
+  marker_search: {
+    steps: [{ args: { marker: 3, action: "peak" }, check: (r, c) => { ok(r); expect(m(c).str("mk.mode", 3)).toBe("POSition"); expect(r.json.marker.mode).toBe("normal"); } }],
+  },
+  marker_to_instrument: {
+    steps: [{ args: { marker: 1, target: "center" }, check: (r, c) => { ok(r); expect(m(c).num("fc")).toBe(1e9); } }],
+  },
+  markers_all_off: { steps: [{ args: {}, check: (r, c) => { ok(r); for (let n = 1; n <= 10; n++) expect(m(c).str("mk.mode", n)).toBe("OFF"); } }] },
+  get_peak_criteria: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.json.threshold_auto).toBe(false); expect(r.json.threshold_dbm).toBe(-50); } }] },
+  set_peak_criteria: {
+    steps: [{ args: { threshold_dbm: -50, excursion_db: 3 }, check: (r, c) => { ok(r); expect(m(c).num("pk.thr")).toBe(-50); expect(m(c).bool("pk.thr.auto")).toBe(false); expect(m(c).num("pk.exc")).toBe(3); } }],
+  },
+  get_marker_function: { steps: [{ args: { marker: 1 }, check: (r) => { ok(r); expect(r.json.function).toBe("noise"); expect(r.json.band_span_hz).toBe(1e6); } }] },
+  set_marker_function: {
+    steps: [{ args: { marker: 1, function: "noise", band_span_hz: 1e6 }, check: (r, c) => { ok(r); expect(m(c).str("mf.fn", 1)).toBe("NOISe"); expect(m(c).num("mf.span", 1)).toBe(1e6); } }],
+  },
+  get_marker_ndb: { steps: [{ args: { marker: 1 }, check: (r) => { ok(r); expect(r.json.enabled).toBe(false); expect(r.json.ndb).toBe(-6); } }] },
+  set_marker_ndb: {
+    steps: [
+      { args: { marker: 1, enabled: true, ndb: -6 }, check: (r, c) => { ok(r); expect(m(c).bool("nd.on", 1)).toBe(true); expect(m(c).num("nd.n", 1)).toBe(-6); } },
+      { args: { marker: 1, enabled: false }, check: (r) => ok(r) },
+    ],
+  },
+  get_frequency_counter: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.json.enabled).toBe(false); expect(r.json.gate_time_s).toBe(0.01); } }] },
+  set_frequency_counter: {
+    steps: [
+      { args: { enabled: true, gate_time_s: 0.01 }, check: (r, c) => { ok(r); expect(m(c).bool("fc.on")).toBe(true); expect(m(c).num("fc.gate")).toBe(0.01); } },
+      { args: { enabled: false }, check: (r) => ok(r) },
+    ],
+  },
+  set_limit_line: {
+    steps: [{
+      args: { line: 1, type: "upper", displayed: true, points: [{ frequency_hz: 1e8, amplitude_dbm: -50 }, { frequency_hz: 5e8, amplitude_dbm: -30, connected: false }] },
+      check: (r, c) => { ok(r); expect(m(c).limitPoints.get(1)).toHaveLength(6); expect(m(c).limitPoints.get(1)![0]).toBe(1e8); expect(m(c).limitPoints.get(1)![2]).toBe(1); expect(m(c).bool("ll.disp", 1)).toBe(true); },
+    }],
+    timeoutMs: 30_000,
+  },
+  get_limit_line: {
+    steps: [{ args: { line: 1 }, check: (r) => { ok(r); expect(r.json.points).toHaveLength(2); expect(r.json.points[0].frequency_hz).toBe(1e8); } }],
+    timeoutMs: 30_000,
+  },
+  delete_limit_line: {
+    // the empty line's DATA? is silent, so the tool's readback takes its timeout (a stall in the fake, like the instrument)
+    steps: [{ args: { line: 1 }, check: (r, c) => { ok(r); expect(m(c).limitPoints.get(1)).toBeUndefined(); } }],
+    timeoutMs: 60_000,
+  },
+  get_tracking_generator: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.json.enabled).toBe(false); expect(r.json.level_dbm).toBe(-20); } }], timeoutMs: 30_000 },
+  set_tracking_generator: {
+    steps: [
+      { args: { enabled: true, level_dbm: -20 }, check: (r, c) => { ok(r); expect(m(c).bool("tg.out")).toBe(true); expect(m(c).num("tg.level")).toBe(-20); } },
+      { args: { enabled: false }, check: (r, c) => { ok(r); expect(m(c).bool("tg.out")).toBe(false); } },
+    ],
+    timeoutMs: 60_000,
+  },
+  get_measurement: { steps: [], skip: "pending #150 (measurement modes in the fake UTS)" },
+  configure_measurement: { steps: [], skip: "pending #150 (measurement modes in the fake UTS)" },
+  read_measurement: { steps: [], skip: "pending #150 (measurement modes in the fake UTS)" },
+  exit_measurement: { steps: [], skip: "pending #150 (measurement modes in the fake UTS)" },
+  measure: { steps: [], skip: "pending #150 (measurement modes in the fake UTS)" },
+};
+
+/** Execution order: connect first, disconnect last; state carries over, so a getter follows its setter. */
+export const ORDER = [
+  "connect", "identify", "scpi_query", "scpi_command",
+  "set_frequency", "get_frequency", "set_amplitude", "get_amplitude", "set_bandwidth", "get_bandwidth",
+  "set_sweep", "get_sweep", "set_detector", "get_detector", "set_acquisition", "get_acquisition",
+  "start_sweep", "single_sweep", "wait_for_sweep_complete", "screenshot",
+  "set_trace", "get_trace", "restart_trace", "set_trace_math", "get_trace_data",
+  "set_marker", "get_marker", "marker_search", "marker_to_instrument", "markers_all_off",
+  "set_peak_criteria", "get_peak_criteria", "set_marker_function", "get_marker_function",
+  "set_marker_ndb", "get_marker_ndb", "set_frequency_counter", "get_frequency_counter",
+  "set_limit_line", "get_limit_line", "delete_limit_line", "set_tracking_generator", "get_tracking_generator",
+  "get_measurement", "configure_measurement", "read_measurement", "exit_measurement", "measure",
+  "discover_instruments", "disconnect",
+];
