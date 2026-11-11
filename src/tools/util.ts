@@ -2,6 +2,7 @@ import { McpServer, type ToolCallback } from "@modelcontextprotocol/sdk/server/m
 import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { connection } from "../connection.js";
+import { instruments } from "../registry.js";
 import { InstrumentError } from "../instrument.js";
 
 /** Shared helpers for building MCP tool results. */
@@ -36,6 +37,13 @@ export interface DefineToolOptions<Args> {
    * running operation (`disconnect`, which also fails everything queued). Default true.
    */
   exclusive?: boolean;
+  /**
+   * The tool names an instrument in this argument (`name` for connect/disconnect/identify): when it is given, the handler
+   * runs with that instrument selected (`connection` resolves to it) and in its own session. `create` registers an unknown
+   * name (only `connect`; a first connect that fails does not leave the name registered). An unknown or invalid name is
+   * an error result before anything is sent. Without the argument the default instrument is used.
+   */
+  instrumentArg?: { name: string; create?: boolean };
 }
 
 const REFUSED =
@@ -74,10 +82,23 @@ export function defineTool<Args extends ZodRawShapeCompat>(
     try {
       const problem = options.validate?.(args);
       if (problem) return errorResult(problem);
+      const named = options.instrumentArg ? (args as Record<string, unknown>)[options.instrumentArg.name] : undefined;
+      if (typeof named === "string") return await runOnInstrument(named, args);
       if (options.exclusive === false) return await handler(args);
       return await connection.runExclusive(() => handler(args), { label: name });
     } catch (err) {
       return errorResult(err);
+    }
+  };
+  const runOnInstrument = async (named: string, args: Parameters<ToolCallback<Args>>[0]): Promise<CallToolResult> => {
+    const existed = instruments.has(named);
+    const conn = options.instrumentArg?.create ? instruments.declare(named) : instruments.resolve(named);
+    try {
+      return await instruments.runWith(conn, () =>
+        options.exclusive === false ? handler(args) : conn.runExclusive(() => handler(args), { label: name })
+      );
+    } finally {
+      if (options.instrumentArg?.create && !existed && !conn.isConnected()) instruments.remove(named);
     }
   };
   // Call the real registration directly: createServer() guards the instance's own tool().

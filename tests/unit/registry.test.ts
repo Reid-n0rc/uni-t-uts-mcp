@@ -158,6 +158,15 @@ describe("InstrumentRegistry", () => {
     ]);
     expect(seen).toEqual([b, a, b]);
   });
+  it("remove() forgets an instrument and its target", () => {
+    const r = make();
+    r.declare("a", { host: "h" });
+    r.declare("b");
+    expect(r.remove("a")).toBe(true);
+    expect(r.remove("a")).toBe(false);
+    expect(r.names()).toEqual(["b"]);
+    expect(r.target("a")).toBeUndefined();
+  });
   it("shutdown() shuts every connection down even when one fails", async () => {
     const calls: string[] = [];
     const r = new InstrumentRegistry<{ shutdown(): Promise<void> }>((name) => ({
