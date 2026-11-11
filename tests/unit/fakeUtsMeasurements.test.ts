@@ -34,12 +34,12 @@ describe("entering a measurement (docs: Measurements, #18)", () => {
     const r = rig();
     r.send(":FREQuency:CENTer 1 GHz");
     r.send(":CONFigure:CHPower");
-    expect(r.ask(":FREQuency:SPAN?")).toBe("3.000000e+06");
-    expect(r.ask(":FREQuency:CENTer?")).toBe("1.000000e+09");
+    expect(r.ask(":FREQuency:SPAN?")).toBe("3.0000000000e+06 ");
+    expect(r.ask(":FREQuency:CENTer?")).toBe("1.0000000000e+09 ");
     expect(r.err()).toBe('0,"No error"');
   });
   it("presets: ACPR 10 MHz, TOI 8 MHz, TPOWer zero span; :NDEFault has the same effect as the preset", () => {
-    for (const [cmd, span] of [[":CONFigure:ACPower", "1.000000e+07"], [":CONFigure:TOI", "8.000000e+06"], [":CONFigure:CHPower:NDEFault", "3.000000e+06"]] as const) {
+    for (const [cmd, span] of [[":CONFigure:ACPower", "1.0000000000e+07 "], [":CONFigure:TOI", "8.0000000000e+06 "], [":CONFigure:CHPower:NDEFault", "3.0000000000e+06 "]] as const) {
       const r = rig();
       r.send(cmd);
       expect(r.ask(":FREQuency:SPAN?")).toBe(span);
@@ -51,7 +51,7 @@ describe("entering a measurement (docs: Measurements, #18)", () => {
   it("in zero span :SPAN? gets no reply (stall and -113) but :FREQuency:CENTer? answers", () => {
     const r = rig();
     r.send(":CONFigure:TPOWer");
-    expect(r.ask(":FREQuency:CENTer?")).toBe("1.805000e+09");
+    expect(r.ask(":FREQuency:CENTer?")).toBe("1.8050000000e+09 ");
     expect(r.ask(":FREQuency:SPAN?")).toBeUndefined();
   });
   it("RBW and sweep time are auto and follow the span; the detector, reference level and continuous flag are unchanged", () => {
@@ -70,7 +70,7 @@ describe("entering a measurement (docs: Measurements, #18)", () => {
     r.send(":CONFigure:CHPower");
     r.send(":CONFigure:SANalyzer");
     expect(r.model.mode).toBe("SA");
-    expect(r.ask(":FREQuency:SPAN?")).toBe("3.000000e+06");
+    expect(r.ask(":FREQuency:SPAN?")).toBe("3.0000000000e+06 ");
     expect(r.ask(":SENSe:DETector:TRACe1?")).toBe("NORMal");
   });
   it("no query reports the active measurement", () => {
@@ -120,15 +120,15 @@ describe("parameters, defaults and clamps (docs: Measurements, #18 and #19)", ()
   it("channel power: defaults after the preset, clamp to 100 Hz..3.61 GHz, count 5000 accepted", () => {
     const r = rig();
     r.send(":CONFigure:CHPower");
-    expect(r.ask(":SENSe:CHPower:BANDwidth:INTegration?")).toBe("2.000000e+06");
+    expect(r.ask(":SENSe:CHPower:BANDwidth:INTegration?")).toBe("2.000000e+06 ");
     expect(r.ask(":SENSe:CHPower:AVERage:COUNt?")).toBe("10");
     expect(r.ask(":SENSe:CHPower:AVERage:STATe?")).toBe("1");
     expect(r.ask(":SENSe:CHPower:AVERage:TYPE?")).toBe("POWEr");
     expect(r.ask(":SENSe:CHPower:AVERage:TCONtrol?")).toBe("EXPonential");
     r.send(":SENSe:CHPower:BANDwidth:INTegration 1");
-    expect(r.ask(":SENSe:CHPower:BANDwidth:INTegration?")).toBe("1.000000e+02");
+    expect(r.ask(":SENSe:CHPower:BANDwidth:INTegration?")).toBe("1.000000e+02 ");
     r.send(":SENSe:CHPower:BANDwidth:INTegration 1e12");
-    expect(r.ask(":SENSe:CHPower:BANDwidth:INTegration?")).toBe("3.610000e+09");
+    expect(r.ask(":SENSe:CHPower:BANDwidth:INTegration?")).toBe("3.610000e+09 ");
     r.send(":SENSe:CHPower:AVERage:COUNt 5000");
     expect(r.ask(":SENSe:CHPower:AVERage:COUNt?")).toBe("5000");
     r.send(":SENSe:CHPower:AVERage:TYPE LOG");
@@ -142,38 +142,38 @@ describe("parameters, defaults and clamps (docs: Measurements, #18 and #19)", ()
     r.send(":CONFigure:CHPower");
     r.send(":SENSe:CHPower:BANDwidth:INTegration 1 MHz");
     r.send(":CONFigure:CHPower");
-    expect(r.ask(":SENSe:CHPower:BANDwidth:INTegration?")).toBe("2.000000e+06");
+    expect(r.ask(":SENSe:CHPower:BANDwidth:INTegration?")).toBe("2.000000e+06 ");
   });
   it("OBW: percent 0.99 (5 clamps to 0.9999), x dB -26 (5 clamps to -0.1)", () => {
     const r = rig();
     r.send(":CONFigure:OBWidth");
-    expect([r.ask(":SENSe:OBWidth:PERCent?"), r.ask(":SENSe:OBWidth:XDB?")]).toEqual(["9.900000e-01", "-2.600000e+01"]);
+    expect([r.ask(":SENSe:OBWidth:PERCent?"), r.ask(":SENSe:OBWidth:XDB?")]).toEqual(["9.900000e-01 ", "-2.600000e+01"]);
     r.send(":SENSe:OBWidth:PERCent 5");
     r.send(":SENSe:OBWidth:XDB 5");
-    expect([r.ask(":SENSe:OBWidth:PERCent?"), r.ask(":SENSe:OBWidth:XDB?")]).toEqual(["9.999000e-01", "-1.000000e-01"]);
+    expect([r.ask(":SENSe:OBWidth:PERCent?"), r.ask(":SENSe:OBWidth:XDB?")]).toEqual(["9.999000e-01 ", "-1.000000e-01"]);
   });
   it("time power: left limit 0, right limit 10 ms and clamped to 10 ms", () => {
     const r = rig();
     r.send(":CONFigure:TPOWer");
-    expect([r.ask(":SENSe:TPOWer:LLIMit?"), r.ask(":SENSe:TPOWer:RLIMit?")]).toEqual(["0.000000e+00", "1.000000e-02"]);
+    expect([r.ask(":SENSe:TPOWer:LLIMit?"), r.ask(":SENSe:TPOWer:RLIMit?")]).toEqual(["0.000000e+00 ", "1.000000e-02 "]);
     r.send(":SENSe:TPOWer:RLIMit 1 s");
-    expect(r.ask(":SENSe:TPOWer:RLIMit?")).toBe("1.000000e-02");
+    expect(r.ask(":SENSe:TPOWer:RLIMit?")).toBe("1.000000e-02 ");
   });
   it("ACPR, C/N and harmonics presets (2 MHz, 2 MHz, 3 MHz BOTH; 2 MHz each; fundamental = center, 2, 0.1 s)", () => {
     const r = rig();
     r.send(":CONFigure:ACPower");
     expect([":BANDwidth:INTegration", ":CARRier:LIST:BANDwidth", ":OFFSet:LIST:FREQuency", ":OFFSet:LIST:SIDE"].map((p) => r.ask(`:SENSe:ACPower${p}?`)))
-      .toEqual(["2.000000e+06", "2.000000e+06", "3.000000e+06", "BOTH"]);
+      .toEqual(["2.000000e+06 ", "2.000000e+06 ", "3.000000e+06 ", "BOTH"]);
     r.send(":CONFigure:SANalyzer");
     r.send(":CONFigure:CNRatio");
-    expect([":BANDwidth:INTegration", ":BANDwidth:NOISe", ":OFFSet"].map((p) => r.ask(`:SENSe:CNRatio${p}?`))).toEqual(["2.000000e+06", "2.000000e+06", "2.000000e+06"]);
+    expect([":BANDwidth:INTegration", ":BANDwidth:NOISe", ":OFFSet"].map((p) => r.ask(`:SENSe:CNRatio${p}?`))).toEqual(["2.000000e+06 ", "2.000000e+06 ", "2.000000e+06 "]);
     r.send(":CONFigure:SANalyzer");
     r.send(":CONFigure:HARMonics");
     expect([r.ask(":SENSe:HARMonics:FREQuency:FUNDamental?"), r.ask(":SENSe:HARMonics:NUMBer?"), r.ask(":SENSe:HARMonics:SWEeptime?")])
-      .toEqual(["1.805000e+09", "2", "1.000000e-01"]);
+      .toEqual(["1.805000e+09 ", "2", "1.000000e-01 "]);
     r.send(":SENSe:HARMonics:NUMBer 5");
     r.send(":SENSe:HARMonics:FREQuency:FUNDamental 50 MHz");
-    expect([r.ask(":SENSe:HARMonics:NUMBer?"), r.ask(":SENSe:HARMonics:FREQuency:FUNDamental?")]).toEqual(["5", "5.000000e+07"]);
+    expect([r.ask(":SENSe:HARMonics:NUMBer?"), r.ask(":SENSe:HARMonics:FREQuency:FUNDamental?")]).toEqual(["5", "5.000000e+07 "]);
   });
 });
 

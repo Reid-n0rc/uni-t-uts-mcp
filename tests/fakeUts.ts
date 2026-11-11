@@ -94,8 +94,8 @@ interface Spec {
   onSet?: (m: UtsModel, idx: number, v: V) => void;
   /** Custom reply. */
   get?: (m: UtsModel, idx: number) => string;
-  /** Reply with a trailing space (the sweep time does that). */
-  trailingSpace?: boolean;
+  /** Decimals of the reply (default 6); frequency-like values print 10 ("Reply format", issue #147). */
+  dp?: number;
 }
 
 interface Node { short: string; long: string; optional: boolean; numeric: boolean }
@@ -149,19 +149,19 @@ function sweepTimeS(m: UtsModel): number {
 
 const SPECS: Spec[] = [
   // --- frequency (docs: "Probe", "Live check of the error handling standard", "Trace data tool")
-  { id: "fc", path: "[:SENSe]:FREQuency:CENTer", kind: "num", units: HZ, def: 1.805e9, min: 0, max: MAX_CENTER,
-    onSet: (m) => m.spanChanged() },
-  { id: "span", path: "[:SENSe]:FREQuency:SPAN", kind: "num", units: HZ, def: 3.59e9, min: 0, max: MAX_FREQ,
+  { id: "fc", path: "[:SENSe]:FREQuency:CENTer", kind: "num", units: HZ, dp: 10, def: 1.805e9, min: 0, max: MAX_CENTER,
+    onSet: (m) => m.centerChanged() },
+  { id: "span", path: "[:SENSe]:FREQuency:SPAN", kind: "num", units: HZ, dp: 10, def: 3.59e9, min: 0, max: MAX_FREQ,
     silentWhen: (m) => m.num("span") === 0, // "`:SPAN?` (not in zero span)" answers in the measurements
-    onSet: (m) => m.spanChanged() },
-  { id: "start", path: "[:SENSe]:FREQuency:STARt", kind: "num", units: HZ, def: FULL_START, min: 0, max: MAX_FREQ, // min ASSUMED
+    onSet: (m) => m.spanSet() },
+  { id: "start", path: "[:SENSe]:FREQuency:STARt", kind: "num", units: HZ, dp: 10, def: FULL_START, min: 0, max: MAX_FREQ, // min ASSUMED
     onSet: (m) => m.edgeChanged() },
-  { id: "stop", path: "[:SENSe]:FREQuency:STOP", kind: "num", units: HZ, def: FULL_STOP, min: 0, max: MAX_FREQ,
+  { id: "stop", path: "[:SENSe]:FREQuency:STOP", kind: "num", units: HZ, dp: 10, def: FULL_STOP, min: 0, max: MAX_FREQ,
     onSet: (m) => m.edgeChanged() },
-  { id: "step", path: "[:SENSe]:FREQuency:CENTer:STEP", kind: "num", units: HZ, def: 3e6, min: 0, max: MAX_FREQ, // 3 MHz seen in zero span; default ASSUMED
+  { id: "step", path: "[:SENSe]:FREQuency:CENTer:STEP", kind: "num", units: HZ, dp: 10, def: 3e6, min: 0, max: MAX_FREQ, // 3 MHz seen in zero span; default ASSUMED
     onSet: (m) => m.set("step.auto", false) },
   { id: "step.auto", path: "[:SENSe]:FREQuency:CENTer:STEP:AUTO", kind: "bool", def: true },
-  { id: "foff", path: "[:SENSe]:FREQuency:OFFSet", kind: "num", units: HZ, def: 0 }, // offset 0: ASSUMED
+  { id: "foff", path: "[:SENSe]:FREQuency:OFFSet", kind: "num", units: HZ, dp: 10, def: 0 }, // offset 0: ASSUMED
 
   // --- amplitude (docs: "Amplitude")
   { id: "rl", path: ":DISPlay:WINDow:TRACe:Y[:SCALe]:RLEVel", kind: "num", units: DB, def: 0, min: -100, max: 30,
@@ -181,16 +181,16 @@ const SPECS: Spec[] = [
     onSet: (m, _i, v) => m.set("imp", v === 75 ? 75 : 50) }, // "Amplitude": only 75 sticks, anything else reads 50
 
   // --- bandwidth, sweep, detector, trigger (docs: "Bandwidth, sweep, detector and trigger")
-  { id: "rbw", path: ":SENSe:BANDwidth[:RESolution]", kind: "num", units: HZ, def: 3e6, min: 1, max: 3e6,
+  { id: "rbw", path: ":SENSe:BANDwidth[:RESolution]", kind: "num", units: HZ, dp: 10, def: 3e6, min: 1, max: 3e6,
     onSet: (m, _i, v) => { m.set("rbw", snap13(v as number)); m.set("rbw.auto", false); m.vbwFollow(); } },
   { id: "rbw.auto", path: ":SENSe:BANDwidth[:RESolution]:AUTO", kind: "bool", def: true, onSet: (m) => m.autoBandwidth() },
-  { id: "vbw", path: ":SENSe:BANDwidth:VIDeo", kind: "num", units: HZ, def: 3e6, min: 1, max: 3e6,
+  { id: "vbw", path: ":SENSe:BANDwidth:VIDeo", kind: "num", units: HZ, dp: 10, def: 3e6, min: 1, max: 3e6,
     onSet: (m, _i, v) => { m.set("vbw", snap13(v as number)); m.set("vbw.auto", false); } },
   { id: "vbw.auto", path: ":SENSe:BANDwidth:VIDeo:AUTO", kind: "bool", def: true, onSet: (m) => m.autoBandwidth() },
   { id: "ratio", path: ":SENSe:BANDwidth:VIDeo:RATio", kind: "num", units: NONE, def: 1, min: 1e-5, max: 3e6, onSet: (m) => m.vbwFollow() },
   { id: "shape", path: ":SENSe:BANDwidth:SHAPe", kind: "enum", values: ["GAUSsian", "FLATtop"], def: "GAUSsian" },
   { id: "swt", path: ":SENSe:SWEep:TIME", kind: "num", units: SEC, def: AUTO_SWEEP_TIME_S, min: 1e-3, max: 4000,
-    onSet: (m) => m.set("swt.auto", false), get: (m) => fmtNum(sweepTimeS(m)) + " " },
+    onSet: (m) => m.set("swt.auto", false), get: (m) => fmtNum(sweepTimeS(m)) },
   { id: "swt.auto", path: ":SENSe:SWEep:TIME:AUTO", kind: "bool", def: true },
   { id: "swt.rule", path: ":SENSe:SWEep:TIME:AUTO:RULes", kind: "enum", values: ["NORMal", "ACCuracy"], def: "NORMal" },
   { id: "swtype", path: ":SENSe:SWEep:TYPE", kind: "enum", values: ["SWEep", "FFT"], def: "SWEep",
@@ -224,7 +224,7 @@ const SPECS: Spec[] = [
   { id: "mk.trace", path: ":CALCulate:MARKer<n>:TRACe", kind: "int", suffixMax: 10, def: 1, min: 1, max: 6 },
   { id: "mk.ref", path: ":CALCulate:MARKer<n>:REFerence", kind: "int", suffixMax: 10, def: (i) => (i % 10) + 1, min: 1, max: 10,
     onSet: (m, i) => { if (m.str("mk.mode", i) === "OFF") m.set("mk.mode", "DELTa", i); } },
-  { id: "mk.x", path: ":CALCulate:MARKer<n>:X", kind: "num", units: HZ, suffixMax: 10, def: 0 }, // not clamped
+  { id: "mk.x", path: ":CALCulate:MARKer<n>:X", kind: "num", units: HZ, dp: 10, suffixMax: 10, def: 0 }, // not clamped
   { id: "mk.y", path: ":CALCulate:MARKer<n>:Y", kind: "num", units: NONE, suffixMax: 10, def: -80, get: (m, i) => fmtNum(m.markerLevel(i)) }, // level: ASSUMED stand-in
   { id: "mk.sel", path: ":CALCulate:MARKer:SELect", kind: "int", def: 1, min: 1, max: 10 },
   { id: "pk.thr", path: ":CALCulate:MARKer:PEAK:THReshold", kind: "num", units: DB, def: -70.2, min: -300, max: 30, // "Peak criteria": -70.2 dBm automatic
@@ -382,13 +382,20 @@ const compiled = SPECS.map((spec) => ({ spec, nodes: parsePath(spec.path) }));
 const compiledActions = ACTIONS.map((a) => ({ ...a, nodes: parsePath(a.path) }));
 
 /** Scientific notation as the instrument prints it: six decimals, two-digit exponent (`-6.112838e+01`). */
-function sci(v: number): string {
-  let text = v.toExponential(6);
-  for (let d = 7; d <= 15 && Number(text) !== v; d++) text = v.toExponential(d); // keep what a 6-decimal print would lose
+function sci(v: number, dp = 6): string {
+  let text = v.toExponential(dp);
+  for (let d = dp + 1; d <= 15 && Number(text) !== v; d++) text = v.toExponential(d); // keep what a fixed-decimal print would lose
   return text.replace(/e([+-])(\d)$/, "e$10$2");
 }
 
-const fmtNum = sci;
+/**
+ * A numeric reply as the real analyzer prints it ("Reply format", issue #147): scientific notation, and a space
+ * where a minus sign would be, so a value that is not negative ends with a trailing space.
+ */
+function fmtNum(v: number, dp = 6): string {
+  const text = sci(v, dp);
+  return text.startsWith("-") ? text : text + " ";
+}
 
 /** Queries answered without a table entry. A switch, so input-derived text never selects a function to call. */
 function privateQuery(header: string, m: UtsModel): string | undefined {
@@ -465,6 +472,20 @@ export class UtsModel {
   }
 
   // ---- couplings (docs: "Amplitude", "Bandwidth, sweep, detector and trigger")
+  /** The center was set: the span shrinks to stay inside the range (center 100 kHz -> span 200 kHz; verified, "Frequency"). */
+  centerChanged(): void { this.spanChanged(); }
+  /**
+   * The span was set: it is capped at the maximum frequency and the CENTER moves to keep start >= 0 and stop <= the
+   * maximum (verified #147: center 1 GHz, span 10 GHz -> span 3.61 GHz, center 1.805 GHz; span 3 GHz at 1 GHz -> center 1.5 GHz).
+   */
+  spanSet(): void {
+    const s = Math.min(this.num("span"), MAX_FREQ);
+    const c = Math.min(MAX_FREQ - s / 2, Math.max(s / 2, this.num("fc")));
+    this.set("span", s);
+    this.set("fc", c);
+    this.set("start", c - s / 2);
+    this.set("stop", c + s / 2);
+  }
   spanChanged(): void {
     // The span shrinks when it would reach outside the range ("Live check": center 100 kHz is accepted but the span
     // shrinks). The exact rule is not documented; ASSUMED here: start >= 0 and stop <= the maximum frequency.
@@ -625,7 +646,7 @@ export class UtsModel {
     if (spec.kind === "bool") return [{ text: v ? "1" : "0" }];
     if (spec.kind === "enum") return [{ text: spec.upper ? String(v).toUpperCase() : String(v) }];
     if (spec.kind === "int") return [{ text: String(v) }];
-    return [{ text: sci(v as number) + (spec.trailingSpace ? " " : "") }];
+    return [{ text: fmtNum(v as number, spec.dp) }];
   }
 
   /** `:FETCh:<path>?` / `:READ:<path>?` of the active measurement; anything else gets no reply. */
@@ -671,6 +692,7 @@ export class UtsModel {
       if (spec.id === "tr.sel" || spec.id === "mk.trace" || spec.id === "ll.trace" || spec.id === "mk.ref" || spec.id === "mk.sel") {
         // rejected, not clamped (-224, old value stays) for trace select, marker trace/reference; limit line trace is ignored silently
         if (spec.id === "ll.trace") { if (v < 1 || v > 6) return []; }
+        else if (spec.id === "tr.sel" && v > spec.max!) return []; // verified #147: 7 and 9 are ignored without an error (0 gives -224)
         else if (!(v >= spec.min! && v <= spec.max!) || (spec.id === "mk.ref" && v === n)) { this.post(-224, "Illegal parameter value"); return []; }
       }
       if (spec.round) v = Math.round(v as number);
@@ -703,7 +725,12 @@ export class UtsModel {
         const short = /^[A-Z0-9]+/.exec(val)![0].toUpperCase();
         return u === long || u === short;
       });
-      if (!found) { this.post(-224, "Illegal parameter value"); return undefined; }
+      if (!found) {
+        // verified #147: an unknown enum word posts -224 twice (MODE, UNIT, TRACe TYPE and DETector all did)
+        this.post(-224, "Illegal parameter value");
+        this.post(-224, "Illegal parameter value");
+        return undefined;
+      }
       return found;
     }
     const m = /^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s*([A-Za-z]*)$/.exec(text);
