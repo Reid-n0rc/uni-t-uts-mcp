@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { applyCommands, InstrumentError, queryBool, queryNumber, readBack, ReplyError } from "../../src/instrument.js";
+import { applyCommands, setFirstSetterPending, InstrumentError, queryBool, queryNumber, readBack, ReplyError } from "../../src/instrument.js";
 
 const mockConnection = vi.hoisted(() => ({
   sendCommand: vi.fn(async (_cmd: string) => {}),
@@ -11,6 +11,8 @@ vi.mock("../../src/connection.js", () => ({ connection: mockConnection }));
 beforeEach(() => {
   vi.clearAllMocks();
   mockConnection.msSinceQueryTimeout.mockReturnValue(Infinity);
+  // Only the first setter of a process has the stale-queue handling; the other tests are about later ones.
+  setFirstSetterPending(false);
 });
 
 describe("applyCommands", () => {
@@ -63,6 +65,41 @@ describe("applyCommands", () => {
       expect(err).toBeInstanceOf(InstrumentError);
       expect(err.errors).toEqual(['-131,"Invalid suffix"']);
     });
+  });
+});
+
+describe("first setter of a process: stale errors from a previous process (#133)", () => {
+  const UH = '-113,"Undefined header"';
+  beforeEach(() => setFirstSetterPending(true));
+
+  it("clears the queue and re-checks it before the first setter", async () => {
+    mockConnection.query.mockResolvedValueOnce(UH).mockResolvedValueOnce('0,"No error"').mockResolvedValue('0,"No error"');
+    await expect(applyCommands([":A 1"])).resolves.toBeUndefined();
+    const sent = mockConnection.sendCommand.mock.calls.map((c) => c[0]);
+    // *CLS, stale -113 found, *CLS again, queue clean, then the setter.
+    expect(sent).toEqual(["*CLS", "*CLS", ":A 1"]);
+  });
+
+  it("ignores a -113 that arrives after the first setter (posted ~4 s after the previous process's unanswered query)", async () => {
+    mockConnection.query
+      .mockResolvedValueOnce('0,"No error"') // queue clean before the setter
+      .mockResolvedValueOnce(UH) // stale one lands while the setter ran
+      .mockResolvedValueOnce('0,"No error"');
+    await expect(applyCommands([":A 1"])).resolves.toBeUndefined();
+  });
+
+  it("still reports other errors on the first setter", async () => {
+    mockConnection.query
+      .mockResolvedValueOnce('0,"No error"')
+      .mockResolvedValueOnce('-131,"Invalid suffix"')
+      .mockResolvedValueOnce('0,"No error"');
+    await expect(applyCommands([":A 1"])).rejects.toBeInstanceOf(InstrumentError);
+  });
+
+  it("only the first call gets this handling; a later -113 is reported", async () => {
+    await applyCommands([":A 1"]);
+    mockConnection.query.mockResolvedValueOnce(UH).mockResolvedValueOnce('0,"No error"');
+    await expect(applyCommands([":B 1"])).rejects.toBeInstanceOf(InstrumentError);
   });
 });
 

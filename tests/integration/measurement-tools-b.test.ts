@@ -217,6 +217,28 @@ describe("configure_measurement for the new measurements", () => {
     expect(fake.state.span).toBe(3.59e9);
     expect(fake.state.center).toBe(1.805e9);
   });
+  it("back-to-back measure of harmonics then toi (the #133 sequence), acpr and cn restores every setting exactly", async () => {
+    fake.state.center = 433e6; fake.state.span = 10e6; fake.state.rbwAuto = false; fake.state.rbw = 3e4; fake.state.vbwAuto = false; fake.state.vbw = 1e4; fake.state.sweepAuto = false; fake.state.sweepTime = 0.5;
+    const before = { ...fake.state };
+    for (const measurement of ["harmonics", "toi", "acpr", "cn", "toi"]) {
+      const res = await callTool(client, "measure", { measurement });
+      expect(res.isError, `${measurement}: ${getText(res)}`).toBeFalsy();
+      expect(json(res).warnings).toEqual([]);
+      for (const k of ["mode", "center", "span", "rbw", "rbwAuto", "vbw", "vbwAuto", "sweepTime", "sweepAuto", "continuous"] as const) {
+        expect(fake.state[k], `${measurement} ${k}`).toBe(before[k]);
+      }
+    }
+  });
+  it("the restore is an error naming the field when the span readback stays at the TOI preset (the 8 MHz case of #133)", async () => {
+    const impl = fake.sendCommand.getMockImplementation()!;
+    fake.sendCommand.mockImplementation(async (cmd: string) => {
+      if (cmd.startsWith(":FREQuency:SPAN ") && fake.state.mode === "sa") return;
+      await impl(cmd);
+    });
+    const res = await callTool(client, "measure", { measurement: "toi" });
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toMatch(/span_hz/);
+  });
   it("rejects invalid parameters before sending anything", async () => {
     const bad: Array<Record<string, unknown>> = [
       { measurement: "toi", integration_bandwidth_hz: 1e6 },
