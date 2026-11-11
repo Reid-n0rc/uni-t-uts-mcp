@@ -118,11 +118,9 @@ export const E2E: Record<string, Entry> = {
   },
   start_sweep: { steps: [{ args: { timeout_s: 3 }, check: (r, c) => { ok(r); expect(r.json.started).toBe(true); expect(m(c).received).toContain(":INITiate:IMMediate"); } }] },
   single_sweep: {
-    steps: [{
-      args: { timeout_s: 3 },
-      // raw TCP: the first *OPC? poll right after the start is dropped (the instrument ignores commands during the sweep), a later one answers
-      check: async (r, c) => { ok(r); expect(m(c).bool("cont")).toBe(false); expect(m(c).dropped).toContain("*OPC?"); },
-    }],
+    // Whether the first *OPC? poll lands inside the 2.6 ms sweep depends on machine speed, so the ignored-commands
+    // window is asserted with the fake's clock in tests/unit/fakeUts.test.ts, not here.
+    steps: [{ args: { timeout_s: 3 }, check: (r, c) => { ok(r); expect(m(c).bool("cont")).toBe(false); } }],
   },
   wait_for_sweep_complete: { steps: [{ args: { timeout_s: 3 }, check: (r) => ok(r) }] },
   screenshot: {
