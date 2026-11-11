@@ -153,7 +153,7 @@ Not proposed: file load/store (MMEMory), `:INSTrument:DEFault`, `:CONFigure:MEAS
 1. **Remote-mode lock.** On the UTS3036B the first non-common command locks the panel until the physical Esc key (AGENTS.md, verified-hardware.md "Front-panel lock"). The EMI chapter is all non-common. Ending a run in EMI would also leave the owner's screen in EMI. Mitigation: always restore the module in `finally`, always tell the owner about Esc, never send `:KEY:` or `:SYSTem:LOCK`.
 2. **Unsupported queries stall the instrument** (about 2.15 s, lines lost meanwhile, `-113` about 4 s later). All EMI queries are unverified; a probe must use fresh connections and >= 2.5 s after a silent query. Precedents: `:CALCulate:LLINe<n>:DATA?` without points is silent on SA; `:INPut:IMPedance?` is silent but its `CORRection` alias answers (PM p.123 documents both, so probe the alias first).
 3. **Setters that cannot be queried back**: the preset band (`RANGe<n>:PREset`), peak-search actions, every signal-list action, marker transfers, `COPY`, `BUILd`, `OFFSet:UPDate`, `DELete`, `CSET:ALL`, `INITiate*`. A tool can only check indirect effects (band start/stop, marker X/Y, limit data) or say it could not verify.
-4. **Deaf instrument during a scan.** On SA the analyzer drops every line during a single sweep. A full EMI sequence with search and final measurements could take minutes; whether the analyzer ignores commands for that whole time, and whether the owner can interrupt, is unknown. VXI-11 (queued commands, blocking `*OPC?`) may behave better; raw TCP needs a silent wait.
+4. **Commands ignored during a scan.** On SA the analyzer drops every line during a single sweep. A full EMI sequence with search and final measurements could take minutes; whether the analyzer ignores commands for that whole time, and whether the owner can interrupt, is unknown. VXI-11 (queued commands, blocking `*OPC?`) may behave better; raw TCP needs a silent wait.
 5. **Silent adjustment.** The instrument clamps silently on SA; the UM describes EMI-specific coupling of band edges and detector exclusivity. Readback and warnings are mandatory.
 6. **Other-module commands.** Same-named commands with different meaning (section 2.2) are the real danger: a stale SA tool call would change the meter frequency or leave the sweep running. Hence the guard (#178).
 7. **Tracking generator.** It shares the RF path; the safe state for an EMI setup is output off. The bench setup connects it to the RF input, so any live EMI test must confirm the TG output is off before and after.
@@ -183,7 +183,7 @@ Hardware only:
 - duration and side effects of the module switch, the SA state round trip, tracking-generator state, panel lock;
 - reply formats (scientific notation, enum case such as `CISPr`), clamp-versus-error behavior, point caps (limit lines, correction), RBW/attenuation rounding, band coupling;
 - which queries are silent in which module; whether `:INITiate:STOP/PAUSe/RESume` answer;
-- scan duration, deafness during a scan, any completion indication, `:TRACe:DATA?` in EMI, marker X/Y values after a scan;
+- scan duration, whether commands are ignored during a scan, any completion indication, `:TRACe:DATA?` in EMI, marker X/Y values after a scan;
 - screenshot content of the EMI screen.
 
 ## 8. Is the option installed? UNKNOWN: batched live check (documented commands only)
