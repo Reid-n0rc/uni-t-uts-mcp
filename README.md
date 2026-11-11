@@ -6,6 +6,8 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for co
 
 > **Status:** under active development. The tools below work and are verified on a UNI-T UTS3036B (firmware V1.04.0040) over LAN; see [docs/verified-hardware.md](docs/verified-hardware.md). Limit lines and the tracking generator tools are on `main` and ship in the next release (not in v0.3.0); progress is tracked in the [roadmap issue](https://github.com/Reid-n0rc/uni-t-uts-mcp/issues/1). See [Install](#install) for setup.
 
+> **Front panel:** while the server is talking to the analyzer it is in remote mode and its touch screen and buttons are locked. Press **Esc** on the analyzer to return it to local mode (`:SYSTem:LOCK 0`, VXI-11 unlock and a simulated `:KEY:ESC` do not work on the tested firmware). See [docs/verified-hardware.md](docs/verified-hardware.md).
+
 ## Tools available
 
 | Group | Tools |

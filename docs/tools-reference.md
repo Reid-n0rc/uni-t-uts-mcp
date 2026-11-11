@@ -26,6 +26,8 @@ The VXI-11 device name comes from `UTS_VXI11_DEVICE` (default `inst0`; 1 to 64 c
 
 If `UTS_IP` is set, the server also connects automatically at startup, using `UTS_TRANSPORT` and `UTS_VXI11_DEVICE`; a failed auto-connect is logged to stderr and does not stop the server.
 
+**Front-panel lock.** The `connect` and `disconnect` results say that the analyzer's touch screen and buttons are locked while it is in remote mode and that the user returns it to local mode with the front-panel Esc key. On a UTS3036B V1.04.0040 over raw TCP, connecting alone, `*IDN?` and `:SYSTem:LOCK?` did not lock the panel, while `:KEY:LOCK?`, `:KEY:LED?` and `:SENSe:FREQuency:CENTer?` did (VXI-11 was not separately isolated). See verified-hardware.md "Front-panel lock".
+
 ### `discover_instruments`
 
 Find UNI-T / VXI-11 analyzers on the local network without knowing their IP address. Read-only: it only identifies, it never changes instrument state. The server broadcasts an ONC RPC portmapper request (UDP port 111, `GETPORT` for the VXI-11 core program 395183, TCP) on each local IPv4 interface (the directed broadcast address of each subnet), collects the answers for a short window, then asks each responder `*IDN?` over VXI-11 (falling back to raw SCPI on TCP 5025) and checks whether port 5025 accepts a connection. The analyzer registers VXI-11 with its portmapper, which is why it answers. Works on Windows, macOS and Linux; no dependencies.
@@ -40,7 +42,7 @@ Returns JSON: `instruments` (each with `host`, `vxi11`, `vxi11Port`, `raw`, `ana
 
 ### `disconnect`
 
-Disconnect from the analyzer. Safe to call when not connected. No parameters.
+Disconnect from the analyzer. Safe to call when not connected. No parameters. The result reminds the user that the analyzer is not known to return to local mode on its own: if its front panel is still locked, press Esc on the analyzer.
 
 ### `identify`
 
