@@ -73,6 +73,37 @@ describe("stdio end to end against the fake UTS", () => {
     }, entry.timeoutMs ?? 20_000);
   }
 
+  it("every instrument tool refuses an unknown `instrument` (the connection tools: `name`) and the listing tools take none", async () => {
+    const c = ctx();
+    for (const name of toolNames) {
+      if (["discover_instruments", "list_instruments"].includes(name)) continue;
+      const arg = ["connect", "disconnect", "identify"].includes(name) ? "name" : "instrument";
+      const res = await c.call(name, { [arg]: "nope" });
+      expect(res.isError, `${name}: ${res.text}`).toBe(true);
+      expect(res.text, name).toMatch(/Unknown instrument "nope"/);
+    }
+  });
+
+  it("a second analyzer connected by name is driven independently through `instrument`", async () => {
+    const second = await startFakeUts({ tgSweepScale: 0.05 });
+    try {
+      const c = ctx();
+      const r = await c.call("connect", { name: "second", host: "127.0.0.1", port: second.port, transport: "raw" });
+      expect(r.isError, r.text).toBe(false);
+      const before = fake.model.num("fc");
+      expect((await c.call("set_frequency", { center_hz: 321e6, instrument: "second" })).isError).toBe(false);
+      expect(second.model.num("fc")).toBe(321e6);
+      expect(fake.model.num("fc")).toBe(before);
+      expect((await c.call("get_frequency", { instrument: "second" })).json.center_hz).toBe(321e6);
+      const list = (await c.call("list_instruments")).json.instruments as Array<{ name: string; connected: boolean }>;
+      expect(list.map((i) => i.name)).toEqual(["default", "second"]);
+      expect(list.find((i) => i.name === "second")!.connected).toBe(true);
+    } finally {
+      await ctx().call("disconnect", { name: "second" });
+      await second.close();
+    }
+  });
+
   it("the server printed no uncaught exception", () => {
     expect(stderr.join("")).not.toMatch(/Uncaught exception|Unhandled rejection/);
   });
