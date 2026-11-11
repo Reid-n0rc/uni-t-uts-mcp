@@ -61,7 +61,7 @@ export function registerConnectionTools(server: McpServer): void {
       }
     },
     // Uses its own sockets, never the shared instrument connection: no need to wait behind (or hold up) other tools.
-    { exclusive: false }
+    { exclusive: false, instrumentArg: false }
   );
 
   defineTool(
@@ -215,6 +215,6 @@ export function registerConnectionTools(server: McpServer): void {
       }
     },
     // Reads the registry only; must not wait behind a long sweep.
-    { exclusive: false }
+    { exclusive: false, instrumentArg: false }
   );
 }

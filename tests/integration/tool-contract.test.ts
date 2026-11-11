@@ -296,7 +296,8 @@ describe("instrument selection", () => {
   it.each(selecting.filter(([name]) => !NAME_TOOLS.includes(name)))("%s: an invalid instrument name is refused before anything is sent", async (name, entry) => {
     fake.reset();
     const res = await callTool(client, name, { ...entry.args, instrument: "bad name!" });
-    expectCleanError(res, name);
+    expect(isErrorResult(res), name).toBe(true);
+    expect(getText(res), name).toMatch(/instrument/i);
     expect(fake.opCount).toBe(0);
   });
 });

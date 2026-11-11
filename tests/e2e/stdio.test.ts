@@ -78,7 +78,9 @@ describe("stdio end to end against the fake UTS", () => {
     for (const name of toolNames) {
       if (["discover_instruments", "list_instruments", "connect"].includes(name)) continue; // connect registers a new name
       const arg = ["connect", "disconnect", "identify"].includes(name) ? "name" : "instrument";
-      const res = await c.call(name, { [arg]: "nope" });
+      const first = E2E[name]?.steps[0];
+      const valid = first === undefined ? {} : typeof first.args === "function" ? first.args(c) : first.args;
+      const res = await c.call(first?.tool ?? name, { ...valid, [arg]: "nope" });
       expect(res.isError, `${name}: ${res.text}`).toBe(true);
       expect(res.text, name).toMatch(/Unknown instrument "nope"/);
     }
