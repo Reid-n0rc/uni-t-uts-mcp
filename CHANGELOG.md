@@ -29,6 +29,10 @@ The text of a release's section is also used as its GitHub release notes.
 - `measure` and `exit_measurement` restore the tracking generator output, level and offset that entering a measurement switches off (readback verified, one resend, an error naming the field if it stays wrong), and `set_tracking_generator` / `get_tracking_generator` say the generator cannot be changed while a measurement is active (call `exit_measurement`) instead of blaming a missing option (#161).
 - Simulator replies now match the analyzer: 10-decimal frequency values, a trailing space on non-negative numbers, the span setter moves the center, an invalid enum value posts `-224` twice, `:TRACe:SELect` above 6 is ignored (#147).
 
+### Documentation
+
+- Research (#174): `docs/research/emi-function.md` assesses MCP support for the UTS3000B EMI module (module switch and state to restore, documented EMI commands with manual pages, proposed tools, risks, simulator-versus-hardware split, how to check for the option). Twelve proposed follow-up issues (#176-#187), none started.
+
 ## [0.4.0] - 2026-11-11
 
 ### Changed
