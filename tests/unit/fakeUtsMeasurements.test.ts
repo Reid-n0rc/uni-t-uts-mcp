@@ -84,6 +84,33 @@ describe("entering a measurement (docs: Measurements, #18)", () => {
   });
 });
 
+describe("tracking generator in the measurement modes (#161, docs: Measurements, results with a real signal)", () => {
+  it(":CONFigure:<meas> switches the output off; :OUTPut:STATe? gets no reply and :OUTPut:STATe gives -113 while it is active", () => {
+    const r = rig();
+    r.send(":SOURce:POWer -25");
+    r.send(":OUTPut:STATe ON");
+    expect(r.ask(":OUTPut:STATe?")).toBe("1");
+    r.send(":CONFigure:CNRatio");
+    expect(r.model.bool("tg.out")).toBe(false);
+    expect(r.ask(":OUTPut:STATe?")).toBeUndefined();
+    r.settle();
+    r.send(":OUTPut:STATe ON");
+    expect(r.err()).toBe('-113,"Undefined header"');
+    expect(r.model.bool("tg.out")).toBe(false);
+  });
+  it("after :CONFigure:SANalyzer the output stays off, but the level is kept and the output can be switched on again", () => {
+    const r = rig();
+    r.send(":SOURce:POWer -25");
+    r.send(":OUTPut:STATe ON");
+    r.send(":CONFigure:CHPower");
+    r.send(":CONFigure:SANalyzer");
+    expect(r.ask(":OUTPut:STATe?")).toBe("0");
+    expect(r.ask(":SOURce:POWer?")).toBe("-2.500000e+01");
+    r.send(":OUTPut:STATe ON");
+    expect(r.ask(":OUTPut:STATe?")).toBe("1");
+  });
+});
+
 describe("mode dependent queries (docs: Measurements, #18)", () => {
   it("[:SENSe]:<meas>:AVERage:STATe? answers only while that measurement is active", () => {
     const r = rig();

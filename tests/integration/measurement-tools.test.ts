@@ -22,6 +22,9 @@ const fake = vi.hoisted(() => {
     chBw: 2e6, obwPercent: 0.99, obwXdb: -26, tpL: 0, tpR: 0.01,
     errors: [] as string[],
     failRead: false,
+    // Tracking generator (#161): absent unless a test sets `present`; entering a measurement switches the output off, and in a
+    // measurement :OUTPut:STATe? gets no reply and :OUTPut:STATe gives -113. `loseOut` silently drops the next N output setters.
+    tg: { present: false, out: false, level: -30, offset: 0, loseOut: 0 },
   });
   const state = initial();
   const calls: string[] = [];
@@ -46,6 +49,9 @@ const fake = vi.hoisted(() => {
       case ":SENSe:SWEep:TIME:AUTO?": return flag(state.sweepAuto);
       case ":INITiate:CONTinuous?": return flag(state.continuous);
       case ":SENSe:DETector:TRACe1?": return state.mode === "sa" ? "NORMal" : timeout(cmd);
+      case ":OUTPut:STATe?": return state.tg.present && state.mode === "sa" ? flag(state.tg.out) : timeout(cmd);
+      case ":SOURce:POWer?": return state.tg.present && state.mode === "sa" ? sci(state.tg.level) : timeout(cmd);
+      case ":SOURce:CORRection:OFFSet?": return state.tg.present && state.mode === "sa" ? sci(state.tg.offset) : timeout(cmd);
     }
     if ((m = /^:SENSe:(CHPower|OBWidth|TPOWer):(.*)\?$/.exec(cmd))) {
       const [, meas, rest] = m;
@@ -84,6 +90,7 @@ const fake = vi.hoisted(() => {
     let m: RegExpExecArray | null;
     if ((m = /^:CONFigure:(CHPower|OBWidth|TPOWer)(:NDEFault)?$/.exec(cmd))) {
       state.mode = m[1] as Mode;
+      state.tg.out = false;
       state.span = m[1] === "TPOWer" ? 0 : 3e6; state.rbw = 3e4; state.rbwAuto = true; state.vbw = 3e4; state.vbwAuto = true; state.sweepTime = 6.2e-2; state.sweepAuto = true;
       return;
     }
@@ -102,6 +109,12 @@ const fake = vi.hoisted(() => {
       case ":SENSe:SWEep:TIME": state.sweepTime = Number(arg); state.sweepAuto = false; return;
       case ":SENSe:SWEep:TIME:AUTO": state.sweepAuto = on; if (on) state.sweepTime = state.span > 1e9 ? 2.6475e-3 : 6.2e-2; return;
       case ":INITiate:CONTinuous": state.continuous = on; return;
+      case ":OUTPut:STATe":
+        if (!state.tg.present || state.mode !== "sa") { state.errors.push('-113,"Undefined header"'); return; }
+        if (state.tg.loseOut > 0) { state.tg.loseOut--; return; }
+        state.tg.out = on; return;
+      case ":SOURce:POWer": if (state.tg.present && state.mode === "sa") state.tg.level = Number(arg); else state.errors.push('-113,"Undefined header"'); return;
+      case ":SOURce:CORRection:OFFSet": if (state.tg.present && state.mode === "sa") state.tg.offset = Number(arg); else state.errors.push('-113,"Undefined header"'); return;
     }
     if ((m = /^:SENSe:(CHPower|OBWidth|TPOWer):(.*)$/.exec(head))) {
       const [, meas, rest] = m;
@@ -386,6 +399,69 @@ describe("exit_measurement", () => {
     const res = await callTool(client, "exit_measurement");
     expect(res.isError).toBe(true);
     expect(getText(res)).toMatch(/still/i);
+  });
+});
+
+describe("tracking generator output is remembered and restored (#161)", () => {
+  const withTg = (over: Partial<typeof fake.state.tg> = {}) => Object.assign(fake.state.tg, { present: true, out: true, level: -20, offset: 2 }, over);
+
+  it("measure puts the output, level and offset back and verifies them by readback", async () => {
+    withTg();
+    const res = await callTool(client, "measure", { measurement: "channel_power" });
+    expect(res.isError, getText(res)).toBeFalsy();
+    expect(json(res).warnings).toEqual([]);
+    expect(fake.state.tg).toMatchObject({ out: true, level: -20, offset: 2 });
+    expect(fake.state.mode).toBe("sa");
+    expect(fake.calls).toContain(":OUTPut:STATe ON");
+  });
+  it("a generator that was off is not touched (no output setter sent) and stays off", async () => {
+    withTg({ out: false });
+    const res = await callTool(client, "measure", { measurement: "obw" });
+    expect(res.isError).toBeFalsy();
+    expect(fake.calls.filter((c) => /OUTPut|SOURce/.test(c))).toEqual([]);
+    expect(fake.state.tg.out).toBe(false);
+  });
+  it("an analyzer without the option (the query gets no reply) is measured as before, without warnings", async () => {
+    const res = await callTool(client, "measure", { measurement: "channel_power" });
+    expect(res.isError).toBeFalsy();
+    expect(json(res).warnings).toEqual([]);
+    expect(fake.calls.filter((c) => /OUTPut|SOURce/.test(c))).toEqual([]);
+  });
+  it("a lost output setter is resent once and reported as a warning naming the field", async () => {
+    withTg({ loseOut: 1 });
+    const res = await callTool(client, "measure", { measurement: "channel_power" });
+    expect(res.isError).toBeFalsy();
+    expect(json(res).warnings.join(" ")).toMatch(/tracking generator.*enabled/);
+    expect(fake.state.tg.out).toBe(true);
+  });
+  it("an output that cannot be restored is an error naming the field, never a success", async () => {
+    withTg({ loseOut: 2 });
+    const res = await callTool(client, "measure", { measurement: "channel_power" });
+    expect(res.isError).toBe(true);
+    expect(getText(res)).toMatch(/tracking generator.*enabled/);
+    expect(fake.state.mode).toBe("sa");
+    expect(fake.state.span).toBe(3.59e9); // the analyzer settings were restored regardless
+  });
+  it("configure_measurement then exit_measurement restores it", async () => {
+    withTg();
+    await callTool(client, "configure_measurement", { measurement: "channel_power" });
+    expect(fake.state.tg.out).toBe(false);
+    const res = await callTool(client, "exit_measurement");
+    expect(res.isError, getText(res)).toBeFalsy();
+    expect(json(res).warnings).toEqual([]);
+    expect(fake.state.tg).toMatchObject({ out: true, level: -20, offset: 2 });
+  });
+  it("exit_measurement with restore_settings=false leaves it off and says so", async () => {
+    withTg();
+    await callTool(client, "configure_measurement", { measurement: "channel_power" });
+    const res = await callTool(client, "exit_measurement", { restore_settings: false });
+    expect(json(res).warnings.join(" ")).toMatch(/tracking generator.*(off|not restored)/i);
+    expect(fake.state.tg.out).toBe(false);
+  });
+  it("without saved state (measurement entered elsewhere) the warning mentions the generator", async () => {
+    fake.state.mode = "OBWidth";
+    const out = json(await callTool(client, "exit_measurement"));
+    expect(out.warnings.join(" ")).toMatch(/tracking generator/i);
   });
 });
 
