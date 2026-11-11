@@ -211,6 +211,18 @@ Connect the tracking generator output to the RF input. **Always switch the outpu
 | DS2 | `connect` with `host: "auto"` after `disconnect` | Connects when exactly one analyzer answers, shows its model and firmware and says the host was auto-selected | Pass/fail |
 | DS3 | `connect` with `host: "auto"` with the analyzer off or on another subnet | An error saying none was found and asking for an explicit `host` | Pass/fail |
 
+### G15. Several analyzers (only with two analyzers; skip with one)
+
+Parallel behaviour is verified hermetically with two fake instruments; this group is the live check for owners who have two analyzers. With one analyzer, CN6 and DS1 are the only live checks of the multi-instrument code paths.
+
+| Step | Action | Expected | Record |
+|------|--------|----------|--------|
+| MI1 | `connect` with `name: "sa1"` and the first host, then `connect` with `name: "sa2"` and the second host, then `list_instruments` | Both `connected: true`, no `default`; no serial numbers | Pass/fail |
+| MI2 | `get_frequency` without `instrument` | An error listing `sa1, sa2` and asking for a name | Pass/fail |
+| MI3 | `set_frequency` on `sa1` and `sa2` with different centers in one parallel batch, then `get_frequency` on each | Each analyzer shows its own center | Pass/fail |
+| MI4 | `disconnect` with `name: "sa1"`, then `get_frequency` on `sa2` | `sa2` still answers; `sa1` reports not connected | Pass/fail |
+| MI5 | `connect` with `name: "sa3"` and `host: "auto"` while `sa2` is connected | Auto-discovery leaves the connected analyzer out; with no other analyzer it says so | Pass/fail |
+
 ## Restore to the original state
 
 Do this at the end of each transport pass (and again at the end of the day). Use the values from S1.
@@ -258,6 +270,7 @@ Panel behavior:        (did the first query lock it? did Esc restore it?)
 | G12 Limit lines              |     |        |                                     |
 | G13 Tracking generator       |     |        |                                     |
 | G14 Discovery                |     |        |                                     |
+| G15 Several analyzers        |     |        |                                     |
 
 Restore verified (R1 to R8):   yes / no, deviations:
 Error queue clean at the end:  yes / no

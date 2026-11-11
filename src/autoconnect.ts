@@ -1,5 +1,6 @@
 import type { ConnectOptions } from "./connection.js";
 import { isValidHost, portFromEnv } from "./target.js";
+import { discoverInstruments } from "./discovery.js";
 import { AUTO_HOST, autoSelectedNote, resolveAutoHost } from "./autoHost.js";
 import type { DiscoveryResult } from "./discovery.js";
 import { DEFAULT_INSTRUMENT, instrumentTargetsFromEnv } from "./registry.js";
@@ -74,18 +75,29 @@ export async function autoConnectAll(
     }
   };
   const jobs: Array<Promise<[string, boolean]>> = [];
-  if (env.UTS_IP) {
-    jobs.push(autoConnectFromEnv(env, registry.declare(DEFAULT_INSTRUMENT), log, discover).then((ok) => [DEFAULT_INSTRUMENT, ok]));
-  }
+  let targets = new Map<string, { host: string; port?: number }>();
   try {
-    for (const [name, target] of instrumentTargetsFromEnv(env)) {
+    targets = instrumentTargetsFromEnv(env);
+  } catch (err) {
+    log(`${err instanceof Error ? err.message : String(err)}; ignoring UTS_INSTRUMENTS.`);
+  }
+  if (env.UTS_IP) {
+    // UTS_IP=auto must not pick an analyzer that UTS_INSTRUMENTS names explicitly.
+    const named = new Set([...targets.values()].map((t) => t.host));
+    const find = discover ?? (() => discoverInstruments({ skipIdentify: named }));
+    const defaultDiscover = async () => {
+      const found = await find();
+      return { ...found, instruments: found.instruments.filter((i) => !named.has(i.host)) };
+    };
+    jobs.push(autoConnectFromEnv(env, registry.declare(DEFAULT_INSTRUMENT), log, defaultDiscover).then((ok) => [DEFAULT_INSTRUMENT, ok]));
+  }
+  {
+    for (const [name, target] of targets) {
       const conn = registry.declare(name, target);
       // A port given in the entry means raw unless UTS_TRANSPORT says otherwise (same rule as UTS_PORT).
       const own: Record<string, string | undefined> = { ...env, UTS_IP: target.host, UTS_PORT: target.port === undefined ? undefined : String(target.port) };
       jobs.push(autoConnectFromEnv(own, conn, (...a) => log(`[${name}]`, ...a), discover).then((ok) => [name, ok]));
     }
-  } catch (err) {
-    log(`${err instanceof Error ? err.message : String(err)}; ignoring UTS_INSTRUMENTS.`);
   }
   return Object.fromEntries(await Promise.all(jobs));
 }

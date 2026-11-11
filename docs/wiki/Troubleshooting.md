@@ -9,7 +9,10 @@ No connection is open. Either set `UTS_IP` in the MCP client's configuration (th
 
 **`host: "auto"` / `discover_instruments` finds nothing**
 - Discovery uses a UDP broadcast on port 111 on each of the computer's own IPv4 subnets, so the analyzer must be powered, have LAN enabled and be on the same subnet; it does not cross routers (give the address to `connect` instead). Firewalls and VLAN or Wi-Fi client isolation block broadcasts.
-- With several analyzers, `connect` with `auto` lists them and asks for an explicit `host`.
+- With several analyzers, `connect` with `auto` lists them and asks for an explicit `host`. Analyzers that are already connected under another instrument name are left out of the count.
+
+**"Unknown instrument" / "Several instruments are configured ... none is named default"**
+You are driving several analyzers. Call `list_instruments` to see the names, then pass `instrument` (`name` for `connect`, `disconnect` and `identify`). Calls without a name use the instrument called `default` (`UTS_IP`), or the only one configured. An instrument that is not connected fails alone; the others keep working.
 
 **`connect` fails ("Connection failed", timeout, refused)**
 - Check the address and that the analyzer is on the same network as your computer.
