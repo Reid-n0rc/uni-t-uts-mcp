@@ -93,7 +93,7 @@ function decodePng(buf: Buffer): GrayImage {
   try {
     raw = inflateSync(Buffer.concat(idat), { maxOutputLength: expected });
   } catch (err) {
-    throw new PanelImageError(`PNG image data is corrupt or larger than its header says: ${err instanceof Error ? err.message : String(err)}`);
+    throw new PanelImageError(`PNG image data is corrupt or larger than its header says: ${(err as Error).message}`);
   }
   if (raw.length !== expected) throw new PanelImageError(`PNG image data is ${raw.length} bytes, expected ${expected}`);
 
@@ -290,7 +290,7 @@ function bestOverlap(t: Template, xs: [number, number], ys: [number, number], at
         }
       }
       const union = t.cells.length + imageSet - inter;
-      best = Math.max(best, union === 0 ? 0 : inter / union);
+      best = Math.max(best, inter / union); // union >= template size > 0
     }
   }
   return best;
@@ -341,8 +341,8 @@ export function detectPanelLockInImageFile(file: Uint8Array, origin?: { x: numbe
   try {
     image = decodeImage(file);
   } catch (err) {
-    if (!(err instanceof PanelImageError)) throw err;
-    return { state: "unknown", padlockScore: 0, monitorScore: 0, reason: `cannot read the image: ${err.message}` };
+    // decodeImage only throws PanelImageError (zlib errors are wrapped), so anything caught is a decode failure
+    return { state: "unknown", padlockScore: 0, monitorScore: 0, reason: `cannot read the image: ${(err as Error).message}` };
   }
   return detectPanelLock(image, origin);
 }

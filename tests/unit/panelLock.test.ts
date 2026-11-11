@@ -94,6 +94,71 @@ describe("decodeImage", () => {
     }
   });
 
+  it("rejects more malformed files", () => {
+    const ihdr = (len: number, w = 1, h = 1, ct = 0) => {
+      const b = Buffer.alloc(len);
+      b.writeUInt32BE(w, 0);
+      b.writeUInt32BE(h, 4);
+      b[8] = 8;
+      b[9] = ct;
+      return chunk("IHDR", b);
+    };
+    const idat = (n: number) => chunk("IDAT", deflateSync(Buffer.alloc(n)));
+    const end = chunk("IEND", Buffer.alloc(0));
+    const bad: Record<string, Buffer> = {
+      "chunk longer than file": png(2, 1, 2, 6, () => Buffer.alloc(6)).subarray(0, 50),
+      "short IHDR": Buffer.concat([SIG, ihdr(12), idat(2), end]),
+      "unknown color type": Buffer.concat([SIG, ihdr(13, 1, 1, 5), idat(2), end]),
+      "no IHDR": Buffer.concat([SIG, end]),
+      "no IDAT": Buffer.concat([SIG, ihdr(13), end]),
+      "zero width": Buffer.concat([SIG, ihdr(13, 0, 1), idat(2), end]),
+      "corrupt zlib": Buffer.concat([SIG, ihdr(13), chunk("IDAT", Buffer.from("garbage")), end]),
+      "too little data": Buffer.concat([SIG, ihdr(13, 4, 4), idat(3), end]),
+      "palette index out of range": png(1, 1, 3, 1, () => Buffer.from([5]), { extra: [chunk("PLTE", Buffer.from([0, 0, 0, 1, 1, 1]))] }),
+      "tiny BMP": Buffer.from("BM" + "x".repeat(20), "latin1"),
+      "old BMP header": (() => {
+        const b = bmp(2, 2, 24, () => [0, 0, 0]);
+        b.writeUInt32LE(12, 14);
+        return b;
+      })(),
+      "compressed BMP": (() => {
+        const b = bmp(2, 2, 24, () => [0, 0, 0]);
+        b.writeUInt32LE(1, 30);
+        return b;
+      })(),
+      "zero-width BMP": (() => {
+        const b = bmp(2, 2, 24, () => [0, 0, 0]);
+        b.writeInt32LE(0, 18);
+        return b;
+      })(),
+    };
+    for (const [name, data] of Object.entries(bad)) expect(() => decodeImage(data), name).toThrow(PanelImageError);
+  });
+
+  it("decodes a 32-bit BMP with bit fields and Paeth-filtered rows of varied data", () => {
+    const b = bmp(2, 2, 32, () => [9, 9, 9]);
+    b.writeUInt32LE(3, 30);
+    expect(Array.from(decodeImage(b).data)).toEqual([9, 9, 9, 9]);
+    // Pseudo-random 6x6 gray image, every row Paeth filtered, exercises all three Paeth predictor outcomes.
+    const w = 6;
+    const h = 6;
+    const plain = Array.from({ length: h }, (_, y) => Array.from({ length: w }, (_, x) => (x * 37 + y * 91 + ((x * y) % 5) * 53) & 255));
+    const row = (y: number) =>
+      Buffer.from(
+        plain[y]!.map((v, i) => {
+          const a = i > 0 ? plain[y]![i - 1]! : 0;
+          const bb = y > 0 ? plain[y - 1]![i]! : 0;
+          const c = i > 0 && y > 0 ? plain[y - 1]![i - 1]! : 0;
+          const p = a + bb - c;
+          const pa = Math.abs(p - a);
+          const pb = Math.abs(p - bb);
+          const pc = Math.abs(p - c);
+          return (v - (pa <= pb && pa <= pc ? a : pb <= pc ? bb : c)) & 255;
+        })
+      );
+    expect(Array.from(decodeImage(png(w, h, 0, w, row, { filter: () => 4 })).data)).toEqual(plain.flat());
+  });
+
   it("refuses absurd dimensions instead of allocating them", () => {
     const ihdr = Buffer.alloc(13);
     ihdr.writeUInt32BE(100000, 0);

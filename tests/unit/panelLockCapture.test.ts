@@ -64,6 +64,13 @@ describe("captureScreenshot / checkPanelLockOnInstrument", () => {
     expect((await checkPanelLockOnInstrument("127.0.0.1", opts)).state).toBe("unknown");
   });
 
+  it("explains an invalid or incomplete block reply", async () => {
+    const opts = await start(() => "#x");
+    expect((await checkPanelLockOnInstrument("127.0.0.1", opts)).reason).toMatch(/binary block/);
+    fake!.setScpiHandler(() => "#3100abc");
+    expect((await checkPanelLockOnInstrument("127.0.0.1", opts)).reason).toMatch(/incomplete/);
+  });
+
   it("is unknown when the instrument cannot be reached", async () => {
     const r = await checkPanelLockOnInstrument("127.0.0.1", { portmapperPort: 9, connectTimeoutMs: 500 });
     expect(r.state).toBe("unknown");
