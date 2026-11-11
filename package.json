@@ -1,6 +1,6 @@
 {
   "name": "uni-t-uts-mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "MCP server for UNI-T UTS series spectrum analyzers via SCPI over LAN",
   "author": "Reid Crowe <reid@malmoset.com>",
   "license": "MIT",

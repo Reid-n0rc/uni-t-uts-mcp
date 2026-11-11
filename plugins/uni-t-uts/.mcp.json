@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "uni-t-uts-mcp@0.3.0"
+        "uni-t-uts-mcp@0.4.0"
       ],
       "env": {
         "UTS_IP": "${user_config.analyzer_host}",
