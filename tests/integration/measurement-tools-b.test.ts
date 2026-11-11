@@ -53,6 +53,7 @@ const fake = vi.hoisted(() => {
     let m: RegExpExecArray | null;
     switch (cmd) {
       case ":SYSTem:ERRor?": return state.errors.shift() ?? '0,"No error"';
+      case ":OUTPut:STATe?": return Promise.reject(new Error(`Query timeout after 1500ms for command: ${cmd}`)); // no tracking generator option (#161)
       case ":FREQuency:CENTer?": return sci(state.center);
       case ":FREQuency:SPAN?": return sci(state.span);
       case ":SENSe:BANDwidth:RESolution?": return sci(state.rbw);
