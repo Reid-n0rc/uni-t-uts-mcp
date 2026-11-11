@@ -12,6 +12,11 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- `measure` and `exit_measurement` verify the restored settings by readback (center, span, RBW, VBW, sweep time, their auto flags, continuous), resend everything once when a field differs (a warning names it), and otherwise return an error naming each wrong field instead of reporting a successful restore (#133, the span once left at 8 MHz).
+- The first setter of a process clears and re-checks the instrument's error queue and ignores a late stale `-113` (from a previous process's unanswered query), so it no longer fails on an error it did not cause (#133).
+
 ### Added
 
 - "Add to your client" help (#88): copy-paste configs and install links for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf and generic stdio clients, generated from `scripts/client-snippets.mjs` into the README table, the new wiki page `Add-to-Client` and a tabbed site section (`npm run clients:sync` / `clients:check`). Each client is marked with what was verified against its docs; the Cursor install link follows Cursor's documented format; no VS Code or Windsurf link is offered because their formats are not documented; Claude Desktop `.mcpb` installation is still unverified.

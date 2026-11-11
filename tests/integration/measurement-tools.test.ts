@@ -436,6 +436,51 @@ describe("measure (one shot: configure, read, always restore)", () => {
     expect(res.isError).toBe(true);
     expect(getText(res)).toMatch(/still/i);
   });
+  describe("restore is verified by readback (#133)", () => {
+    /** Make the instrument ignore :FREQuency:SPAN setters while restoring (the measurement's own values stay): `drops` times, or always when Infinity. */
+    const dropSpanSetter = (drops: number) => {
+      const impl = fake.sendCommand.getMockImplementation()!;
+      let left = drops;
+      fake.sendCommand.mockImplementation(async (cmd: string) => {
+        if (cmd.startsWith(":FREQuency:SPAN ") && fake.state.mode === "sa" && left > 0) { left--; return; }
+        await impl(cmd);
+      });
+    };
+    it("retries a field whose readback differs once and reports it as a warning when the retry works", async () => {
+      dropSpanSetter(1);
+      const res = await callTool(client, "measure", { measurement: "channel_power" });
+      expect(res.isError).toBeFalsy();
+      const out = json(res);
+      expect(out.restored).toBe(true);
+      expect(out.warnings.join(" ")).toMatch(/restore.*span_hz.*second attempt/i);
+      expect(fake.state.span).toBe(3.59e9);
+    });
+    it("is an error naming the field when the retry fails too, never a success", async () => {
+      dropSpanSetter(Infinity);
+      const res = await callTool(client, "measure", { measurement: "channel_power" });
+      expect(res.isError).toBe(true);
+      expect(getText(res)).toMatch(/span_hz/);
+      expect(getText(res)).toMatch(/3000000/);
+      expect(getText(res)).toMatch(/3590000000/);
+    });
+    it("exit_measurement reports an unverifiable restore as an error too", async () => {
+      await callTool(client, "configure_measurement", { measurement: "channel_power" });
+      dropSpanSetter(Infinity);
+      const res = await callTool(client, "exit_measurement");
+      expect(res.isError).toBe(true);
+      expect(getText(res)).toMatch(/span_hz/);
+    });
+    it("back-to-back measures of every kind leave the state exactly as it was", async () => {
+      fake.state.center = 433e6; fake.state.span = 10e6; fake.state.rbwAuto = false; fake.state.rbw = 3e4; fake.state.vbwAuto = false; fake.state.vbw = 1e4; fake.state.sweepAuto = false; fake.state.sweepTime = 0.5;
+      const before = JSON.stringify(fake.state);
+      for (const measurement of ["obw", "time_power", "channel_power", "obw"]) {
+        const res = await callTool(client, "measure", { measurement });
+        expect(res.isError).toBeFalsy();
+        expect(json(res).warnings).toEqual([]);
+        expect(JSON.stringify({ ...fake.state, avg: 0 })).toBe(JSON.stringify({ ...JSON.parse(before), avg: 0 }));
+      }
+    });
+  });
   it("refuses to start from a different active measurement (presets overwrite its span; it cannot be restored)", async () => {
     fake.state.mode = "OBWidth";
     const res = await callTool(client, "measure", { measurement: "channel_power" });
