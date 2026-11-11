@@ -186,6 +186,14 @@
       "description": "Turn the marker frequency counter on or off and set its gate time."
     },
     {
+      "name": "get_tracking_generator",
+      "description": "Read the tracking generator output state, level, offset, reference trace and normalization."
+    },
+    {
+      "name": "set_tracking_generator",
+      "description": "Switch the tracking generator on or off and set its level, offset, reference trace and normalization."
+    },
+    {
       "name": "get_peak_criteria",
       "description": "Read the peak search threshold and excursion."
     },

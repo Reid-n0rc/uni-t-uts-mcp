@@ -248,6 +248,13 @@ export const CONTRACT: Record<string, ContractEntry> = {
     invalid: [{}, { gate_time_s: 0 }, { gate_time_s: 1 }],
     warn: [{ enabled: false }, { gate_time_s: 0.01 }],
   },
+  get_tracking_generator: { kind: "getter", args: {} },
+  set_tracking_generator: {
+    kind: "setter",
+    args: { enabled: true, level_dbm: -20 },
+    invalid: [{}, { level_dbm: 5 }, { level_dbm: -41 }, { level_offset_db: 201 }, { normalize_ref_level_db: -101 }],
+    warn: [{ enabled: false }, { level_dbm: -20 }, { reference_trace: false }, { normalize: false }],
+  },
 };
 
 // ---------- canned replies ----------

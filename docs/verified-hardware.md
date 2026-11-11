@@ -180,7 +180,17 @@ Probed by hand over raw SCPI and then through the built tools, one command at a 
 - **Delete:** `:DELete` is acknowledged by `*OPC?` before it has finished: a `:DATA?` right after still returned the old 10 points, and in one run a late delete erased points set by the next call. `delete_limit_line` therefore re-reads until the line is empty. `:DELete` does not reset type, trace, margin or display. `:ALL:DELete` emptied every line.
 - **Pass/fail:** none documented and none probed (the brief for this work allows only documented commands); see the tools reference.
 
-## VXI-11 transport (issues #64, #74; verified on hardware for issue #75, firmware V1.04.0040)
+## Tracking generator (2026-11-11, issue #22, firmware V1.04.0040)
+
+Probed by hand over raw SCPI and checked through the built tools on both transports (raw and VXI-11). Originals read first and restored: output off, level -30 dBm, offset 0 dB, reference trace off, normalization off, normalization reference level 10 dB, RBW/VBW 3 MHz auto, error queue clean.
+
+- **Queries that reply:** `:OUTPut:STATe?` (also `:OUTPut:EXTernal:STATe?`), `:SOURce:POWer?` (also the long `:SOURce:EXTernal:POWer:LEVel:IMMediate:AMPLitude?`), `:SOURce:CORRection:OFFSet?`, `:SOURce:TRACe:REFerence:STATe?`, `:CALCulate:NTData:STATe?`, `:DISPlay:WINDow:TRACe:Y:SCALe:NRLevel?`. Bare numbers and a `dBm` / `dB` suffix both work.
+- **Clamping (silent, no error):** level -40 to 0 dBm (-120 reads -40, 10 reads 0), level offset -200 to 200 dB, normalization reference level -100 to 100 dB. The tools refuse values outside these ranges.
+- **Reference trace:** `:SOURce:TRACe:REFerence:STATe 1` only takes while the output is on (it reads 0 with the output off); it works with normalization on or off. `:CALCulate:NTData:STATe` takes ON/OFF at any time.
+- **Side effects of the output (confirmed again):** with the output on the auto sweep time is about 2.15 s. After `:OUTPut:STATe 0` the automatic RBW/VBW drop to 300 kHz a moment later and stay there with both auto flags still 1; re-sending `:SENSe:BANDwidth:RESolution:AUTO ON` and `:VIDeo:AUTO ON` restores 3 MHz and the 2.6475 ms sweep time, **but only when sent after a short pause**: sent straight after the OFF it is overtaken by the drop. `set_tracking_generator` waits 0.6 s and verifies by RBW readback. Readback queries with the output on were answered normally on both transports.
+- **Option absent:** not testable on this unit (it has the option); the tools treat an unanswered `:OUTPut:STATe?` as an absent option (tested with a fake).
+
+, #74; verified on hardware for issue #75, firmware V1.04.0040)
 
 Everything below was measured on the real analyzer, through the built server over stdio where a tool is named, and with a small client on the VXI-11 core channel where the wire behavior is the point. Raw and VXI-11 were compared side by side.
 

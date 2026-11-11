@@ -215,6 +215,8 @@ No pass/fail query for limit lines is documented. Verified on the UTS3036B (deta
 | Reference trace | `:SOURce:TRACe:REFerence:STATe {1\|0}` (p.93) |
 | Normalization | `:CALCulate:NTData[:STATe] {1\|0}` (p.27); reference level `:DISPlay:WINDow:TRACe:Y[:SCALe]:NRLevel <dB>` (p.39) |
 
+Verified on the UTS3036B (details in [verified-hardware.md](verified-hardware.md#tracking-generator-2026-11-11-issue-22-firmware-v1040040)): every command above has a matching query. Level clamps silently to -40..0 dBm (the manual gives no range), offset to -200..200 dB and the normalization reference level to -100..100 dB. The reference trace state only takes while the output is on. Output on makes the auto sweep time about 2.15 s; after output off the auto RBW/VBW stay stale at 300 kHz until `:SENSe:BANDwidth:RESolution:AUTO ON` and `:VIDeo:AUTO ON` are re-sent after a short pause. On an analyzer without the option the queries are expected to go unanswered (not verifiable on this unit).
+
 ## 7. Measurement functions (3K p.32-36, p.40-58, p.72-88)
 
 Enter a measurement with `:CONFigure:<meas>` (presets that measurement's parameters; p.32-34) or `:CONFigure:<meas>:NDEFault` (enter without preset; p.35-36). `:CONFigure:SANalyzer` returns to plain sweep. Meas names: `CHPower`, `TPOWer`, `OBWidth`, `TOI`, `ACPower`, `SPECtrogram`, `CNRatio`, `HARMonics`. (The `:CONFigure:TOI:NDEFault` entry prints its syntax as `:CONFigure:TOI:DEFault`; typo.)
