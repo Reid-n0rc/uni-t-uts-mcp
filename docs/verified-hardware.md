@@ -385,6 +385,8 @@ One UTS3036B V1.04.0040 (the newest published firmware per UNI-T's download page
 
 **Caution found live:** immediately after an `:INSTrument <mode>` round trip (set, then read back), sending a second command on the *same* TCP connection once got no reply at all; a fresh connection showed the instrument had in fact already applied it correctly. Use a fresh connection or a couple of seconds' wait after a mode switch before the next command, same caution as after a sweep.
 
+**`get_demod_result` (#196)** wraps this readback as a tool: the bare `:FETCh:AM?`/`:FETCh:FM?` form (suffix 1, confirmed equivalent to the default), parsed into the 15 named fields above. Built test-first against a dedicated fake (`tests/integration/ad-results-tools.test.ts`), not independently re-verified against this fake beyond the one live capture already cited.
+
 ## Measurement function module tools (2026-11-11, issue #177, firmware V1.04.0040)
 
 `get_instrument_module` and `select_instrument_module` wrap `:INSTrument[:SELect] {SA|EMI|AD}` per the findings above: no query reports which module is licensed, an unlicensed-module switch is refused silently (no SCPI error, module unchanged, per the firmware-disassembly finding), and `:INSTrument:SELect?` answers `SA` while a measurement sub-mode is active too (see "Measurements"). The tools cannot distinguish "unlicensed" from "the setter was accepted but the readback raced the switch" or a link glitch, so a readback that does not match the request is a `warnings` entry, never an error or a guessed cause.

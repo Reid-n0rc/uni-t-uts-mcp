@@ -250,6 +250,7 @@ Switch to EMI first (`select_instrument_module` with `module: "emi"`) and back t
 | AD8 | `set_ad_filters` with `low_pass_filter: "LPF3K"`, then again with `band_pass_filter` set to any non-`OFF` value | Second call's result shows `low_pass_filter: "OFF"` with a `warnings` entry saying so (mutual exclusion) | Pass/fail, and the exact `warnings` text |
 | AD9 | `set_ad_audio` with `speaker: true` and no `confirm` | Refused with an error naming `confirm: true`; nothing sent to the instrument | Pass/fail |
 | AD10 | `set_ad_audio` with `speaker: true, confirm: true` | Briefly audible, then `restored: true` and `speaker: false` in the result; confirm the speaker is actually off afterward | Pass/fail; note if anything was left on |
+| AD11 | `enter_analog_demod`, then `get_demod_result` | 15 named fields (center frequency, carrier power, carrier frequency error, modulation rate, SINAD, distortion/total Vrms, THD, current and max-hold peak+/peak-/(pk-pk)/2/RMS); already live-verified once, confirm it still matches `:FETCh:AM?`/`:FETCh:FM?` | Reply for every field; compare `carrier_frequency_error_hz` against whether a real signal is present (`NaN`/`null` with none) |
 
 ### G14. Discovery
 

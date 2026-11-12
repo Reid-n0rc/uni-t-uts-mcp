@@ -312,6 +312,10 @@ Sets one AD audio filter family: `low_pass_filter` (`OFF`, `LPF300`, `LPF3K`, `L
 
 Sets the AD module's `speaker` (on/off) and/or `volume_pct` (0-100), both read from and shared with the rest of the instrument. **Turning the speaker on, or raising the volume while it is already on, requires `confirm: true`** - `:SPEaker ON` plays the demodulated signal on the loudspeaker and headphones immediately, which would be an unexpected tone in a shared lab ([research doc](research/analog-demodulation.md), risk 3). By default, once the requested change is confirmed by read-back, this tool restores the speaker and volume to what they were immediately before the call (`restored: true` in the result); pass `keep: true` to leave the new state in place instead. Requires the AD module. Not yet live-verified, and intentionally not exercised against real hardware outside a confirmed, supervised live session.
 
+### `get_demod_result`
+
+Read-only numeric result window: center frequency, carrier power, carrier frequency error, modulation rate, SINAD, distortion/total Vrms, THD, and peak+/peak-/(pk-pk)/2/RMS for both the current and max-hold rows, without a screenshot. Wraps the undocumented bare `:FETCh:AM?`/`:FETCh:FM?` query (the 15-value metrics line), confirmed live on this firmware (see [verified-hardware.md](verified-hardware.md), "Installed options and AD results readback", and [research doc](research/analog-demodulation.md) section 6a). The AM/FM type is read fresh from `:CONFigure?` each call. Does not expose the RF spectrum trace, demodulated waveform or AF spectrum views (other `:FETCh` suffixes), which remain screenshot-only. Requires the AD module. Units beyond what the live example confirmed (Hz, dB) are plausible, not independently verified.
+
 ## EMI function
 
 Research-stage: field names, ranges and groupings come from the programming manual via [docs/research/emi-function.md](research/emi-function.md); none of it has been verified live yet (EMI-12, #187, needs the owner present at the analyzer). Requires the EMI module (`select_instrument_module`); every tool here refuses with an actionable message otherwise.
