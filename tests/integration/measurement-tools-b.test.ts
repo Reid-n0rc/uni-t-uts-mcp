@@ -77,6 +77,7 @@ const fake = vi.hoisted(() => {
       if (state.failRead && verb === "READ") return timeout(cmd);
       return results[rest]();
     }
+    if (cmd === ":INSTrument:SELect?") return "SA";
     throw new Error(`unexpected query ${cmd}`);
   });
   const sendCommand = vi.fn(async (cmd: string) => {
@@ -278,7 +279,7 @@ describe("read_measurement for the new measurements", () => {
     expect(json(await callTool(client, "read_measurement", { measurement: "acpr" }))).toEqual({
       measurement: "acpr", command: "READ", main_power_dbm: -20, lower_power_dbm: -60, lower_dbc: -40, upper_power_dbm: -65, upper_dbc: -45,
     });
-    expect(fake.queries.slice(1)).toEqual([":READ:ACPower?", ":FETCh:ACPower:MAIN?", ":FETCh:ACPower:LOWer?", ":FETCh:ACPower:UPPer?"]);
+    expect(fake.queries.slice(2)).toEqual([":READ:ACPower?", ":FETCh:ACPower:MAIN?", ":FETCh:ACPower:LOWer?", ":FETCh:ACPower:UPPer?"]);
   });
   it("acpr: a side that is not measured reads nan: null values and a warning", async () => {
     fake.state.mode = "ACPower";
@@ -300,7 +301,7 @@ describe("read_measurement for the new measurements", () => {
     expect(json(await callTool(client, "read_measurement", { measurement: "cn", fetch: true }))).toEqual({
       measurement: "cn", command: "FETCh", carrier_dbm: -10, noise_dbm: -70, cn_db: 60,
     });
-    expect(fake.queries.slice(1)).toEqual([":FETCh:CNRatio?"]);
+    expect(fake.queries.slice(2)).toEqual([":FETCh:CNRatio?"]);
   });
   it("toi: READ the first result, FETCh the rest of the same measurement", async () => {
     fake.state.mode = "TOI";
@@ -312,7 +313,7 @@ describe("read_measurement for the new measurements", () => {
       lower_tone: { frequency_hz: 9.95e7, amplitude_dbm: -30 },
       upper_tone: { frequency_hz: 1.005e8, amplitude_dbm: -31 },
     });
-    expect(fake.queries.slice(1)).toEqual([":READ:TOI:LOW:TRD?", ":FETCh:TOI:UP:TRD?", ":FETCh:TOI:LOW:TONE?", ":FETCh:TOI:UP:TONE?"]);
+    expect(fake.queries.slice(2)).toEqual([":READ:TOI:LOW:TRD?", ":FETCh:TOI:UP:TRD?", ":FETCh:TOI:LOW:TONE?", ":FETCh:TOI:UP:TONE?"]);
   });
   it("harmonics: fundamental in dBm, harmonics in dBc with frequencies, and distortion", async () => {
     fake.state.mode = "HARMonics";
@@ -324,7 +325,7 @@ describe("read_measurement for the new measurements", () => {
     expect(out.harmonics[8]).toEqual({ order: 10, frequency_hz: 1e9, amplitude_dbc: -39 });
     expect(out.thd_percent).toBe(1.5);
     expect(out.thd_dbc).toBe(-36);
-    expect(fake.queries.slice(1)).toEqual([":SENSe:HARMonics:NUMBer?", ":READ:HARMonics:AMPLitude:ALL?", ":FETCh:HARMonics:FREQuency:ALL?", ":FETCh:HARMonics:DISTortion?"]);
+    expect(fake.queries.slice(2)).toEqual([":SENSe:HARMonics:NUMBer?", ":READ:HARMonics:AMPLitude:ALL?", ":FETCh:HARMonics:FREQuency:ALL?", ":FETCh:HARMonics:DISTortion?"]);
   });
   it("harmonics returns only the configured count (the instrument pads both lists to 10 values)", async () => {
     fake.state.mode = "HARMonics";

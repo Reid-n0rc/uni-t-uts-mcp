@@ -57,6 +57,7 @@ const fake = vi.hoisted(() => {
       case ":POWer:GAIN:STATe?": return state.preamp ? "1" : "0";
       case ":SENSe:CORRection:IMPedance:INPut:MAGNitude?": return String(state.imp);
       case ":SYSTem:ERRor?": return state.errors.shift() ?? '0,"No error"';
+      case ":INSTrument:SELect?": return "SA";
       default: throw new Error(`unexpected query ${cmd}`);
     }
   });

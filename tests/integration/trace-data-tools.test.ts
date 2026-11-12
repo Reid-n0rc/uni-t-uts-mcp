@@ -70,6 +70,7 @@ const fake = vi.hoisted(() => {
       if (state.format !== "ASC8") return "#4garbled";
       return state.values.map((v) => v.toExponential(6)).join(",");
     }
+    if (cmd === ":INSTrument:SELect?") return "SA";
     throw new Error(`unexpected query ${cmd}`);
   });
   const queryBinary = vi.fn(async (cmd: string, _t?: number): Promise<Buffer> => {

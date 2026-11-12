@@ -29,6 +29,7 @@ const fake = vi.hoisted(() => {
       case ":SENSe:BANDwidth:RESolution:AUTO?": return state.rbwAuto ? "1" : "0";
       case ":SENSe:BANDwidth:RESolution?": return sci(state.rbw);
       case ":SENSe:BANDwidth:VIDeo:AUTO?": return state.vbwAuto ? "1" : "0";
+      case ":INSTrument:SELect?": return "SA";
       default: throw new Error(`unexpected query ${cmd}`);
     }
   });
@@ -105,6 +106,7 @@ describe("get_tracking_generator", () => {
   });
 
   it("rejects a malformed reply naming the command", async () => {
+    fake.query.mockImplementationOnce(async () => "SA"); // :INSTrument:SELect?, the module guard's own check
     fake.query.mockImplementationOnce(async () => "banana");
     const res = await callTool(client, "get_tracking_generator", {});
     expect(res.isError).toBe(true);

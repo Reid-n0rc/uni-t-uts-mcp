@@ -25,6 +25,7 @@ const fake = vi.hoisted(() => {
     state.events.push(`query ${cmd}`);
     if (cmd === ":SYSTem:PICture:FORMat?") return state.format;
     if (cmd === ":SYSTem:ERRor?") return state.errors.shift() ?? '0,"No error"';
+    if (cmd === ":INSTrument:SELect?") return "SA";
     throw new Error(`unexpected query ${cmd}`);
   });
   const sendCommand = vi.fn(async (cmd: string) => {

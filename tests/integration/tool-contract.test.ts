@@ -182,6 +182,11 @@ describe.each(entries)("%s", (name, entry) => {
             expect(fake.sent.some((cmd) => text.includes(cmd)), `message must name the command: ${text}`).toBe(true);
           }
           break;
+        case "wrongModule":
+          expect(text).toMatch(/module/i);
+          expect(text).toMatch(/select_instrument_module/);
+          expect(fake.sent, "a module mismatch must refuse before sending any command").toEqual([]);
+          break;
       }
     });
   }

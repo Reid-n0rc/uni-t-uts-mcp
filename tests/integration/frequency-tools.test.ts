@@ -43,6 +43,7 @@ const fake = vi.hoisted(() => {
       case ":FREQuency:CENTer:STEP:AUTO?": return state.stepAuto ? "1" : "0";
       case ":FREQuency:OFFSet?": return sci(state.offset);
       case ":SYSTem:ERRor?": return state.errors.shift() ?? '0,"No error"';
+      case ":INSTrument:SELect?": return "SA";
       default: throw new Error(`unexpected query ${cmd}`);
     }
   });

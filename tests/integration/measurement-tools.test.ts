@@ -82,6 +82,7 @@ const fake = vi.hoisted(() => {
         if (sub === "APOWr") return "-7.180824e+01";
       }
     }
+    if (cmd === ":INSTrument:SELect?") return "SA";
     throw new Error(`unexpected query ${cmd}`);
   });
   const sendCommand = vi.fn(async (cmd: string) => {
@@ -182,7 +183,7 @@ describe("get_measurement", () => {
   it("reports spectrum analyzer mode with one query and no commands", async () => {
     const out = json(await callTool(client, "get_measurement"));
     expect(out).toEqual({ measurement: "spectrum_analyzer" });
-    expect(fake.queries).toEqual([":SENSe:DETector:TRACe1?"]);
+    expect(fake.queries).toEqual([":INSTrument:SELect?", ":SENSe:DETector:TRACe1?"]);
     expect(fake.calls).toEqual([]);
   });
   it("never scans: in a measurement mode it is an error after the one query that got no reply", async () => {
@@ -191,7 +192,7 @@ describe("get_measurement", () => {
     expect(res.isError).toBe(true);
     expect(getText(res)).toMatch(/not in spectrum analyzer mode/);
     expect(getText(res)).toContain(":SENSe:DETector:TRACe1?");
-    expect(fake.queries).toEqual([":SENSe:DETector:TRACe1?"]);
+    expect(fake.queries).toEqual([":INSTrument:SELect?", ":SENSe:DETector:TRACe1?"]);
   });
   it("checks one named measurement and returns its parameters", async () => {
     fake.state.mode = "CHPower";
@@ -295,11 +296,11 @@ describe("read_measurement", () => {
     fake.state.mode = "CHPower";
     const out = json(await callTool(client, "read_measurement", { measurement: "channel_power" }));
     expect(out).toEqual({ measurement: "channel_power", command: "READ", channel_power_dbm: -73.66048, power_density_dbm_per_hz: -136.6708 });
-    expect(fake.queries).toEqual([":SENSe:CHPower:AVERage:STATe?", ":READ:CHPower?"]);
+    expect(fake.queries).toEqual([":INSTrument:SELect?", ":SENSe:CHPower:AVERage:STATe?", ":READ:CHPower?"]);
     fake.queries.length = 0;
     const f = json(await callTool(client, "read_measurement", { measurement: "channel_power", fetch: true }));
     expect(f.command).toBe("FETCh");
-    expect(fake.queries).toEqual([":SENSe:CHPower:AVERage:STATe?", ":FETCh:CHPower?"]);
+    expect(fake.queries).toEqual([":INSTrument:SELect?", ":SENSe:CHPower:AVERage:STATe?", ":FETCh:CHPower?"]);
   });
   it("over raw TCP READ replies have no line terminator, so FETCh is used and a warning says so", async () => {
     fake.link.transport = "raw";
@@ -326,7 +327,7 @@ describe("read_measurement", () => {
     expect(out).toEqual({
       measurement: "obw", command: "READ", obw_hz: 2997003, frequency_error_hz: 0, xdb_bandwidth_hz: 12000, total_power_dbm: -71.80824,
     });
-    expect(fake.queries.slice(1)).toEqual([":READ:OBWidth?", ":FETCh:OBWidth:OBWidth?", ":FETCh:OBWidth:FERRor?", ":FETCh:OBWidth:XDB?", ":FETCh:OBWidth:APOWr?"]);
+    expect(fake.queries.slice(2)).toEqual([":READ:OBWidth?", ":FETCh:OBWidth:OBWidth?", ":FETCh:OBWidth:FERRor?", ":FETCh:OBWidth:XDB?", ":FETCh:OBWidth:APOWr?"]);
   });
   it("errors when the measurement is not active, without reading and without changing the mode", async () => {
     fake.state.mode = "OBWidth";
@@ -563,7 +564,7 @@ describe("measure (one shot: configure, read, always restore)", () => {
     expect(res.isError).toBe(true);
     expect(getText(res)).toMatch(/exit_measurement/);
     expect(fake.calls).toEqual([]);
-    expect(fake.queries).toEqual([":SENSe:DETector:TRACe1?", ":SENSe:CHPower:AVERage:STATe?"]); // two queries, no scan
+    expect(fake.queries).toEqual([":INSTrument:SELect?", ":SENSe:DETector:TRACe1?", ":SENSe:CHPower:AVERage:STATe?"]); // three queries, no scan
   });
   it("with the requested measurement already active it only reads (no mode change); parameters are restored", async () => {
     fake.state.mode = "CHPower";

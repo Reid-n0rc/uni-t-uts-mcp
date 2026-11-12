@@ -20,7 +20,8 @@ export type Mode =
   | "garbage" // every query (except *OPC? and :SYSTem:ERRor?) returns a garbage reply
   | "empty" // ... returns an empty reply
   | "instrumentError" // the error queue holds -131,"Invalid suffix" after the commands
-  | "partial"; // the n-th operation fails (for every n)
+  | "partial" // the n-th operation fails (for every n)
+  | "wrongModule"; // :INSTrument:SELect? answers EMI instead of SA (#178, #191)
 
 export interface ContractEntry {
   kind: Kind;
@@ -35,8 +36,8 @@ export interface ContractEntry {
 }
 
 export const APPLICABLE: Record<Kind, Mode[]> = {
-  getter: ["notConnected", "timeout", "garbage", "empty", "partial"],
-  setter: ["notConnected", "timeout", "writeFailure", "garbage", "empty", "instrumentError", "partial"],
+  getter: ["notConnected", "timeout", "garbage", "empty", "partial", "wrongModule"],
+  setter: ["notConnected", "timeout", "writeFailure", "garbage", "empty", "instrumentError", "partial", "wrongModule"],
   rawQuery: ["notConnected", "timeout"],
   rawCommand: ["notConnected", "writeFailure", "instrumentError", "partial"],
   connect: ["timeout", "writeFailure"],
@@ -52,7 +53,7 @@ export const CONTRACT: Record<string, ContractEntry> = {
   disconnect: { kind: "disconnect", args: {} },
   discover_instruments: { kind: "discover", args: {}, invalid: [{ timeout_ms: 50 }, { timeout_ms: 60000 }] },
   list_instruments: { kind: "discover", args: {} }, // reads the registry only, never the instrument
-  identify: { kind: "getter", args: {} },
+  identify: { kind: "getter", args: {}, skip: { wrongModule: "*IDN? works in any module (requireModule: false)" } },
   scpi_query: {
     kind: "rawQuery",
     args: { command: "*IDN?" },
@@ -63,12 +64,17 @@ export const CONTRACT: Record<string, ContractEntry> = {
     args: { command: ":FREQuency:CENTer 1 GHz" },
     invalid: [{ command: "*RST" }, { command: "*IDN?" }],
   },
-  get_instrument_module: { kind: "getter", args: {} },
+  get_instrument_module: {
+    kind: "getter",
+    args: {},
+    skip: { wrongModule: "reads the module in any module (requireModule: false)" },
+  },
   select_instrument_module: {
     kind: "setter",
     args: { module: "sa" }, // matches the canned :INSTrument:SELect? reply "SA": no warning in the baseline case
     invalid: [{}, { module: "iq" }],
     warn: [{ module: "emi" }], // canned reply stays "SA": models the real firmware's silent refusal of an unlicensed module
+    skip: { wrongModule: "this is the tool that switches module, requireModule: false" },
   },
   get_frequency: { kind: "getter", args: {} },
   set_frequency: {
@@ -144,6 +150,9 @@ export const CONTRACT: Record<string, ContractEntry> = {
       writeFailure: "sends no commands of its own, it only polls *OPC? (the instrument ignores commands while sweeping)",
       garbage: "its only query is the *OPC? poll, whose non-1 replies just keep it polling until the timeout",
       empty: "its only query is the *OPC? poll, whose non-1 replies just keep it polling until the timeout",
+      wrongModule:
+        "only polls *OPC? directly (not through queryParsed/applyCommands), for a sweep that start_sweep/single_sweep " +
+        "already started under their own module guard; sweep completion itself is not module-specific",
     },
   },
   screenshot: { kind: "getter", args: {} },
@@ -411,6 +420,7 @@ export const fakeConnection = {
         return "";
       }
     }
+    if (fake.mode === "wrongModule" && /^:INSTrument(:SELect)?\?$/.test(cmd)) return "EMI";
     return defaultReply(cmd);
   },
   async queryBinary(cmd: string, timeoutMs = 30000): Promise<Buffer> {

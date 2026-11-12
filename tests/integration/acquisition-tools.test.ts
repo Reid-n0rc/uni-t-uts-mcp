@@ -18,6 +18,7 @@ const fake = vi.hoisted(() => {
         return "1";
       case ":SYSTem:ERRor?": return state.errors.shift() ?? '0,"No error"';
     }
+    if (cmd === ":INSTrument:SELect?") return "SA";
     throw new Error(`unexpected query ${cmd}`);
   });
   const sendCommand = vi.fn(async (cmd: string, o?: { sync?: boolean }) => {
