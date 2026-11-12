@@ -366,6 +366,20 @@ export const CONTRACT: Record<string, ContractEntry> = {
     ],
     requireModule: "AD",
   },
+  set_ad_filters: {
+    kind: "setter",
+    args: { low_pass_filter: "LPF300" },
+    invalid: [{}, { low_pass_filter: "LPF300", high_pass_filter: "HPF20" }],
+    warn: [{ low_pass_filter: "LPF3K" }, { high_pass_filter: "HPF50" }, { band_pass_filter: "CCIR1k" }],
+    requireModule: "AD",
+  },
+  set_ad_audio: {
+    kind: "setter",
+    args: { volume_pct: 10 },
+    invalid: [{}, { speaker: true }],
+    warn: [{ speaker: false }, { volume_pct: 10 }],
+    requireModule: "AD",
+  },
   get_tracking_generator: { kind: "getter", args: {} },
   set_tracking_generator: {
     kind: "setter",
@@ -402,6 +416,9 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   // in-process fake used by tool-contract.test.ts.
   [/^:INSTrument(:SELect)?\?$/, "SA"],
   [/^:CONFigure\?$/, "AM"],
+  [/LPFilter\?$/, "OFF"],
+  [/HPFilter\?$/, "OFF"],
+  [/BPFilter\?$/, "OFF"],
   [/^:SENSe:EMC:STANdard:SELect\?$/, "NONE"],
   [/^:SENSe:FSCan:SEQuence\?$/, "SCAN"],
   [/^:SENSe:FSCan:SEQuence:REMeasure\?$/, "CURRent"],
