@@ -4,11 +4,14 @@ import { applyCommands, queryBool, queryNumber, queryParsed, readBack } from "..
 import { formatNumber, onOff } from "../scpi.js";
 import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 
-// Commands: `:CALCulate:FSCan:MARKer<n>...` for mode/trace/reference/search (programming manual
-// pp.94-99; docs/research/emi-function.md section 3.6), but marker X/Y readback uses the plain
-// `:CALCulate:MARKer<n>:X?`/`:Y?` with no FSCan prefix — the only documented numeric readback in
-// the EMI chapter. Peak criteria (threshold/excursion) are under `:CALCulate:FSCan:MARKer:PEAK...`
-// (section 3.4). EMI has 3 traces (not 6) and the research doc lists 6 markers.
+// Commands: `:CALCulate:FSCan:MARKer<n>...` for mode/trace/reference/search/X/Y (programming
+// manual pp.94-99; docs/research/emi-function.md section 3.6). The manual's own text suggests the
+// plain, non-prefixed `:CALCulate:MARKer<n>:X?`/`:Y?` form for numeric readback, but that is WRONG
+// against real firmware (live-verified 2026-11-12, issue #187, owner present): the plain form gets
+// no reply at all on a query and `-113 Undefined header` with no effect on a set; only the
+// FSCan-prefixed form actually works for X/Y, both get and set. Peak criteria (threshold/
+// excursion) are under `:CALCulate:FSCan:MARKer:PEAK...` (section 3.4). EMI has 3 traces (not 6)
+// and the research doc lists 6 markers.
 
 const MODES = { off: "OFF", normal: "POSition", delta: "DELTa", fixed: "FIXed" } as const;
 type ModeName = keyof typeof MODES;
@@ -52,7 +55,6 @@ export interface EmiMarkerState {
 }
 
 const FM = (n: number) => `:CALCulate:FSCan:MARKer${n}`;
-const XY = (n: number) => `:CALCulate:MARKer${n}`;
 
 async function readEmiMarker(n: number): Promise<EmiMarkerState> {
   const mode = await queryParsed(`${FM(n)}:MODE?`, parseMode);
@@ -60,8 +62,8 @@ async function readEmiMarker(n: number): Promise<EmiMarkerState> {
   const state: EmiMarkerState = { marker: n, mode, trace, x: null, y: null };
   if (mode === "delta") state.reference_marker = await queryParsed(`${FM(n)}:REFerence?`, parseInt1(6, "reference marker"));
   if (mode !== "off") {
-    state.x = await queryNumber(`${XY(n)}:X?`);
-    state.y = await queryNumber(`${XY(n)}:Y?`);
+    state.x = await queryNumber(`${FM(n)}:X?`);
+    state.y = await queryNumber(`${FM(n)}:Y?`);
   }
   return state;
 }
@@ -137,7 +139,7 @@ export function registerEmiMarkerTools(server: McpServer): void {
         if (args.mode !== undefined) commands.push(`${FM(n)}:MODE ${MODES[args.mode]}`);
         if (args.trace !== undefined) commands.push(`${FM(n)}:TRACe ${args.trace}`);
         if (args.reference_marker !== undefined) commands.push(`${FM(n)}:REFerence ${args.reference_marker}`);
-        if (args.frequency_hz !== undefined) commands.push(`${XY(n)}:X ${formatNumber(args.frequency_hz)}`);
+        if (args.frequency_hz !== undefined) commands.push(`${FM(n)}:X ${formatNumber(args.frequency_hz)}`);
         await applyCommands(commands);
 
         const state = await readBack(() => readEmiMarker(n));

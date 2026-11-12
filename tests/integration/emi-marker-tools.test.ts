@@ -38,11 +38,13 @@ const fake = vi.hoisted(() => {
       if (m[2] === "TRACe") return String(marker.trace);
       return String(marker.reference);
     }
-    m = /^:CALCulate:MARKer(\d):(X|Y)\?$/.exec(cmd);
+    m = /^:CALCulate:FSCan:MARKer(\d):(X|Y)\?$/.exec(cmd);
     if (m) {
       const marker = markers[Number(m[1]) - 1];
       return String(m[2] === "X" ? marker.x : marker.y);
     }
+    // Live firmware (verified 2026-11-12, #187): the plain, non-FSCan form never replies.
+    if (/^:CALCulate:MARKer\d:[XY]\?$/.test(cmd)) throw new Error("timeout");
     if (cmd === ":CALCulate:FSCan:MARKer:PEAK:THReshold?") return String(peak.threshold);
     if (cmd === ":CALCulate:FSCan:MARKer:PEAK:THReshold:STATe?") return peak.thresholdAuto ? "1" : "0";
     if (cmd === ":CALCulate:FSCan:MARKer:PEAK:EXCursion?") return String(peak.excursion);
@@ -58,13 +60,15 @@ const fake = vi.hoisted(() => {
     if (m) { markers[Number(m[1]) - 1].trace = Number(m[2]); return; }
     m = /^:CALCulate:FSCan:MARKer(\d):REFerence (\d)$/.exec(cmd);
     if (m) { markers[Number(m[1]) - 1].reference = Number(m[2]); return; }
-    m = /^:CALCulate:MARKer(\d):X (.+)$/.exec(cmd);
+    m = /^:CALCulate:FSCan:MARKer(\d):X (.+)$/.exec(cmd);
     if (m) {
       const marker = markers[Number(m[1]) - 1];
       if (marker.mode === "OFF") return; // no effect, matches the live firmware
       marker.x = Number(m[2]);
       return;
     }
+    // Live firmware (verified 2026-11-12, #187): the plain, non-FSCan setter gives -113 and has no effect.
+    if (/^:CALCulate:MARKer\d:X /.test(cmd)) { state.errors.push('-113,"Undefined header"'); return; }
     m = /^:CALCulate:FSCan:MARKer(\d):(MAXimum|MAXimum:NEXT|MAXimum:LEFT|MAXimum:RIGHt|MINimum)$/.exec(cmd);
     if (m) {
       const marker = markers[Number(m[1]) - 1];
