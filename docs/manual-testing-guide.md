@@ -244,6 +244,9 @@ Switch to EMI first (`select_instrument_module` with `module: "emi"`) and back t
 | AD2 | `get_instrument_module`, then `enter_analog_demod` | `module: "analog_demod"`, `saved_settings: true`; no warnings if the option is licensed | Whether the switch took, and how long it took |
 | AD3 | Change something that would normally be visible (e.g. the front panel) while in AD, then `exit_analog_demod` | `module: "spectrum_analyzer"`, `restored: true`, the frequency/span/RBW/sweep settings back to what G1-G4 left them | Whether anything failed to restore (a `warnings` entry says what, after one resend) |
 | AD4 | `enter_analog_demod`, then `exit_analog_demod` with `restore_settings: false` | `restored: false`; the settings are left as AD left them, not put back | Pass/fail |
+| AD5 | `enter_analog_demod`, then `get_ad_settings` | A full snapshot (`demod_type`, frequency, bandwidth, timing fields); confirms which getters answer and with what, since most are not yet live-verified | Reply or error for every field |
+| AD6 | `set_ad_frequency` with `span_hz` and `rbw_hz` set | Reads back; note whether it clamped or errored out of range (ranges are from the manual, not yet live-verified) | Pass/fail, and any `warnings` |
+| AD7 | `set_ad_demod_timing` with `average_count` and `window_sweep_time_s` set | Reads back; note any instrument-adjusted value | Pass/fail, and any `warnings` |
 
 ### G14. Discovery
 
