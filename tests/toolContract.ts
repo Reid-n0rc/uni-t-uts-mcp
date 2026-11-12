@@ -381,6 +381,23 @@ export const CONTRACT: Record<string, ContractEntry> = {
     requireModule: "AD",
   },
   get_demod_result: { kind: "getter", args: {}, requireModule: "AD" },
+  set_ad_display: {
+    kind: "setter",
+    args: { window: 1, reference_level: -10 },
+    invalid: [{ window: 1 }, { window: 1, af_spacing: "linear" }],
+    warn: [{ window: 1, reference_level: -10 }, { window: 2, per_division: 5 }, { window: 3, af_spacing: "linear" }],
+    requireModule: "AD",
+  },
+  ad_marker: {
+    kind: "setter",
+    args: { marker: 1, mode: "normal" },
+    invalid: [{ marker: 1 }, { marker: 1, reference_marker: 1 }],
+    warn: [{ marker: 1, mode: "delta" }, { marker: 1, trace: "demod" }, { marker: 1, x: 1e6 }],
+    requireModule: "AD",
+  },
+  ad_marker_search: { kind: "setter", args: { marker: 1, action: "peak" }, requireModule: "AD" },
+  get_ad_marker: { kind: "getter", args: {}, requireModule: "AD" },
+  ad_markers_all_off: { kind: "setter", args: {}, requireModule: "AD" },
   get_tracking_generator: { kind: "getter", args: {} },
   set_tracking_generator: {
     kind: "setter",
@@ -403,6 +420,7 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/LLINe\d:MARGin\?$/, "0.000000e+00"],
   [/LLINe\d:DATA\?$/, ""], // an empty line (the real instrument stays silent there; "" is read the same way)
   [/MARKer\d+:MODE\?$/, "POSition"],
+  [/:CALCulate:(AM|FM):MARKer\d+:TRACe\?$/, "RFSPectrum"], // AD marker traces are named (RFSPectrum/DEMod/...), not SA's numeric 1-6
   [/MARKer\d+:TRACe\?$/, "1"],
   [/MARKer\d+:REFerence\?$/, "2"],
   [/MARKer\d+:FUNCtion\?$/, "OFF"],
