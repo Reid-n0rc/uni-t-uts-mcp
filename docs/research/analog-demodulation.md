@@ -71,7 +71,7 @@ Six markers per mode: `:CALCulate:AM|FM:MARKer:SELect`, `MARKer<n>:MODE {OFF|POS
 
 ### Measurements: gap
 
-The UM shows a result window with modulation depth (positive, negative, (pk-pk)/2) in AM, frequency deviation in FM, phase deviation in rad in PM, plus carrier power, modulation frequency, SINAD, modulation distortion and THD (UM p.15-20, 24, 33, 43). **None of these has a documented SCPI query**: the PM's AD chapter has no `:FETCh`, `:READ`, `:MEASure` or `:CALCulate:...:RESult` command (the SA chapter's `:FETCh`/`:READ` results do not apply). Whether undocumented queries exist is UNKNOWN; the SA experience (unsupported query: no reply, ~2.15 s stall, a late -113) makes blind probing expensive but safe to batch (section 6). Until one is found, depth/deviation come from marker Y on a Demod trace, and SINAD/THD/carrier power are only readable from a screenshot.
+The UM shows a result window with modulation depth (positive, negative, (pk-pk)/2) in AM, frequency deviation in FM, phase deviation in rad in PM, plus carrier power, modulation frequency, SINAD, modulation distortion and THD (UM p.15-20, 24, 33, 43). **None of these has a documented SCPI query** in either manual: the PM's AD chapter has no `:FETCh`, `:READ`, `:MEASure` or `:CALCulate:...:RESult` command (the SA chapter's `:FETCh`/`:READ` results do not apply). **Update (2026-11-11): an undocumented query exists and was confirmed live** — see section 6a below. `:FETCh:AM#?`/`:FETCh:FM#?`/`:FETCh:PM#?` return exactly this result window (plus the RF spectrum trace and the raw demod waveform) over SCPI; depth/deviation and SINAD/THD no longer require a screenshot.
 
 ### Triggers and sweep control (PM p.150)
 
@@ -128,9 +128,27 @@ The fake (`tests/fakeUts.ts`) already models modes (measurements), wrong-mode -1
 
 Only hardware can establish: whether the option is installed, how long module switching takes, whether SA state survives the round trip, which SA commands fail in AD, whether the AD commands answer at all (and clamp versus error), `:CONFigure:*:NDEFault`, the real marker Y scale, any hidden measurement queries, dropped commands and sync in AD, audio behavior, and VXI-11 versus raw differences. Fake behavior for those must be tagged ASSUMED, as the fake already does, until recorded in verified-hardware.md.
 
-## 6. Is the option installed? UNKNOWN
+## 6. Is the option installed? CONFIRMED installed (2026-11-11)
 
-The owner's UTS3036B may or may not have the analog demodulation option (the UG, p.20, says analog demodulation, EMI and vector analysis are options that need a secret key; the UM says the same). The tracking generator option was installed, but that says nothing about this one. Nothing in the repo records AD.
+The owner's UTS3036B **has** the analog demodulation option (and separately, EMI). Confirmed live: `:INSTrument AD` (short form of `:INSTrument:SELect AD`) actually switched the mode (`:INSTrument?` read back `AD`, `:SYSTem:ERRor?` stayed `0,"No error"`), and `:INSTrument EMI` likewise switched cleanly. This was found by probing after a private firmware-disassembly repo (`uts3036b-firmware`, run on a separate machine) established that `*OPT?` is wired to the same handler as `*IDN?` (`SCPI_CoreIdnQ`) and so can never report installed options, and that the firmware internally recognizes 11 modes (`SA, IQ, EMI, AD, VSA, RTSA, VNA, PNA, FDD, TDD, NR`), not just the 3 the manuals document. The disassembly also showed *why* the mode-switch probe in section 6 below is safe: `parm_system::mode_switch` checks `Option::state` before switching and, if the mode is inactive/unlicensed, only logs `MODE Inactive.` and returns without touching SCPI's error queue or the current mode — so the original section 6 probe plan (try the switch, read it back, no error either way) holds even without a live check, and is now also confirmed empirically on a licensed unit.
+
+### 6a. AD results readback: `:FETCh:AM#?`/`:FETCh:FM#?`/`:FETCh:PM#?` (confirmed live 2026-11-11)
+
+Confirmed on real hardware, matching the firmware disassembly's predicted suffix map exactly:
+
+| suffix | returns | confirmed live |
+|---|---|---|
+| 0 | RF spectrum trace (freq, amplitude pairs) | yes |
+| 1 (default; bare `:FETCh:AM?` matches) | 15-value metrics line (below) | yes |
+| 2 | demodulated waveform, min-hold | yes |
+| 3 / 4 / 5 | demodulated waveform, max-hold / current / average | not individually tried; same code path as 2 |
+| 6 | audio (AF) spectrum | not tried |
+
+The 15-value metrics line is, in order: center frequency, carrier power, carrier frequency error, modulation rate, **SINAD**, **distortion/total Vrms**, **THD**, then Peak+, Peak-, (Pk-Pk)/2, RMS for the current row and the same four for the max-hold row. Live example (AM, 64 MHz center, no real modulated signal present, so carrier-frequency-error read `nan` as expected): `6.400000000e+07,-9.835685e+01,nan,1.146127224e+01,-1.408944e+01,5.063745e+00,6.787261e-01,...`.
+
+**Caveats found live, not from disassembly:** right after the first `:INSTrument AD` round trip and readback on one TCP connection, a second mode-switch-and-readback pair on that *same* connection got no reply at all (had to reconnect; a fresh connection then showed the instrument itself was fine and had already applied the restore correctly). Treat a mode switch as "may consume the connection's reply slot for longer than a normal setter" — use a fresh connection, or a generous wait (2 s used here), before the next command after `:INSTrument <mode>`. Not yet isolated whether this is specific to leaving AD, entering AD, or any mode switch.
+
+**Actionable for uni-t-uts-mcp:** a read-only `get_demod_result`-style tool (or extending a measurement tool) can report depth/deviation, SINAD, THD and carrier power without a screenshot. Item 7 in the proposal list below (AD results investigation) is answered; keep the screenshot fallback only for the trace/waveform view, not the numeric result.
 
 A batched live check using documented commands only (one session, owner present, hand probing with fresh connections and waits of at least 2.5 s after any silent query; no `:KEY:`, no setters other than the module switch):
 
