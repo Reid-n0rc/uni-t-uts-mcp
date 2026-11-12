@@ -61,7 +61,7 @@ export function registerConnectionTools(server: McpServer): void {
       }
     },
     // Uses its own sockets, never the shared instrument connection: no need to wait behind (or hold up) other tools.
-    { exclusive: false, instrumentArg: false }
+    { exclusive: false, instrumentArg: false, requireModule: false }
   );
 
   defineTool(
@@ -136,7 +136,7 @@ export function registerConnectionTools(server: McpServer): void {
         return errorResult(err);
       }
     },
-    { instrumentArg: { name: "name", create: true } }
+    { instrumentArg: { name: "name", create: true }, requireModule: false }
   );
 
   defineTool(
@@ -155,7 +155,7 @@ export function registerConnectionTools(server: McpServer): void {
       }
     },
     // Must not wait behind a running operation: it fails everything queued and ends the connection.
-    { exclusive: false, instrumentArg: { name: "name" } }
+    { exclusive: false, instrumentArg: { name: "name" }, requireModule: false }
   );
 
   defineTool(
@@ -179,7 +179,7 @@ export function registerConnectionTools(server: McpServer): void {
         return errorResult(err);
       }
     },
-    { instrumentArg: { name: "name" } }
+    { instrumentArg: { name: "name" }, requireModule: false }
   );
 
   defineTool(
@@ -215,6 +215,6 @@ export function registerConnectionTools(server: McpServer): void {
       }
     },
     // Reads the registry only; must not wait behind a long sweep.
-    { exclusive: false, instrumentArg: false }
+    { exclusive: false, instrumentArg: false, requireModule: false }
   );
 }

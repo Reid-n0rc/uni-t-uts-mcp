@@ -5,6 +5,7 @@ import type { ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-com
 import { connection } from "../connection.js";
 import { instruments, isValidInstrumentName } from "../registry.js";
 import { InstrumentError } from "../instrument.js";
+import { withModuleGuard, type ModuleName } from "../moduleGuard.js";
 
 /** Shared helpers for building MCP tool results. */
 
@@ -46,6 +47,14 @@ export interface DefineToolOptions<Args> {
    * `instrument` argument, added to the tool's schema here for every tool; `false` for tools that take none (the listing tools).
    */
   instrumentArg?: { name: string; create?: boolean } | false;
+  /**
+   * The module this tool requires (same-named commands mean something different per module, #178/#191).
+   * Checked first thing inside the exclusive session, before the handler sends anything, against a
+   * per-instrument cache invalidated by select_instrument_module. Defaults to "sa": every tool that talks
+   * to the instrument is SA-only unless it says otherwise. Pass `false` to opt out (connection/scpi tools,
+   * and get_instrument_module/select_instrument_module themselves, which must work in any module).
+   */
+  requireModule?: ModuleName | false;
 }
 
 const REFUSED =
@@ -101,17 +110,20 @@ export function defineTool<Args extends ZodRawShapeCompat>(
       if (problem) return errorResult(problem);
       if (typeof named === "string") return await runOnInstrument(named, args);
       if (options.exclusive === false) return await handler(args);
-      return await connection.runExclusive(() => handler(args), { label: name });
+      return await connection.runExclusive(() => runGuarded(args), { label: name });
     } catch (err) {
       return errorResult(err);
     }
   };
+  const requiredModule = options.requireModule === undefined ? "sa" : options.requireModule;
+  const runGuarded = (args: Parameters<ToolCallback<Args>>[0]): Promise<CallToolResult> =>
+    withModuleGuard(requiredModule, async () => handler(args));
   const runOnInstrument = async (named: string, args: Parameters<ToolCallback<Args>>[0]): Promise<CallToolResult> => {
     const existed = instruments.has(named);
     const conn = selector && selector.create ? instruments.declare(named) : instruments.resolve(named);
     try {
       return await instruments.runWith(conn, () =>
-        options.exclusive === false ? handler(args) : conn.runExclusive(() => handler(args), { label: name })
+        options.exclusive === false ? handler(args) : conn.runExclusive(() => runGuarded(args), { label: name })
       );
     } finally {
       if (selector && selector.create && !existed && !conn.isConnected()) instruments.remove(named);
