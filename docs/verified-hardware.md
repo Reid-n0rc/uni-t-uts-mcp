@@ -447,7 +447,7 @@ The live probe also hit the known flaky-network pattern (several fresh-connectio
 Ran the batched live probe from `docs/research/emi-function.md` section 8, with the owner
 physically present at the analyzer, over raw SCPI:
 
-1. `*IDN?` confirmed the unit (`UNI-TREND,UTS3036B,...,V1.04.0040`).
+1. `*IDN?` confirmed the unit (`UNI-TREND,UTS3036B,<serial>,V1.04.0040`).
 2. `:INSTrument:SELect?` read `SA`. SA snapshot taken: center 50 Hz, span 100 Hz, RBW 1 Hz,
    reference level 0 dB, attenuation 10 dB.
 3. `:INSTrument:SELect EMI`, waited ~3 s, then `:SYSTem:ERRor?` read `0,"No error"`.
