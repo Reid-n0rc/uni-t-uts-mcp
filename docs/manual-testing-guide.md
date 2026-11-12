@@ -223,6 +223,10 @@ Switch to EMI first (`select_instrument_module` with `module: "emi"`) and back t
 | EM1 | `get_emi_settings` with no arguments (default groups) | A snapshot without `scan_table`; every other group present | Whether every query answers, and with what |
 | EM2 | `get_emi_settings` with `groups: ["scan_table"]` | 10 bands | Whether all 10 answer, and how long it takes |
 | EM3 | `get_emi_settings` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
+| EM4 | `set_emi_scan_table` with `bands: [{band: 2, start_hz: 100e6, stop_hz: 200e6}]` | Band 2's range updated; the full table read back | Whether any other band's range also changed (neighbor-band coupling) |
+| EM5 | `set_emi_scan_table` with `presets: [{band: 3, cis: "B"}]` | Band 3 loaded to the CISPR B range (150 kHz-30 MHz) | Pass/fail; exact start/stop returned |
+| EM6 | `set_emi_scan_table` with `bands: [{band: 1, start_hz: 1e6, stop_hz: 1e6 + 1e5}]` where band 2 already starts near there | Band 1 set; check `warnings` for a note about band 2 moving | Whether the manual's documented coupling (p.21) shows up this way |
+| EM7 | `set_emi_scan_table` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
 
 ### G14. Discovery
 
