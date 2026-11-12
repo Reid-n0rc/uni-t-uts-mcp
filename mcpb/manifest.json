@@ -206,6 +206,14 @@
       "description": "Switch the active measurement function module (spectrum analyzer, EMI or analog demodulation)."
     },
     {
+      "name": "enter_analog_demod",
+      "description": "Switch to the analog demodulation module, saving the spectrum analyzer settings for exit_analog_demod to restore."
+    },
+    {
+      "name": "exit_analog_demod",
+      "description": "Leave the analog demodulation module and restore the spectrum analyzer settings saved by enter_analog_demod."
+    },
+    {
       "name": "get_emi_settings",
       "description": "Read-only snapshot of the EMI module configuration: standard, scan sequence, scan table, detectors, search and trigger settings."
     },

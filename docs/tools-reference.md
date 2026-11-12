@@ -284,6 +284,18 @@ Read-only, safe in any module. Returns `module`: `spectrum_analyzer`, `emi` or `
 
 **Every other tool that talks to the instrument is spectrum-analyzer-only** (#178, #191): the same-named command often means something different per module (for example `:SENSe:FREQuency:CENTer` under EMI), so before sending anything each one checks the module fresh (no caching across calls) and refuses with an actionable message naming `select_instrument_module` if it is not SA. `get_instrument_module`, `select_instrument_module`, `identify`, `scpi_query`, `scpi_command`, `connect`, `disconnect`, `discover_instruments` and `list_instruments` are exempt, since they must work in any module or send none of their own.
 
+## Analog demodulation module
+
+Command syntax: [programming-guide.md](programming-guide.md) section 1; state save/restore follows `docs/research/analog-demodulation.md` section 1 and the same read-back pattern `exit_measurement` uses. `get_instrument_module`/`select_instrument_module` remain the general-purpose module tools; these two add only the spectrum-analyzer state round trip around `:INSTrument:SELect AD`/`SA`.
+
+### `enter_analog_demod`
+
+Switches to the AD module and reads it back. From spectrum analyzer mode it saves the frequency, bandwidth, sweep time and continuous-sweep settings first (`exit_analog_demod` restores them); calling it again while already in AD keeps whatever was saved the first time rather than overwriting it. If the readback does not match (an unlicensed module is refused silently by this firmware, no SCPI error), that is a `warnings` entry, not an error - the same convention as `select_instrument_module`. Leaves the instrument in AD on purpose. Does not select or preset an AM/FM demodulation type (`:CONFigure:AM`/`:CONFigure:FM` reset that type's parameters and are out of scope here) and does not save or restore the tracking generator (unlike leaving a measurement, nothing confirms the AD module switch touches it).
+
+### `exit_analog_demod`
+
+Switches back to spectrum analyzer mode and, unless `restore_settings` is `false`, restores the settings `enter_analog_demod` saved, verified by read-back with one resend before giving up (same as `exit_measurement`). Always sends the switch, even if this server never called `enter_analog_demod` (for example after `select_instrument_module`); a clear `warnings` entry says so when there is nothing saved to restore, rather than guessing at settings this server never saw.
+
 ## EMI function
 
 Research-stage: field names, ranges and groupings come from the programming manual via [docs/research/emi-function.md](research/emi-function.md); none of it has been verified live yet (EMI-12, #187, needs the owner present at the analyzer). Requires the EMI module (`select_instrument_module`); every tool here refuses with an actionable message otherwise.
