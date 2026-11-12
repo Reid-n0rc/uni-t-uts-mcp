@@ -118,6 +118,24 @@ export const CONTRACT: Record<string, ContractEntry> = {
     ],
     requireModule: "EMI",
   },
+  get_emi_limit_line: { kind: "getter", args: { line: 2 }, invalid: [{ line: 0 }, { line: 7 }], requireModule: "EMI" },
+  set_emi_limit_line: {
+    kind: "setter",
+    args: { line: 1, displayed: false, points: [{ frequency_hz: 1e8, amplitude_dbm: -50 }, { frequency_hz: 5e8, amplitude_dbm: -30, connected: false }] },
+    invalid: [{}, { line: 7, displayed: true }, { trace: 7 }, { margin_db: 41 }, { points: [] }, { copy_from: 1, line: 1 }, { points: [{ frequency_hz: 5e8, amplitude_dbm: -30 }, { frequency_hz: 1e8, amplitude_dbm: -50 }] }],
+    warn: [{ type: "lower" }, { trace: 2 }, { margin_db: 5 }, { margin_enabled: true }, { displayed: true }, { points: [{ frequency_hz: 2e8, amplitude_dbm: -40 }, { frequency_hz: 3e8, amplitude_dbm: -40 }] }],
+    requireModule: "EMI",
+  },
+  delete_emi_limit_line: {
+    kind: "setter",
+    args: { line: 1 },
+    invalid: [{}, { line: 1, all: true }, { line: 9 }],
+    skip: {
+      timeout: "the only readback is DATA?, which the instrument leaves unanswered on an emptied line, so a timeout there is the success signal",
+      empty: "an empty DATA? reply means the same (no points), so the delete is confirmed",
+    },
+    requireModule: "EMI",
+  },
   get_frequency: { kind: "getter", args: {} },
   set_frequency: {
     kind: "setter",
