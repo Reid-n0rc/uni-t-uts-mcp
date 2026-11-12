@@ -95,11 +95,11 @@ Naming: `ad_*`. All go through `defineTool`, `validate` first (nothing sent when
 | `set_ad_demod_timing` | state-changing | `windowSweepTime?`, `demodTime?`, `demodTimeAuto?`, `averageCount?`, `average?` | ranges 1 us to 500 ms, 1-999 |
 | `set_ad_filters` | state-changing | `lowPass?`, `highPass?`, `bandPass?` (enums above) | at most one family; warns about the family the instrument turned off |
 | `set_ad_audio` | state-changing | `speaker?: boolean`, `volume?: 0-100` | See risk 3; `speaker: true` requires an explicit `confirm: true`; default off. Restores speaker and volume it changed unless asked to keep |
-| `set_ad_display` | state-changing | `window: 1\|2\|3`, `referenceLevel?`, `perDivision?`, `afSpacing?` | unit validation per window and mode |
-| `ad_marker` | state-changing | `marker 1-6`, `mode?`, `trace?`, `x?`, `reference?` | AM/FM prefix taken from `:CONFigure?` |
-| `ad_marker_search` | state-changing | `marker`, `action: peak\|next\|left\|right\|min\|pkpk` | |
-| `get_ad_marker` | read-only | `marker?` | X, Y, trace; returns the unit by trace and mode (Hz/s/dBm/fraction), strict parse |
-| `ad_markers_all_off` | state-changing | none | |
+| `set_ad_display` | state-changing | `window: 1\|2\|3`, `referenceLevel?`, `perDivision?`, `afSpacing?` | **shipped (#195)**: unit validation per window and mode; not yet live-verified |
+| `ad_marker` | state-changing | `marker 1-6`, `mode?`, `trace?`, `x?`, `reference?` | **shipped (#195)**: AM/FM prefix taken from `:CONFigure?`; not yet live-verified |
+| `ad_marker_search` | state-changing | `marker`, `action: peak\|next\|left\|right\|min\|pkpk` | **shipped (#195)** |
+| `get_ad_marker` | read-only | `marker?` | **shipped (#195)**: X, Y, trace; returns the unit by trace and mode (Hz/s/dBm/fraction), strict parse |
+| `ad_markers_all_off` | state-changing | none | **shipped (#195)** |
 | `get_demod_result` | read-only | none | **shipped (#196)**: wraps the undocumented `:FETCh:AM?`/`:FETCh:FM?` metrics-line readback (section 6a), confirmed live. `read_modulation` (marker-based depth/deviation via peak/pkpk) was not built: the results query answers this need directly |
 
 Not proposed: `:CONFigure:AM/FM` as a free-standing tool (destructive preset; only as `preset: true` on `enter_analog_demod`), `:INSTrument:DEFault`, `SELect EMI`, PM/FM-stereo (undocumented), MMEMory.
@@ -170,6 +170,6 @@ Each fits one context window; each is tests first with docs in the same PR.
 3. **`enter_analog_demod` / `exit_analog_demod`** with save/restore (after 1 and 2).
 4. **AD frequency, bandwidth and timing tools** (`get_ad_settings`, `set_ad_frequency`, `set_ad_demod_timing`).
 5. **AD filters and audio** (`set_ad_filters`, `set_ad_audio` with confirmation and volume restore).
-6. **AD display and markers** (`set_ad_display`, marker tools and `read_modulation`).
+6. **AD display and markers** (`set_ad_display`, marker tools and `read_modulation`). **Done (#195)**: `set_ad_display`, `ad_marker`, `ad_marker_search`, `get_ad_marker`, `ad_markers_all_off` ship, research-stage; `read_modulation` was not needed (see item 7, `get_demod_result` answers it).
 7. **AD results investigation**: find out whether depth, deviation, SINAD, THD and carrier power can be read remotely; screenshot-based fallback; adds AD to the manual testing guide. **Done (#196)**: `get_demod_result` wraps the confirmed-live `:FETCh:AM?`/`:FETCh:FM?` metrics readback (section 6a); the screenshot fallback stays only for the RF/waveform/AF-spectrum trace views, which this tool does not expose.
 8. **AD docs and wiki**: tools reference, README table, wiki pages, manual-testing-guide group, roadmap entries (kept small, after the tools exist).
