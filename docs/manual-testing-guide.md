@@ -236,6 +236,11 @@ Switch to EMI first (`select_instrument_module` with `module: "emi"`) and back t
 | EM14 | `set_emi_correction` with `slot: 1`, `points` of 10 pairs; `get_emi_correction` with `slot: 1` | Points round-trip exactly (already live-verified, see `docs/verified-hardware.md`'s EMI correction entry) | Pass/fail |
 | EM15 | `set_emi_correction` with `slot: 1`, `enabled: true`; then `all_off: true`; then `delete_all: true` | Slot enabled, then every slot off, then every slot's points cleared | Pass/fail |
 | EM16 | `get_emi_correction`/`set_emi_correction` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
+| EM17 | `set_emi_marker` with `marker: 1, mode: "normal", frequency_hz: 100e6`; `get_emi_marker` with `marker: 1` | Mode and frequency round-trip; `x`/`y` read back together | Whether the plain (non-`FSCan`) `:CALCulate:MARKer<n>:X?`/`:Y?` readback really answers in EMI mode |
+| EM18 | `emi_marker_search` with `marker: 2, action: "peak"` | Marker turns on and moves to a peak; `get_emi_marker` matches | Pass/fail |
+| EM19 | `emi_markers_all_off` after at least one marker is on | Every marker reads off afterward | Pass/fail |
+| EM20 | `set_emi_peak_criteria` with `threshold_dbm: -40`; `get_emi_peak_criteria` | Threshold set, automatic flag off, excursion unaffected | Pass/fail |
+| EM21 | `get_emi_marker`/`set_emi_marker`/`emi_marker_search`/`emi_markers_all_off`/`get_emi_peak_criteria`/`set_emi_peak_criteria` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
 
 ### G13c. Analog demodulation module (only if the AD option is licensed)
 
