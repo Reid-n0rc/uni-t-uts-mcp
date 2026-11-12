@@ -492,8 +492,8 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
       <div class="steps">
         <div class="step reveal">
           <h3>Claude Desktop: download the .mcpb and double-click</h3>
-          <p class="callout">Attached to the v0.5.0 release as <code>uni-t-uts-mcp-0.5.0.mcpb</code>. Not yet verified inside Claude Desktop itself; the JSON configuration below always works.</p>
-          <p>Download <code>uni-t-uts-mcp-0.5.0.mcpb</code> from the <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v0.5.0">GitHub release</a> and double-click it. In the install dialog enter the analyzer address (optional: you can also say "connect to the analyzer at 192.168.1.100"), keep port 5025 and transport <code>raw</code>, and install. Claude Desktop already includes the Node.js it needs.</p>
+          <p class="callout">Attached to the v1.1.0 release as <code>uni-t-uts-mcp-1.1.0.mcpb</code>. Not yet verified inside Claude Desktop itself; the JSON configuration below always works.</p>
+          <p>Download <code>uni-t-uts-mcp-1.1.0.mcpb</code> from the <a href="https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v1.1.0">GitHub release</a> and double-click it. In the install dialog enter the analyzer address (optional: you can also say "connect to the analyzer at 192.168.1.100"), keep port 5025 and transport <code>raw</code>, and install. Claude Desktop already includes the Node.js it needs.</p>
         </div>
         <div class="step reveal">
           <h3>Claude Code</h3>
@@ -505,33 +505,33 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
 <pre class="code"><code>claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y uni-t-uts-mcp</code></pre></div></div>
           <p>Or from the release tarball (the same files as the npm package):</p>
           <div class="win"><div class="win-bar"><h3 class="win-title">terminal (macOS / Linux)</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
-            <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.5.0/uni-t-uts-mcp-0.5.0.tgz">Copy</button>
-<pre class="code"><code>claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.5.0/uni-t-uts-mcp-0.5.0.tgz</code></pre></div></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v1.1.0/uni-t-uts-mcp-1.1.0.tgz">Copy</button>
+<pre class="code"><code>claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v1.1.0/uni-t-uts-mcp-1.1.0.tgz</code></pre></div></div>
           <div class="win"><div class="win-bar"><h3 class="win-title">terminal (Windows)</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
-            <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.5.0/uni-t-uts-mcp-0.5.0.tgz">Copy</button>
-<pre class="code"><code>claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.5.0/uni-t-uts-mcp-0.5.0.tgz</code></pre></div></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v1.1.0/uni-t-uts-mcp-1.1.0.tgz">Copy</button>
+<pre class="code"><code>claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v1.1.0/uni-t-uts-mcp-1.1.0.tgz</code></pre></div></div>
           <p class="callout">Windows needs <code>cmd /c</code> because <code>npx</code> is a <code>.cmd</code> file. <code>UTS_IP</code> is optional: without it, tell the assistant "connect to the analyzer at 192.168.1.100".</p>
         </div>
         <div class="step reveal">
           <h3>Claude Desktop (JSON), Cursor, VS Code and others</h3>
           <div class="win"><div class="win-bar"><h3 class="win-title">mcp config (JSON, macOS / Linux)</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
-            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;npx&quot;,&#10;      &quot;args&quot;: [&quot;-y&quot;, &quot;https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.5.0/uni-t-uts-mcp-0.5.0.tgz&quot;],&#10;      &quot;env&quot;: { &quot;UTS_IP&quot;: &quot;192.168.1.100&quot; }&#10;    }&#10;  }&#10;}">Copy</button>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;npx&quot;,&#10;      &quot;args&quot;: [&quot;-y&quot;, &quot;https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v1.1.0/uni-t-uts-mcp-1.1.0.tgz&quot;],&#10;      &quot;env&quot;: { &quot;UTS_IP&quot;: &quot;192.168.1.100&quot; }&#10;    }&#10;  }&#10;}">Copy</button>
 <pre class="code"><code>{
   "mcpServers": {
     "uni-t-uts": {
       "command": "npx",
-      "args": ["-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.5.0/uni-t-uts-mcp-0.5.0.tgz"],
+      "args": ["-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v1.1.0/uni-t-uts-mcp-1.1.0.tgz"],
       "env": { "UTS_IP": "192.168.1.100" }
     }
   }
 }</code></pre></div></div>
           <div class="win"><div class="win-bar"><h3 class="win-title">mcp config (JSON, Windows)</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
-            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;cmd&quot;,&#10;      &quot;args&quot;: [&quot;/c&quot;, &quot;npx&quot;, &quot;-y&quot;, &quot;https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.5.0/uni-t-uts-mcp-0.5.0.tgz&quot;],&#10;      &quot;env&quot;: { &quot;UTS_IP&quot;: &quot;192.168.1.100&quot; }&#10;    }&#10;  }&#10;}">Copy</button>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;cmd&quot;,&#10;      &quot;args&quot;: [&quot;/c&quot;, &quot;npx&quot;, &quot;-y&quot;, &quot;https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v1.1.0/uni-t-uts-mcp-1.1.0.tgz&quot;],&#10;      &quot;env&quot;: { &quot;UTS_IP&quot;: &quot;192.168.1.100&quot; }&#10;    }&#10;  }&#10;}">Copy</button>
 <pre class="code"><code>{
   "mcpServers": {
     "uni-t-uts": {
       "command": "cmd",
-      "args": ["/c", "npx", "-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v0.5.0/uni-t-uts-mcp-0.5.0.tgz"],
+      "args": ["/c", "npx", "-y", "https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/download/v1.1.0/uni-t-uts-mcp-1.1.0.tgz"],
       "env": { "UTS_IP": "192.168.1.100" }
     }
   }
@@ -540,11 +540,11 @@ footer small { color: #cdbcf0; display: block; max-width: 80ch; }
         <div class="step reveal">
           <h3>Other ways to install</h3>
           <div class="win"><div class="win-bar"><h3 class="win-title">from the git tag</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
-            <div class="code-wrap"><button class="copy" type="button" data-copy="npx -y github:Reid-n0rc/uni-t-uts-mcp#v0.5.0">Copy</button>
-<pre class="code"><code>npx -y github:Reid-n0rc/uni-t-uts-mcp#v0.5.0</code></pre></div></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="npx -y github:Reid-n0rc/uni-t-uts-mcp#v1.1.0">Copy</button>
+<pre class="code"><code>npx -y github:Reid-n0rc/uni-t-uts-mcp#v1.1.0</code></pre></div></div>
           <div class="win"><div class="win-bar"><h3 class="win-title">Docker (amd64 and arm64)</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
-            <div class="code-wrap"><button class="copy" type="button" data-copy="docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0">Copy</button>
-<pre class="code"><code>docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0</code></pre></div></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0">Copy</button>
+<pre class="code"><code>docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0</code></pre></div></div>
           <div class="win"><div class="win-bar"><h3 class="win-title">from a clone (prints your exact config)</h3><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
             <div class="code-wrap"><button class="copy" type="button" data-copy="git clone https://github.com/Reid-n0rc/uni-t-uts-mcp.git&#10;cd uni-t-uts-mcp&#10;npm ci &amp;&amp; npm run build&#10;npm run client-config -- --host 192.168.1.100">Copy</button>
 <pre class="code"><code>git clone https://github.com/Reid-n0rc/uni-t-uts-mcp.git
@@ -581,7 +581,7 @@ npm run client-config -- --host 192.168.1.100</code></pre></div></div>
         <div role="tabpanel" class="cpanel" id="panel-claude-code" aria-labelledby="tab-claude-code">
           <h3>Claude Code</h3>
           
-          <ul><li>Recommended: add this repository as a marketplace and install the plugin (two commands, inside Claude Code or with <code>claude plugin ...</code> in a shell). The plugin runs <code>npx -y uni-t-uts-mcp</code> pinned to this release (0.5.0) and asks for the analyzer address, port and transport (all optional; they are stored in your Claude Code settings).</li><li>Or run the <code>claude mcp add</code> command once in a terminal. Add <code>--scope user</code> to make it available in every project (<code>local</code> is the default, <code>project</code> writes <code>.mcp.json</code>).</li><li>UTS_IP is optional: without it, tell the assistant &quot;connect to the analyzer at 192.168.1.100&quot;.</li></ul>
+          <ul><li>Recommended: add this repository as a marketplace and install the plugin (two commands, inside Claude Code or with <code>claude plugin ...</code> in a shell). The plugin runs <code>npx -y uni-t-uts-mcp</code> pinned to this release (1.1.0) and asks for the analyzer address, port and transport (all optional; they are stored in your Claude Code settings).</li><li>Or run the <code>claude mcp add</code> command once in a terminal. Add <code>--scope user</code> to make it available in every project (<code>local</code> is the default, <code>project</code> writes <code>.mcp.json</code>).</li><li>UTS_IP is optional: without it, tell the assistant &quot;connect to the analyzer at 192.168.1.100&quot;.</li></ul>
           <div class="win"><div class="win-bar"><h4 class="win-title">Plugin (recommended)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
             <div class="code-wrap"><button class="copy" type="button" data-copy="/plugin marketplace add Reid-n0rc/uni-t-uts-mcp&#10;/plugin install uni-t-uts@uni-t-uts-mcp">Copy</button>
 <pre class="code"><code>/plugin marketplace add Reid-n0rc/uni-t-uts-mcp
@@ -597,8 +597,8 @@ claude plugin install uni-t-uts@uni-t-uts-mcp</code></pre></div></div>
             <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y uni-t-uts-mcp">Copy</button>
 <pre class="code"><code>claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y uni-t-uts-mcp</code></pre></div></div>
           <div class="win"><div class="win-bar"><h4 class="win-title">Docker</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
-            <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0">Copy</button>
-<pre class="code"><code>claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0</code></pre></div></div>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0">Copy</button>
+<pre class="code"><code>claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0</code></pre></div></div>
           <div class="win"><div class="win-bar"><h4 class="win-title">.mcp.json (project scope)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
             <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;npx&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
 <pre class="code"><code>{
@@ -619,8 +619,8 @@ claude plugin install uni-t-uts@uni-t-uts-mcp</code></pre></div></div>
         </div>
         <div role="tabpanel" class="cpanel" id="panel-claude-desktop" aria-labelledby="tab-claude-desktop" data-later>
           <h3>Claude Desktop</h3>
-          <p><a class="btn alt" href="https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v0.5.0">Download the .mcpb (GitHub releases)</a></p>
-          <ul><li>Easiest: download <code>uni-t-uts-mcp-0.5.0.mcpb</code> from the release and double-click it; the install dialog asks for the analyzer address. (Not verified in Claude Desktop yet.)</li><li>Or edit the config file (Settings &gt; Developer &gt; Edit Config): macOS <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>, Windows <code>%APPDATA%\Claude\claude_desktop_config.json</code>, Linux <code>~/.config/Claude/claude_desktop_config.json</code>. Restart Claude Desktop completely afterwards.</li><li>UTS_IP is optional: without it, tell the assistant &quot;connect to the analyzer at 192.168.1.100&quot;.</li></ul>
+          <p><a class="btn alt" href="https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v1.1.0">Download the .mcpb (GitHub releases)</a></p>
+          <ul><li>Easiest: download <code>uni-t-uts-mcp-1.1.0.mcpb</code> from the release and double-click it; the install dialog asks for the analyzer address. (Not verified in Claude Desktop yet.)</li><li>Or edit the config file (Settings &gt; Developer &gt; Edit Config): macOS <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>, Windows <code>%APPDATA%\Claude\claude_desktop_config.json</code>, Linux <code>~/.config/Claude/claude_desktop_config.json</code>. Restart Claude Desktop completely afterwards.</li><li>UTS_IP is optional: without it, tell the assistant &quot;connect to the analyzer at 192.168.1.100&quot;.</li></ul>
           <div class="win"><div class="win-bar"><h4 class="win-title">npx (macOS / Linux)</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
             <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;npx&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;-y&quot;,&#10;        &quot;uni-t-uts-mcp&quot;&#10;      ],&#10;      &quot;env&quot;: {&#10;        &quot;UTS_IP&quot;: &quot;192.168.1.100&quot;&#10;      }&#10;    }&#10;  }&#10;}">Copy</button>
 <pre class="code"><code>{
@@ -656,7 +656,7 @@ claude plugin install uni-t-uts@uni-t-uts-mcp</code></pre></div></div>
   }
 }</code></pre></div></div>
           <div class="win"><div class="win-bar"><h4 class="win-title">Docker</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
-            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;docker&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;run&quot;,&#10;        &quot;-i&quot;,&#10;        &quot;--rm&quot;,&#10;        &quot;-e&quot;,&#10;        &quot;UTS_IP=192.168.1.100&quot;,&#10;        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0&quot;&#10;      ]&#10;    }&#10;  }&#10;}">Copy</button>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;docker&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;run&quot;,&#10;        &quot;-i&quot;,&#10;        &quot;--rm&quot;,&#10;        &quot;-e&quot;,&#10;        &quot;UTS_IP=192.168.1.100&quot;,&#10;        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0&quot;&#10;      ]&#10;    }&#10;  }&#10;}">Copy</button>
 <pre class="code"><code>{
   &quot;mcpServers&quot;: {
     &quot;uni-t-uts&quot;: {
@@ -667,7 +667,7 @@ claude plugin install uni-t-uts@uni-t-uts-mcp</code></pre></div></div>
         &quot;--rm&quot;,
         &quot;-e&quot;,
         &quot;UTS_IP=192.168.1.100&quot;,
-        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0&quot;
+        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0&quot;
       ]
     }
   }
@@ -713,7 +713,7 @@ claude plugin install uni-t-uts@uni-t-uts-mcp</code></pre></div></div>
   }
 }</code></pre></div></div>
           <div class="win"><div class="win-bar"><h4 class="win-title">Docker</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
-            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;docker&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;run&quot;,&#10;        &quot;-i&quot;,&#10;        &quot;--rm&quot;,&#10;        &quot;-e&quot;,&#10;        &quot;UTS_IP=192.168.1.100&quot;,&#10;        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0&quot;&#10;      ]&#10;    }&#10;  }&#10;}">Copy</button>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;docker&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;run&quot;,&#10;        &quot;-i&quot;,&#10;        &quot;--rm&quot;,&#10;        &quot;-e&quot;,&#10;        &quot;UTS_IP=192.168.1.100&quot;,&#10;        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0&quot;&#10;      ]&#10;    }&#10;  }&#10;}">Copy</button>
 <pre class="code"><code>{
   &quot;mcpServers&quot;: {
     &quot;uni-t-uts&quot;: {
@@ -724,7 +724,7 @@ claude plugin install uni-t-uts@uni-t-uts-mcp</code></pre></div></div>
         &quot;--rm&quot;,
         &quot;-e&quot;,
         &quot;UTS_IP=192.168.1.100&quot;,
-        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0&quot;
+        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0&quot;
       ]
     }
   }
@@ -815,7 +815,7 @@ claude plugin install uni-t-uts@uni-t-uts-mcp</code></pre></div></div>
   }
 }</code></pre></div></div>
           <div class="win"><div class="win-bar"><h4 class="win-title">Docker</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
-            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;docker&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;run&quot;,&#10;        &quot;-i&quot;,&#10;        &quot;--rm&quot;,&#10;        &quot;-e&quot;,&#10;        &quot;UTS_IP=192.168.1.100&quot;,&#10;        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0&quot;&#10;      ]&#10;    }&#10;  }&#10;}">Copy</button>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;docker&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;run&quot;,&#10;        &quot;-i&quot;,&#10;        &quot;--rm&quot;,&#10;        &quot;-e&quot;,&#10;        &quot;UTS_IP=192.168.1.100&quot;,&#10;        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0&quot;&#10;      ]&#10;    }&#10;  }&#10;}">Copy</button>
 <pre class="code"><code>{
   &quot;mcpServers&quot;: {
     &quot;uni-t-uts&quot;: {
@@ -826,7 +826,7 @@ claude plugin install uni-t-uts@uni-t-uts-mcp</code></pre></div></div>
         &quot;--rm&quot;,
         &quot;-e&quot;,
         &quot;UTS_IP=192.168.1.100&quot;,
-        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0&quot;
+        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0&quot;
       ]
     }
   }
@@ -872,7 +872,7 @@ claude plugin install uni-t-uts@uni-t-uts-mcp</code></pre></div></div>
   }
 }</code></pre></div></div>
           <div class="win"><div class="win-bar"><h4 class="win-title">Docker</h4><span class="win-btns" aria-hidden="true"><i></i><i></i></span></div>
-            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;docker&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;run&quot;,&#10;        &quot;-i&quot;,&#10;        &quot;--rm&quot;,&#10;        &quot;-e&quot;,&#10;        &quot;UTS_IP=192.168.1.100&quot;,&#10;        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0&quot;&#10;      ]&#10;    }&#10;  }&#10;}">Copy</button>
+            <div class="code-wrap"><button class="copy" type="button" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;uni-t-uts&quot;: {&#10;      &quot;command&quot;: &quot;docker&quot;,&#10;      &quot;args&quot;: [&#10;        &quot;run&quot;,&#10;        &quot;-i&quot;,&#10;        &quot;--rm&quot;,&#10;        &quot;-e&quot;,&#10;        &quot;UTS_IP=192.168.1.100&quot;,&#10;        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0&quot;&#10;      ]&#10;    }&#10;  }&#10;}">Copy</button>
 <pre class="code"><code>{
   &quot;mcpServers&quot;: {
     &quot;uni-t-uts&quot;: {
@@ -883,7 +883,7 @@ claude plugin install uni-t-uts@uni-t-uts-mcp</code></pre></div></div>
         &quot;--rm&quot;,
         &quot;-e&quot;,
         &quot;UTS_IP=192.168.1.100&quot;,
-        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0&quot;
+        &quot;ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0&quot;
       ]
     }
   }
