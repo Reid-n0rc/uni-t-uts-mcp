@@ -353,6 +353,45 @@ export const E2E: Record<string, Entry> = {
       "(2026-11-12) but EMI-12 (#187)'s full hardware verification pass has not run. Covered with a dedicated fake in " +
       "tests/integration/emi-correction-tools.test.ts.",
   },
+  get_emi_marker: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
+      "Covered with a dedicated fake in tests/integration/emi-marker-tools.test.ts.",
+  },
+  set_emi_marker: {
+    // steps[0].args is still used (not executed, see set_ad_display's comment) by the "every instrument tool
+    // refuses an unknown instrument" test, which needs valid args for a tool whose shape has a required field
+    // (marker) with no default.
+    steps: [{ args: { marker: 1, mode: "normal" }, check: () => {} }],
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
+      "Covered with a dedicated fake in tests/integration/emi-marker-tools.test.ts.",
+  },
+  emi_marker_search: {
+    steps: [{ args: { marker: 1, action: "peak" }, check: () => {} }], // see set_ad_display's comment
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
+      "Covered with a dedicated fake in tests/integration/emi-marker-tools.test.ts.",
+  },
+  emi_markers_all_off: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
+      "Covered with a dedicated fake in tests/integration/emi-marker-tools.test.ts.",
+  },
+  get_emi_peak_criteria: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
+      "Covered with a dedicated fake in tests/integration/emi-marker-tools.test.ts.",
+  },
+  set_emi_peak_criteria: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
+      "Covered with a dedicated fake in tests/integration/emi-marker-tools.test.ts.",
+  },
   select_instrument_module: {
     steps: [
       { args: { module: "emi" }, check: (r, c) => { ok(r); expect(r.json.module).toBe("EMI"); expect(m(c).str("module")).toBe("EMI"); } },
@@ -531,6 +570,8 @@ export const ORDER = [
   "get_emi_settings", "set_emi_scan_table", "set_emi_measurement",
   "get_emi_limit_line", "set_emi_limit_line", "delete_emi_limit_line",
   "get_emi_correction", "set_emi_correction",
+  "get_emi_marker", "set_emi_marker", "emi_marker_search", "emi_markers_all_off",
+  "get_emi_peak_criteria", "set_emi_peak_criteria",
   "get_measurement", "configure_measurement", "read_measurement", "exit_measurement", "measure",
   "discover_instruments", "list_instruments", "disconnect",
 ];
