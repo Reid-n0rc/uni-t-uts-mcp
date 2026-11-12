@@ -37,6 +37,7 @@ The text of a release's section is also used as its GitHub release notes.
 - Front-panel lock: firmware disassembly confirms the SCPI-layer root cause (one byte, re-checked and re-locked on every non-exempt command) and corrects issue #172's "screenshot is a safe check" claim — the screenshot query is not exempt either, so it likely re-locks the panel on every call. (#209)
 - Front-panel lock: the full lock/re-lock cycle, and the screenshot check's self-locking, confirmed live with the owner present at the analyzer (2026-11-12), upgrading those claims from predicted to verified. (#240)
 - D3 signal-present gaps resolved: ACPR/C-N/TOI/harmonics with a real signal, and N-dB bandwidth with a narrow signal, confirmed live (2026-11-12) using an external CW source (a Siglent SDG1032X) rather than the analyzer's own tracking generator, which cannot supply either (the firmware switches the TG output off inside a measurement, and a tracking generator cannot hold a fixed frequency to begin with). (#25)
+- AD live probe closed out (2026-11-12, owner present): `:CONFigure?`, the `:AM:DEMod:TIME?`/`:TIME:AUTO?`/`:AM:AVERage:COUNt?` getters, and a clean panel-lock confirmation at session end all live-verified, resolving #190's last gaps. Confirms a bare `:SENSe:`-prefixed form of these getters is silent/unsupported in AD mode; the AD module's own fields use the `:AM:`/`:FM:`/`:PM:` prefix instead (already correct in `src/tools/adSettings.ts`). (#190)
 
 ## [0.5.0] - 2026-11-11
 

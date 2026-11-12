@@ -424,6 +424,16 @@ The private firmware-RE repo checked the handler code of all 1262 SCPI commands 
 
 **Actionable for uni-t-uts-mcp:** issue #192 (`enter_analog_demod`/`exit_analog_demod`) can likely skip explicit SA-state save/restore and instead verify-by-readback as a safety net, per the confirmation above. Issue #190 should be reopened/followed up for the remaining untried getters and a clean lock-state confirmation once the network path is stable; this entry documents partial progress, not a full close-out.
 
+**Follow-up, closing out #190's remaining gaps (2026-11-12, owner present, network path stable this time):**
+
+- `:CONFigure?` in AD mode answers `AM` — confirms `get_ad_settings`'s design of reading this demod-type prefix fresh on every call (rather than caching it) is the right call, since there is no other way to know it.
+- Demod/average timing getters, using the prefixed forms the AD tools actually send (not a bare `:SENSe:` form — see caution below): `:AM:DEMod:TIME?` → `7.200000e-02` (72 ms), `:AM:DEMod:TIME:AUTO?` → `1` (on), `:AM:AVERage:COUNt?` → `10`.
+- **Caution, not a bug:** the bare `:SENSe:AVERage:COUNt?`/a bare `:SENSe:DEMod:TIME?`-style form gets **no reply at all** in AD mode (same silent-timeout pattern as other unsupported commands elsewhere in this project) — AD's averaging/demod-timing fields live under the `:AM:`/`:FM:`/`:PM:` prefix, not bare `:SENSe:`. Checked `src/tools/adSettings.ts` and sibling AD tool files: they already use the correct `${p}:...` prefixed form throughout, so there was nothing to fix. The bare `:SENSe:AVERage:COUNt?` form used in `src/tools/trace.ts` is correct there — that tool is SA-only (guarded by the module guard, #178) and the bare form is SA's own syntax, not a mismatch.
+- **Panel-lock confirmation at session end: clean.** After switching back to SA, sending `:SYSTem:LOCK OFF` then a `*IDN?` sync (which answered), `scripts/check-panel-lock.mjs` independently reported `unlocked: the front panel is usable (status bar recognized (connection icon match 100%) and no padlock icon (match 52%))`. No Esc needed.
+- **Timing nuance worth knowing:** immediately after the module switch and the three getters above (back-to-back, each its own fresh TCP connection but only ~0.3-1 s apart), `:SYSTem:ERRor?` kept returning a stale `-113 "Undefined header"` on five consecutive checks without ever draining — even though the commands just before it had answered with clearly valid data (72 ms, 10, etc.), ruling them out as the cause. Waiting ~5 s and retrying with 1 s gaps drained it to `0,"No error"` immediately, and it stayed clean on 6 further checks. This looks like a timing-sensitive variant of the LIFO stale-error-stack behavior already documented under T04a, not a new bug — but don't trust a `-113` read immediately after a burst of other commands without pausing and re-reading first.
+
+**Confidence:** CONFIRMED (live) for all values and behaviors above. This closes #190's three remaining gaps; the AD proposal chain (#190-#197) is now fully complete.
+
 ## EMI limit lines: point cap inferred, not live-verified (issue #182, 2026-11-12)
 
 **The analyzer was unreachable for a live probe** (a TCP connect-scan of the local subnets found other bench instruments but not the UNI-T unit), so `set_emi_limit_line`'s 10-point cap was not tested directly. It is instead **inferred from the firmware's own command-callback audit** (private `uts3036b-firmware` repo, `docs/scpi-command-reference.md`): the EMI-prefixed `:CALCulate:FSCan:LLINe<n>:DATA`/`:CONTrol[:DATA]`/`:UPPer[:DATA]`/`:COPY`/`:BUILd` commands and the plain `:CALCulate:LLINe<n>` ones used by `set_emi_limit_line` (and already by `set_limit_line`) share the exact same callback function addresses (`SCPI_SetLimitData`, `SCPI_SetLimitXData`, `SCPI_SetLimitYUpData`, `SCPI_BuildFromTrace`, `parm_meas::set_limitCopy`). Since `set_limit_line` already verified a 10-point cap live against this same implementation, the EMI module's cap is very likely identical — but this has not been independently confirmed on real hardware.
@@ -447,7 +457,7 @@ The live probe also hit the known flaky-network pattern (several fresh-connectio
 Ran the batched live probe from `docs/research/emi-function.md` section 8, with the owner
 physically present at the analyzer, over raw SCPI:
 
-1. `*IDN?` confirmed the unit (`UNI-TREND,UTS3036B,...,V1.04.0040`).
+1. `*IDN?` confirmed the unit (`UNI-TREND,UTS3036B,<serial>,V1.04.0040`).
 2. `:INSTrument:SELect?` read `SA`. SA snapshot taken: center 50 Hz, span 100 Hz, RBW 1 Hz,
    reference level 0 dB, attenuation 10 dB.
 3. `:INSTrument:SELect EMI`, waited ~3 s, then `:SYSTem:ERRor?` read `0,"No error"`.
