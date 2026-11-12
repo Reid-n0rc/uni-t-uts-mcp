@@ -203,6 +203,17 @@ Connect the tracking generator output to the RF input. **Always switch the outpu
 | TG4 | `set_tracking_generator` with `normalize: true` (output on), then off | OK; a warning if the instrument did not take it | Pass/fail |
 | TG5 | `set_tracking_generator` with `enabled: false`, then `get_tracking_generator` | `enabled: false` | Pass/fail |
 
+### G13a. Measurement function module
+
+`select_instrument_module` switches the module and does not restore it, so **always switch back to `sa` at the end of this group**, even if a step warns or errors.
+
+| Step | Action | Expected | Record |
+|------|--------|----------|--------|
+| IM1 | `get_instrument_module` | `spectrum_analyzer` (the normal starting state) | Pass/fail |
+| IM2 | `select_instrument_module` with `module: "emi"` | `module: "EMI"`, no warnings if the EMI option is licensed; otherwise a `warnings` entry saying the readback did not match, and `module` still `SA` | Whether the option is licensed |
+| IM3 | `select_instrument_module` with `module: "sa"` | `module: "SA"`, back to the normal state | Pass/fail |
+| IM4 | `select_instrument_module` with `module: "iq"` (an invalid enum value) | Rejected before anything is sent | Pass/fail |
+
 ### G14. Discovery
 
 | Step | Action | Expected | Record |
