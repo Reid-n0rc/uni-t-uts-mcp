@@ -4,6 +4,7 @@ import { probeTuning, forgetSavedSettings } from "../../src/tools/measurement.js
 import { callTool, getText, type ToolResult } from "../helpers.js";
 import { APPLICABLE, CONTRACT, fake, type ContractEntry, type Mode } from "../toolContract.js";
 import { readdirSync, readFileSync } from "node:fs";
+import { setFirstSetterPending } from "../../src/instrument.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
@@ -43,6 +44,14 @@ afterAll(async () => {
 beforeEach(() => {
   fake.reset();
   forgetSavedSettings();
+  // The "first setter" stale-error-queue check (src/instrument.ts) is a one-time-per-connection
+  // flag: whichever applyCommands call takes it runs one extra query. Left enabled, which call
+  // takes it (a baseline call vs. one of the parallel calls, or an earlier/later CONTRACT entry
+  // entirely) depends on test execution order, which is incidental here and not guaranteed by
+  // vitest across reruns, retries or reordering (issue #201). It has its own dedicated tests in
+  // instrument.test.ts/multi-instrument.test.ts; disable it here so every contract test is
+  // order-independent.
+  setFirstSetterPending(false);
 });
 afterEach(() => {
   // Every operation of every test must have run inside an exclusive session (defineTool).
