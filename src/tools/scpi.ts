@@ -61,7 +61,7 @@ export function registerScpiTools(server: McpServer): void {
         return errorResult(err);
       }
     },
-    { validate: queryProblem }
+    { validate: queryProblem, requireModule: false }
   );
 
   defineTool(
@@ -92,6 +92,7 @@ export function registerScpiTools(server: McpServer): void {
         if (err instanceof DangerousCommandError) return errorResult(err.reason);
         return setterFailure(err, "scpi_query");
       }
-    }
+    },
+    { requireModule: false }
   );
 }

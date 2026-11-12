@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { applyCommands, queryBool, queryNumber, queryParsed, readBack, ReplyError } from "../instrument.js";
 import { connection } from "../connection.js";
+import { ensureModuleOk } from "../moduleGuard.js";
 import { formatNumber, parseNumberList } from "../scpi.js";
 import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 
@@ -69,6 +70,7 @@ async function readPoints(n: number): Promise<LimitPoint[]> {
   const command = `${L(n)}:DATA?`;
   let reply: string;
   try {
+    await ensureModuleOk();
     reply = await connection.query(command, DATA_TIMEOUT_MS);
   } catch (err) {
     if (err instanceof Error && /^Query timeout after/.test(err.message)) return [];

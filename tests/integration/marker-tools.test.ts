@@ -48,6 +48,7 @@ const fake = vi.hoisted(() => {
       case ":CALCulate:MARKer:PEAK:EXCursion?": return sci(state.exc);
       case ":CALCulate:MARKer:PEAK:EXCursion:STATe?": return state.excAuto ? "1" : "0";
       case ":SYSTem:ERRor?": return state.errors.shift() ?? '0,"No error"';
+      case ":INSTrument:SELect?": return "SA";
       default: throw new Error(`unexpected query ${cmd}`);
     }
   });
@@ -185,6 +186,7 @@ describe("get_marker", () => {
   });
 
   it("errors on a malformed reply, naming the command", async () => {
+    fake.query.mockResolvedValueOnce("SA"); // :INSTrument:SELect?, the module guard's own check
     fake.query.mockResolvedValueOnce("garbage");
     const res = await callTool(client, "get_marker", {});
     expect(res.isError).toBe(true);

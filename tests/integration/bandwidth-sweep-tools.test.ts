@@ -50,6 +50,7 @@ const fake = vi.hoisted(() => {
     }
     if ((m = /^:SENSe:DETector:TRACe([1-6])\?$/.exec(cmd))) return state.det[Number(m[1]) - 1];
     if ((m = /^:SENSe:DETector:TRACe([1-6]):AUTO\?$/.exec(cmd))) return flag(state.detAuto[Number(m[1]) - 1]);
+    if (cmd === ":INSTrument:SELect?") return "SA";
     throw new Error(`unexpected query ${cmd}`);
   });
   const sendCommand = vi.fn(async (cmd: string) => {

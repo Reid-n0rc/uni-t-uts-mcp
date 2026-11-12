@@ -35,6 +35,7 @@ const fake = vi.hoisted(() => {
       case ":CALCulate:MARKer:FCOunt:GATetime?": return sci(state.gate);
       case ":CALCulate:MARKer:FCOunt:X?": return state.fcX;
       case ":SYSTem:ERRor?": return state.errors.shift() ?? '0,"No error"';
+      case ":INSTrument:SELect?": return "SA";
       default: throw new Error(`unexpected query ${cmd}`);
     }
   });
@@ -129,6 +130,7 @@ describe("marker function", () => {
   });
 
   it("errors on a malformed function reply, naming the command", async () => {
+    fake.query.mockResolvedValueOnce("SA"); // :INSTrument:SELect?, the module guard's own check
     fake.query.mockResolvedValueOnce("garbage");
     const res = await callTool(client, "get_marker_function", {});
     expect(res.isError).toBe(true);
@@ -184,7 +186,11 @@ describe("N-dB bandwidth", () => {
 
   it("errors on a malformed result reply", async () => {
     fake.state.ndbOn[1] = true;
-    fake.query.mockResolvedValueOnce("1").mockResolvedValueOnce("-3.000000e+00").mockResolvedValueOnce("junk");
+    fake.query
+      .mockResolvedValueOnce("SA") // :INSTrument:SELect?, the module guard's own check
+      .mockResolvedValueOnce("1")
+      .mockResolvedValueOnce("-3.000000e+00")
+      .mockResolvedValueOnce("junk");
     const res = await callTool(client, "get_marker_ndb", { marker: 1 });
     expect(res.isError).toBe(true);
     expect(getText(res)).toContain("RESult?");

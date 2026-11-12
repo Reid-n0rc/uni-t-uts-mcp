@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { applyCommands, queryParsed, readBack } from "../instrument.js";
+import { MODULES, MODULE_NAMES, type ModuleName, parseModuleReply } from "../moduleGuard.js";
 
 import { defineTool, errorResult, setterFailure, textResult } from "./util.js";
 
@@ -10,20 +11,12 @@ import { defineTool, errorResult, setterFailure, textResult } from "./util.js";
 // module unchanged), it does not change what `*OPT?` or any other query reports, and it does not touch the front-panel lock
 // any differently than an ordinary command (docs/verified-hardware.md, "Front-panel lock"). Modules beyond the three the public
 // manual documents (IQ, VSA, RTSA, VNA, PNA, FDD, TDD, NR) are known to exist internally but are out of scope here.
-
-const MODULES = { sa: "SA", emi: "EMI", ad: "AD" } as const;
-type ModuleName = keyof typeof MODULES;
-const MODULE_NAMES = Object.keys(MODULES) as [ModuleName, ...ModuleName[]];
-const REVERSE: Partial<Record<string, ModuleName>> = Object.fromEntries(Object.entries(MODULES).map(([k, v]) => [v, k as ModuleName]));
-
-function parseModule(reply: string): ModuleName {
-  const name = REVERSE[reply.trim().toUpperCase()];
-  if (!name) throw new Error(`expected SA, EMI or AD, got ${JSON.stringify(reply)}`);
-  return name;
-}
+//
+// These two tools must not get defineTool's default `requireModule: "sa"` guard (src/tools/util.ts, src/moduleGuard.ts):
+// get_instrument_module is read-only in any module, and select_instrument_module is how a caller leaves SA in the first place.
 
 async function readModule(): Promise<ModuleName> {
-  return queryParsed(":INSTrument:SELect?", parseModule);
+  return queryParsed(":INSTrument:SELect?", parseModuleReply);
 }
 
 /**
@@ -52,7 +45,8 @@ export function registerInstrumentModuleTools(server: McpServer): void {
       } catch (err) {
         return errorResult(err);
       }
-    }
+    },
+    { requireModule: false }
   );
 
   defineTool(
@@ -90,6 +84,7 @@ export function registerInstrumentModuleTools(server: McpServer): void {
       } catch (err) {
         return setterFailure(err, "get_instrument_module");
       }
-    }
+    },
+    { requireModule: false }
   );
 }

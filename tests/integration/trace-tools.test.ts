@@ -29,6 +29,7 @@ const fake = vi.hoisted(() => {
     if (cmd === ":SENSe:AVERage:COUNt?") return String(state.avgCount);
     if (cmd === ":SENSe:AVERage:TYPE?") return state.avgType;
     if (cmd === ":SYSTem:ERRor?") return state.errors.shift() ?? '0,"No error"';
+    if (cmd === ":INSTrument:SELect?") return "SA";
     throw new Error(`unexpected query ${cmd}`);
   };
   const sendImpl = async (cmd: string) => {
@@ -291,6 +292,7 @@ describe("set_trace", () => {
   it("a failing read-back after the commands is not reported as a failure to set", async () => {
     fake.query.mockImplementation(async (cmd: string) => {
       if (cmd === ":SYSTem:ERRor?") return '0,"No error"';
+      if (cmd === ":INSTrument:SELect?") return "SA";
       throw new Error(`Query timeout after 5000ms for command: ${cmd}`);
     });
     const res = await callTool(client, "set_trace", { trace: 1, type: "average" });
@@ -421,7 +423,9 @@ describe("restart_trace", () => {
   });
 
   it("returns an error naming the command for a garbage type reply and sends nothing", async () => {
-    fake.query.mockResolvedValueOnce("garbage ???");
+    fake.query.mockImplementation(async (cmd: string, t?: number) =>
+      cmd === ":TRACe2:TYPE?" ? "garbage ???" : fake.queryImpl(cmd, t)
+    );
     const res = await callTool(client, "restart_trace", { trace: 2 });
     expect(res.isError).toBe(true);
     expect(getText(res)).toContain(":TRACe2:TYPE?");

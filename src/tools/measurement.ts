@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { connection } from "../connection.js";
 import { applyCommands, queryBool, queryNumber, queryParsed, readBack, ReplyError } from "../instrument.js";
+import { ensureModuleOk } from "../moduleGuard.js";
 import { formatNumber, onOff, parseBool, parseNumber, parseNumberList } from "../scpi.js";
 import { defineTool, errorResult, setterFailure, textResult } from "./util.js";
 
@@ -191,6 +192,7 @@ class ProbeMiss extends Error {}
 async function probe<T>(command: string, parse: (reply: string) => T): Promise<T> {
   let reply: string;
   try {
+    await ensureModuleOk();
     reply = await connection.query(command, PROBE_TIMEOUT_MS);
   } catch (err) {
     if (isTimeout(err)) {

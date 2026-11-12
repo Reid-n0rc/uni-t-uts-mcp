@@ -29,6 +29,7 @@ const fake = vi.hoisted(() => {
   const sci = (n: number) => n.toExponential(6);
   const query = vi.fn(async (cmd: string, _t?: number): Promise<string> => {
     if (cmd === ":SYSTem:ERRor?") return state.errors.shift() ?? '0,"No error"';
+    if (cmd === ":INSTrument:SELect?") return "SA";
     const m = /^:CALCulate:LLINe(\d):(.+)\?$/.exec(cmd);
     if (!m) throw new Error(`unexpected query ${cmd}`);
     const l = lines[Number(m[1]) - 1];
@@ -140,6 +141,7 @@ describe("get_limit_line", () => {
   it("fails on a malformed point list", async () => {
     const orig = fake.query.getMockImplementation()!;
     fake.query.mockImplementation(async (cmd: string) => {
+      if (cmd === ":INSTrument:SELect?") return "SA";
       if (cmd.endsWith("DATA?")) return "1e8,-50";
       if (cmd.endsWith("DISPlay?") || cmd.endsWith("STATe?")) return "0";
       if (cmd.endsWith("TYPE?")) return "UPPer";

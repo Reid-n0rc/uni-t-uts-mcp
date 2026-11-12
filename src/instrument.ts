@@ -2,6 +2,7 @@ import { connection } from "./connection.js";
 import { instruments } from "./registry.js";
 import { drainErrorQueue } from "./errors.js";
 import { parseBool, parseNumber } from "./scpi.js";
+import { ensureModuleOk } from "./moduleGuard.js";
 
 export class InstrumentError extends Error {
   constructor(
@@ -31,6 +32,7 @@ export class ReplyError extends Error {
 
 /** Query one command and parse the reply strictly; a malformed reply is a ReplyError naming the command. */
 export async function queryParsed<T>(command: string, parse: (reply: string) => T): Promise<T> {
+  await ensureModuleOk();
   const reply = await connection.query(command);
   try {
     return parse(reply);
@@ -75,6 +77,7 @@ function isUndefinedHeader(error: string): boolean {
  * tools' readback comparison.
  */
 export async function applyCommands(commands: string[]): Promise<void> {
+  await ensureModuleOk();
   const sent: string[] = [];
   let inFlight: string | undefined;
   const first = takeFirstSetter();
