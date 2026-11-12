@@ -326,6 +326,14 @@
       "description": "Set the EMI module signal list's sort type and/or order."
     },
     {
+      "name": "emi_run",
+      "description": "Start an EMI scan sequence and wait for it, with a time limit."
+    },
+    {
+      "name": "emi_stop",
+      "description": "Stop a running EMI scan sequence."
+    },
+    {
       "name": "get_peak_criteria",
       "description": "Read the peak search threshold and excursion."
     },
