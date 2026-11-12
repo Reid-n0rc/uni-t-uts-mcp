@@ -199,6 +199,29 @@ export const CONTRACT: Record<string, ContractEntry> = {
     warn: [{ threshold_dbm: -50 }, { excursion_db: 3 }, { threshold_auto: false }, { excursion_auto: false }],
     requireModule: "EMI",
   },
+  emi_signal_list: {
+    kind: "setter",
+    args: { action: "mark_all" },
+    invalid: [
+      {},
+      { action: "bogus" },
+      { action: "delete" }, // needs signal
+      { action: "replace_with_meter" }, // needs meter
+      { action: "add_marker" }, // needs marker
+      { action: "delete", signal: 0 },
+      { action: "replace_with_meter", meter: 4 },
+      { action: "add_marker", marker: 7 },
+    ],
+    requireModule: "EMI",
+  },
+  get_emi_signal_list_sort: { kind: "getter", args: {}, requireModule: "EMI" },
+  set_emi_signal_list_sort: {
+    kind: "setter",
+    args: { sort_type: "frequency" },
+    invalid: [{}],
+    warn: [{ sort_type: "amplitude1" }, { sort_order: "descending" }],
+    requireModule: "EMI",
+  },
   get_frequency: { kind: "getter", args: {} },
   set_frequency: {
     kind: "setter",
@@ -468,6 +491,8 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/:CALCulate:(AM|FM):MARKer\d+:TRACe\?$/, "RFSPectrum"], // AD marker traces are named (RFSPectrum/DEMod/...), not SA's numeric 1-6
   [/MARKer\d+:TRACe\?$/, "1"],
   [/MARKer\d+:REFerence\?$/, "2"],
+  [/SLISt:SORT:TYPE\?$/, "FREQuency"],
+  [/SLISt:SORT:ORDer\?$/, "ASCending"],
   [/MARKer\d+:FUNCtion\?$/, "OFF"],
   [/:SPACing\?$/, "LOGarithmic"],
   [/BANDwidth:SHAPe\?$/, "GAUSsian"],

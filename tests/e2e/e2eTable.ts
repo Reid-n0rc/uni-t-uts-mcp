@@ -392,6 +392,27 @@ export const E2E: Record<string, Entry> = {
       "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
       "Covered with a dedicated fake in tests/integration/emi-marker-tools.test.ts.",
   },
+  emi_signal_list: {
+    // steps[0].args is still used (not executed, see set_ad_display's comment) by the "every instrument tool
+    // refuses an unknown instrument" test, which needs valid args for a tool whose shape has a required field
+    // (action) with no default.
+    steps: [{ args: { action: "mark_all" }, check: () => {} }],
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
+      "Covered with a dedicated fake in tests/integration/emi-signal-list-tools.test.ts.",
+  },
+  get_emi_signal_list_sort: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
+      "Covered with a dedicated fake in tests/integration/emi-signal-list-tools.test.ts.",
+  },
+  set_emi_signal_list_sort: {
+    steps: [{ args: { sort_type: "frequency" }, check: () => {} }], // see set_ad_display's comment
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
+      "Covered with a dedicated fake in tests/integration/emi-signal-list-tools.test.ts.",
+  },
   select_instrument_module: {
     steps: [
       { args: { module: "emi" }, check: (r, c) => { ok(r); expect(r.json.module).toBe("EMI"); expect(m(c).str("module")).toBe("EMI"); } },
@@ -572,6 +593,7 @@ export const ORDER = [
   "get_emi_correction", "set_emi_correction",
   "get_emi_marker", "set_emi_marker", "emi_marker_search", "emi_markers_all_off",
   "get_emi_peak_criteria", "set_emi_peak_criteria",
+  "emi_signal_list", "get_emi_signal_list_sort", "set_emi_signal_list_sort",
   "get_measurement", "configure_measurement", "read_measurement", "exit_measurement", "measure",
   "discover_instruments", "list_instruments", "disconnect",
 ];
