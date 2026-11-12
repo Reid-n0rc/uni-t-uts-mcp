@@ -229,6 +229,27 @@ export const E2E: Record<string, Entry> = {
   // Measurement function module (#177): :INSTrument[:SELect]. The fake always accepts the switch (ASSUMED: unlike the real
   // analyzer, every module is licensed in the fake; no settle delay).
   get_instrument_module: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.json.module).toBe("spectrum_analyzer"); } }], timeoutMs: 30_000 },
+  get_ad_settings: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the AD module's frequency/bandwidth/timing subsystem (docs/research/analog-demodulation.md); " +
+      "most of these getters have not been live-verified (docs/verified-hardware.md). Covered with a dedicated fake in " +
+      "tests/integration/ad-settings-tools.test.ts.",
+  },
+  set_ad_frequency: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the AD module's frequency/bandwidth subsystem (docs/research/analog-demodulation.md); the " +
+      "setter ranges/clamp-vs-error behavior have not been live-verified. Covered with a dedicated fake in " +
+      "tests/integration/ad-settings-tools.test.ts.",
+  },
+  set_ad_demod_timing: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the AD module's demod-timing subsystem (docs/research/analog-demodulation.md); the setter " +
+      "ranges/clamp-vs-error behavior have not been live-verified. Covered with a dedicated fake in " +
+      "tests/integration/ad-settings-tools.test.ts.",
+  },
   get_emi_settings: {
     steps: [],
     skip:
@@ -438,6 +459,7 @@ export const ORDER = [
   "set_marker_ndb", "get_marker_ndb", "set_frequency_counter", "get_frequency_counter",
   "set_limit_line", "get_limit_line", "delete_limit_line", "set_tracking_generator", "get_tracking_generator",
   "get_instrument_module", "select_instrument_module", "enter_analog_demod", "exit_analog_demod",
+  "get_ad_settings", "set_ad_frequency", "set_ad_demod_timing",
   "get_emi_settings", "set_emi_scan_table", "set_emi_measurement",
   "get_emi_limit_line", "set_emi_limit_line", "delete_emi_limit_line",
   "get_measurement", "configure_measurement", "read_measurement", "exit_measurement", "measure",

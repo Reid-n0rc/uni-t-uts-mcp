@@ -20,6 +20,7 @@ import { registerEmiScanTableTools } from "./tools/emiScanTable.js";
 import { registerEmiMeasurementTools } from "./tools/emiMeasurement.js";
 import { registerEmiLimitLineTools } from "./tools/emiLimitLines.js";
 import { registerAnalogDemodTools } from "./tools/analogDemod.js";
+import { registerAdSettingsTools } from "./tools/adSettings.js";
 import { guardToolRegistration } from "./tools/util.js";
 
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -48,5 +49,6 @@ export function createServer(): McpServer {
   registerEmiMeasurementTools(server);
   registerEmiLimitLineTools(server);
   registerAnalogDemodTools(server);
+  registerAdSettingsTools(server);
   return server;
 }
