@@ -43,6 +43,8 @@ const snapshot = (c: E2eContext) => {
   return { fc: x.num("fc"), span: x.num("span"), rbw: x.num("rbw"), rbwAuto: x.bool("rbw.auto"), vbw: x.num("vbw"), vbwAuto: x.bool("vbw.auto"), swtAuto: x.bool("swt.auto"), swt: x.sweepTimeS, cont: x.bool("cont") };
 };
 let sa: ReturnType<typeof snapshot> | undefined;
+/** Separate from `sa` above (the measurement group's shared snapshot): enter_analog_demod/exit_analog_demod's own. */
+let adSa: ReturnType<typeof snapshot> | undefined;
 const expectRestored = (c: E2eContext) => {
   expect(c.fake.model.mode).toBe("SA");
   expect(snapshot(c)).toEqual(sa);
@@ -270,6 +272,54 @@ export const E2E: Record<string, Entry> = {
     ],
     timeoutMs: 30_000,
   },
+  // Analog demodulation module (#192): :INSTrument:SELect AD/SA plus the same SA-state save/restore
+  // exit_measurement uses. Own snapshot variable (`adSa`), not the measurement group's shared `sa`/`expectRestored`.
+  enter_analog_demod: {
+    steps: [
+      {
+        args: (c) => { adSa = snapshot(c); return {}; },
+        check: (r, c) => {
+          ok(r);
+          expect(m(c).str("module")).toBe("AD");
+          expect(r.json.module).toBe("analog_demod");
+          expect(r.json.saved_settings).toBe(true);
+          expect(warns(r)).toEqual([]);
+        },
+      },
+    ],
+    timeoutMs: 30_000,
+  },
+  exit_analog_demod: {
+    steps: [
+      {
+        args: (c) => { m(c).set("fc", adSa!.fc + 1e6); return {}; }, // drift while in AD, as if someone touched the panel
+        check: (r, c) => {
+          ok(r);
+          expect(m(c).str("module")).toBe("SA");
+          expect(r.json.module).toBe("spectrum_analyzer");
+          expect(r.json.restored).toBe(true);
+          expect(warns(r)).toEqual([]);
+          expect(snapshot(c)).toEqual(adSa);
+        },
+      },
+      // nothing left to restore the second time; still switches, just warns
+      {
+        tool: "select_instrument_module",
+        args: { module: "ad" },
+        check: (r, c) => { ok(r); expect(m(c).str("module")).toBe("AD"); },
+      },
+      {
+        args: {},
+        check: (r, c) => {
+          ok(r);
+          expect(m(c).str("module")).toBe("SA");
+          expect(r.json.restored).toBe(false);
+          expect(warns(r).join(" ")).toMatch(/enter_analog_demod/);
+        },
+      },
+    ],
+    timeoutMs: 30_000,
+  },
   // Measurements (#150). The fake models the modes of docs/verified-hardware.md "Measurements". Over raw TCP the tools use
   // FETCh (READ has no line terminator there) and `measure` settles 1.5 s after entering, so these entries take a few seconds.
   get_measurement: {
@@ -387,7 +437,8 @@ export const ORDER = [
   "set_peak_criteria", "get_peak_criteria", "set_marker_function", "get_marker_function",
   "set_marker_ndb", "get_marker_ndb", "set_frequency_counter", "get_frequency_counter",
   "set_limit_line", "get_limit_line", "delete_limit_line", "set_tracking_generator", "get_tracking_generator",
-  "get_instrument_module", "select_instrument_module", "get_emi_settings", "set_emi_scan_table", "set_emi_measurement",
+  "get_instrument_module", "select_instrument_module", "enter_analog_demod", "exit_analog_demod",
+  "get_emi_settings", "set_emi_scan_table", "set_emi_measurement",
   "get_emi_limit_line", "set_emi_limit_line", "delete_emi_limit_line",
   "get_measurement", "configure_measurement", "read_measurement", "exit_measurement", "measure",
   "discover_instruments", "list_instruments", "disconnect",

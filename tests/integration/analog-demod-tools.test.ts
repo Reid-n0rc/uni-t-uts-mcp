@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vites
 import { createTestServer, callTool, getText } from "../helpers.js";
 import { registerAnalogDemodTools, forgetAnalogDemodState } from "../../src/tools/analogDemod.js";
 import { probeTuning } from "../../src/tools/measurement.js";
+import { setFirstSetterPending } from "../../src/instrument.js";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 /**
@@ -14,7 +15,11 @@ const fake = vi.hoisted(() => {
   const initial = () => ({
     module: "SA" as "SA" | "EMI" | "AD",
     refuseSwitch: false,
+    // `readbackFails` reproduces the documented quirk (docs/verified-hardware.md): the first command right
+    // after a module switch, on the same connection, can get no reply. It only fires on the read right after
+    // a switch command (`afterSwitch`), not on an ordinary module read, and is consumed once it fires.
     readbackFails: false,
+    afterSwitch: false,
     center: 1.805e9, span: 3.59e9, rbw: 3e6, rbwAuto: true, vbw: 3e6, vbwAuto: true,
     sweepTime: 2.6475e-3, sweepAuto: true, continuous: true,
     loseNextSet: 0,
@@ -28,7 +33,10 @@ const fake = vi.hoisted(() => {
     switch (cmd) {
       case ":SYSTem:ERRor?": return '0,"No error"';
       case ":INSTrument:SELect?":
-        if (state.readbackFails) throw new Error("Query timeout after 5000ms for command: :INSTrument:SELect?");
+        if (state.readbackFails && state.afterSwitch) {
+          state.afterSwitch = false;
+          throw new Error("Query timeout after 5000ms for command: :INSTrument:SELect?");
+        }
         return state.module;
       case ":FREQuency:CENTer?": return sci(state.center);
       case ":FREQuency:SPAN?": return sci(state.span);
@@ -43,10 +51,12 @@ const fake = vi.hoisted(() => {
     throw new Error(`unexpected query ${cmd}`);
   });
   const sendCommand = vi.fn(async (cmd: string) => {
+    if (cmd === "*CLS") return; // applyCommands always sends this first; it carries no state here
     calls.push(cmd);
     const m = /^:INSTrument:SELect (\w+)$/.exec(cmd);
     if (m) {
       if (!state.refuseSwitch) state.module = m[1] as "SA" | "EMI" | "AD";
+      state.afterSwitch = true;
       return;
     }
     if (state.loseNextSet > 0) { state.loseNextSet--; return; } // setter accepted, instrument drops it
@@ -91,6 +101,7 @@ beforeEach(() => {
   fake.reset();
   vi.clearAllMocks();
   forgetAnalogDemodState();
+  setFirstSetterPending(false); // the stale-queue-clear extra query is a one-time-per-connection flag; disable it (#201)
 });
 
 const json = (res: Awaited<ReturnType<typeof callTool>>) => JSON.parse(getText(res));
@@ -145,11 +156,15 @@ describe("enter_analog_demod", () => {
 });
 
 describe("exit_analog_demod", () => {
-  it("fails clearly when this server did not enter AD", async () => {
+  it("still switches back to SA and warns clearly when this server never entered AD", async () => {
+    fake.state.module = "AD"; // switched some other way (e.g. select_instrument_module)
     const res = await callTool(client, "exit_analog_demod", {});
-    expect(res.isError).toBe(true);
-    expect(getText(res)).toMatch(/enter_analog_demod/);
-    expect(fake.calls).not.toContain(":INSTrument:SELect SA");
+    expect(res.isError).toBeFalsy();
+    expect(fake.calls).toContain(":INSTrument:SELect SA");
+    const parsed = json(res);
+    expect(parsed.module).toBe("spectrum_analyzer");
+    expect(parsed.restored).toBe(false);
+    expect(parsed.warnings[0]).toMatch(/enter_analog_demod/);
   });
 
   it("switches back to SA and restores the saved settings, verified by read-back", async () => {
@@ -166,11 +181,14 @@ describe("exit_analog_demod", () => {
     expect(fake.state.span).toBe(3.59e9);
   });
 
-  it("does nothing more once exited: a second exit fails clearly again", async () => {
+  it("a second exit still works (idempotent): nothing left to restore, so it only warns", async () => {
     await callTool(client, "enter_analog_demod", {});
     await callTool(client, "exit_analog_demod", {});
     const res = await callTool(client, "exit_analog_demod", {});
-    expect(res.isError).toBe(true);
+    expect(res.isError).toBeFalsy();
+    const parsed = json(res);
+    expect(parsed.restored).toBe(false);
+    expect(parsed.warnings[0]).toMatch(/enter_analog_demod/);
   });
 
   it("resends once when a setter is silently lost, and warns about it", async () => {
