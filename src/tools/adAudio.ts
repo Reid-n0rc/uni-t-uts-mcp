@@ -63,8 +63,12 @@ type FilterArgs = { [K in keyof typeof FILTER_SHAPE]?: z.infer<(typeof FILTER_SH
 function validateFilters(a: FilterArgs): string | undefined {
   const given = (["low_pass_filter", "high_pass_filter", "band_pass_filter"] as const).filter((k) => a[k] !== undefined);
   if (given.length === 0) return "No parameters given.";
-  if (given.length > 1) {
-    return "At most one filter family (low-pass, high-pass or band-pass) can be set per call; the instrument turns the others off anyway (PM p.159-160).";
+  if (a.band_pass_filter !== undefined && (a.low_pass_filter !== undefined || a.high_pass_filter !== undefined)) {
+    return (
+      "band_pass_filter cannot be set together with low_pass_filter or high_pass_filter: live-verified (2026-11-12), " +
+      "setting either low-pass or high-pass turns the band-pass filter off and vice versa. low_pass_filter and " +
+      "high_pass_filter can be set together (live-verified: the instrument does not turn either off for the other)."
+    );
   }
   return undefined;
 }
@@ -73,11 +77,13 @@ export function registerAdAudioTools(server: McpServer): void {
   defineTool(
     server,
     "set_ad_filters",
-    "Set one AD (analog demodulation) audio filter family: low-pass, high-pass or band-pass/weighting (PM p.158-160). AD " +
-      "module must be active. The AM/FM prefix is read fresh from :CONFigure? each call. At most one family per call: the " +
-      "manual says choosing a low- or high-pass filter turns the band-pass filter off and vice versa, so this tool reads " +
-      "all three before and after and reports in 'warnings' whichever other family the instrument turned off. Not yet " +
-      "live-verified; ranges/enums come from the manual.",
+    "Set the AD (analog demodulation) module's audio filters: low-pass and/or high-pass (freely combinable), or " +
+      "band-pass/weighting (PM p.158-160). AD module must be active. The AM/FM prefix is read fresh from :CONFigure? each " +
+      "call. Live-verified (2026-11-12): low_pass_filter and high_pass_filter can be set together in one call (the " +
+      "instrument does not turn either off for the other), but band_pass_filter is mutually exclusive with both — " +
+      "setting it turns off any active low-/high-pass filter and vice versa (refused locally before sending anything " +
+      "if requested together with either). This tool reads all three before and after and reports in 'warnings' " +
+      "whichever family the instrument turned off that was not explicitly requested.",
     FILTER_SHAPE,
     { readOnlyHint: false, idempotentHint: true },
     async (args) => {
@@ -85,13 +91,11 @@ export function registerAdAudioTools(server: McpServer): void {
         const demod_type = await readDemodType();
         const p = `:${demod_type}`;
         const before = await readFilters(p);
-        const command =
-          args.low_pass_filter !== undefined
-            ? `${p}:LPFilter ${args.low_pass_filter}`
-            : args.high_pass_filter !== undefined
-              ? `${p}:HPFilter ${args.high_pass_filter}`
-              : `${p}:BPFilter ${args.band_pass_filter}`;
-        await applyCommands([command]);
+        const commands: string[] = [];
+        if (args.low_pass_filter !== undefined) commands.push(`${p}:LPFilter ${args.low_pass_filter}`);
+        if (args.high_pass_filter !== undefined) commands.push(`${p}:HPFilter ${args.high_pass_filter}`);
+        if (args.band_pass_filter !== undefined) commands.push(`${p}:BPFilter ${args.band_pass_filter}`);
+        await applyCommands(commands);
         const after = await readBack(() => readFilters(p));
         const warnings: string[] = [];
         const simple = (key: keyof FilterArgs) => {
@@ -156,7 +160,9 @@ export function registerAdAudioTools(server: McpServer): void {
       "Turning the speaker ON, or raising the volume while it is already on, requires confirm=true (loud/unexpected tone in a " +
       "shared lab, docs/research/analog-demodulation.md risk 3). By default restores the speaker and volume to what they were " +
       "before this call once the requested change is confirmed by read-back; pass keep=true to leave the new state in place " +
-      "instead. Not yet live-verified; ranges come from the manual.",
+      "instead. The read path (speaker state, volume) is live-verified (2026-11-12); the speaker-on/volume-raise write " +
+      "path was intentionally not exercised live outside a confirmed, supervised session (the audible side effect this " +
+      "tool's own confirm=true gate exists for).",
     AUDIO_SHAPE,
     { readOnlyHint: false, idempotentHint: false },
     async (args) => {

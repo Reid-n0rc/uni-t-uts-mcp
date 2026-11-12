@@ -142,10 +142,20 @@ describe("set_ad_filters", () => {
     );
   });
 
-  it("rejects more than one filter family in one call", async () => {
+  it("sets low-pass and high-pass together in one call (live-verified: they do not turn each other off)", async () => {
     const res = await callTool(client, "set_ad_filters", { low_pass_filter: "LPF300", high_pass_filter: "HPF20" });
+    expect(res.isError).toBeUndefined();
+    const data = json(res);
+    expect(data.low_pass_filter).toBe("LPF300");
+    expect(data.high_pass_filter).toBe("HPF20");
+    expect(data.band_pass_filter).toBe("OFF");
+    expect(data.warnings).toEqual([]);
+  });
+
+  it("rejects band-pass together with low-pass or high-pass", async () => {
+    const res = await callTool(client, "set_ad_filters", { low_pass_filter: "LPF300", band_pass_filter: "CCIR1k" });
     expect(res.isError).toBe(true);
-    expect(getText(res)).toMatch(/at most one filter family/i);
+    expect(getText(res)).toMatch(/band_pass_filter cannot be set together/i);
     expect(fake.sendCommand).not.toHaveBeenCalled();
   });
 
