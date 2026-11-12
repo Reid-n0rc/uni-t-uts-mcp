@@ -218,6 +218,18 @@
       "description": "Configure the EMI module's measurement: standard, sequence, detectors, meter dwell, averaging and search; reports instrument adjustments."
     },
     {
+      "name": "get_emi_limit_line",
+      "description": "Read an EMI module limit line: type, trace, margin and its point list."
+    },
+    {
+      "name": "set_emi_limit_line",
+      "description": "Create or edit an EMI module limit line: points, type, trace, margin, display, copy_from and build_from_trace."
+    },
+    {
+      "name": "delete_emi_limit_line",
+      "description": "Delete the points of one EMI module limit line or of all EMI module limit lines."
+    },
+    {
       "name": "get_peak_criteria",
       "description": "Read the peak search threshold and excursion."
     },

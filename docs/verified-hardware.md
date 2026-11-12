@@ -418,3 +418,11 @@ The private firmware-RE repo checked the handler code of all 1262 SCPI commands 
 **Confidence:** CONFIRMED for the SA-state-preservation finding and the getter values listed. UNKNOWN (not a firmware finding) for which exact commands would time out under normal network conditions — this probe's timeouts are attributed to the network path, not to the instrument.
 
 **Actionable for uni-t-uts-mcp:** issue #192 (`enter_analog_demod`/`exit_analog_demod`) can likely skip explicit SA-state save/restore and instead verify-by-readback as a safety net, per the confirmation above. Issue #190 should be reopened/followed up for the remaining untried getters and a clean lock-state confirmation once the network path is stable; this entry documents partial progress, not a full close-out.
+
+## EMI limit lines: point cap inferred, not live-verified (issue #182, 2026-11-12)
+
+**The analyzer was unreachable for a live probe** (a TCP connect-scan of the local subnets found other bench instruments but not the UNI-T unit), so `set_emi_limit_line`'s 10-point cap was not tested directly. It is instead **inferred from the firmware's own command-callback audit** (private `uts3036b-firmware` repo, `docs/scpi-command-reference.md`): the EMI-prefixed `:CALCulate:FSCan:LLINe<n>:DATA`/`:CONTrol[:DATA]`/`:UPPer[:DATA]`/`:COPY`/`:BUILd` commands and the plain `:CALCulate:LLINe<n>` ones used by `set_emi_limit_line` (and already by `set_limit_line`) share the exact same callback function addresses (`SCPI_SetLimitData`, `SCPI_SetLimitXData`, `SCPI_SetLimitYUpData`, `SCPI_BuildFromTrace`, `parm_meas::set_limitCopy`). Since `set_limit_line` already verified a 10-point cap live against this same implementation, the EMI module's cap is very likely identical — but this has not been independently confirmed on real hardware.
+
+**Confidence:** CONFIRMED (disassembly) that the callback functions are shared. LIKELY, not independently live-verified: that the point cap therefore matches SA's.
+
+**Actionable for uni-t-uts-mcp:** re-verify the EMI limit-line point cap live once hardware access is stable (EMI-12, #187), and drop the "inferred" caveat from `set_emi_limit_line`'s code comment and `docs/tools-reference.md` if it's confirmed to match.
