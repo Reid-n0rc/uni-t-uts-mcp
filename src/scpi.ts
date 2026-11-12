@@ -74,6 +74,12 @@ const RULES: Rule[] = [
   { path: ["SYSTEM", "COMMUNICATE", "LAN"], description: "changes network settings" },
   { path: ["SYSTEM", "CONFIGURE"], description: "changes system configuration" },
   { path: ["MMEMORY", "STORE"], description: "writes (and may overwrite) files on the instrument" },
+  { path: ["MMEMORY", "*", "CALIBRATION"], description: "writes a calibration file" },
+  { path: ["SYSTEM", "INFO"], description: "can rewrite factory model/bandwidth configuration (confirmed by firmware disassembly)" },
+  { path: ["FACTORY"], description: "factory-only command" },
+  { path: ["CALIBRATION"], description: "calibration command" },
+  { path: ["SERVICE", "LATCH", "VALUE"], description: "service latch value" },
+  { path: ["MOUSE"], description: "simulates mouse/touch input" },
 ];
 
 function nodeMatches(node: string, longForm: string): boolean {

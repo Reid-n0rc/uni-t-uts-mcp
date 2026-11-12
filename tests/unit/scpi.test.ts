@@ -92,6 +92,13 @@ describe("checkCommand denylist", () => {
     ":SYSTem:CONFigure:SOMething 1",
     ':MMEMory:STORe:STATe "A"',
     ":mmem:stor:stat 1",
+    ':MMEMory:LOAD:CALibration "A"',
+    ":SYSTem:INFo 1",
+    ":syst:info 1",
+    ":FACTORY:RESet",
+    ":CALibration:CARD 1",
+    ":SERVice:LATCh:VALue 1",
+    ":MOUSE:MOVE 1,1",
   ];
   it.each(blocked)("blocks %s", (cmd) => {
     const r = checkCommand(cmd);
@@ -108,6 +115,8 @@ describe("checkCommand denylist", () => {
     ":SYSTem:DEFault?",
     ":MMEMory:LOAD:STATe 1",
     ":DISPlay:ZBmp?",
+    ":SYSTem:INFo?",
+    ":CALibration:CARD?",
   ];
   it.each(allowed)("allows %s", (cmd) => {
     expect(checkCommand(cmd)).toEqual({ allowed: true });
