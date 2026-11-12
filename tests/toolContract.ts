@@ -380,6 +380,7 @@ export const CONTRACT: Record<string, ContractEntry> = {
     warn: [{ speaker: false }, { volume_pct: 10 }],
     requireModule: "AD",
   },
+  get_demod_result: { kind: "getter", args: {}, requireModule: "AD" },
   get_tracking_generator: { kind: "getter", args: {} },
   set_tracking_generator: {
     kind: "setter",
@@ -431,6 +432,11 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/DETector:TRACe\d\?$/, "NORMal"],
   [/^:TRACe\d:TYPE\?$/, "WRITe"],
   [/^:SYSTem:PICture:FORMat\?$/, "BMP"],
+  [
+    /^:FETCh:(AM|FM)\?$/,
+    "6.400000000e+07,-9.835685e+01,nan,1.146127224e+01,-1.408944e+01,5.063745e+00,6.787261e-01," +
+      "1.1e-01,-1.2e-01,1.15e-01,8.1e-02,1.3e-01,-1.4e-01,1.35e-01,9.0e-02",
+  ],
   [/^:(READ|FETCh):CHPower\?$/, "-7.366048e+01,-1.366708e+02"],
   [/^:(READ|FETCh):TPOWer\?$/, "-9.206767e+01"],
   [/AVERage:TCONtrol\?$/, "EXPonential"],
