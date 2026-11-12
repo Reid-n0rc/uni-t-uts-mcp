@@ -21,6 +21,7 @@ import { registerEmiMeasurementTools } from "./tools/emiMeasurement.js";
 import { registerEmiLimitLineTools } from "./tools/emiLimitLines.js";
 import { registerAnalogDemodTools } from "./tools/analogDemod.js";
 import { registerAdSettingsTools } from "./tools/adSettings.js";
+import { registerAdAudioTools } from "./tools/adAudio.js";
 import { guardToolRegistration } from "./tools/util.js";
 
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -50,5 +51,6 @@ export function createServer(): McpServer {
   registerEmiLimitLineTools(server);
   registerAnalogDemodTools(server);
   registerAdSettingsTools(server);
+  registerAdAudioTools(server);
   return server;
 }
