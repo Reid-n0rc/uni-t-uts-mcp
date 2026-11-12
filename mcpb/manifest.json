@@ -226,6 +226,14 @@
       "description": "Configure the AD module's demodulation window sweep time, demodulation time and averaging."
     },
     {
+      "name": "set_ad_filters",
+      "description": "Set the AD module's low-pass, high-pass or band-pass audio filter (at most one family per call; the others are turned off)."
+    },
+    {
+      "name": "set_ad_audio",
+      "description": "Set the AD module's speaker and/or volume. Turning the speaker on requires confirm=true and is restored afterward by default."
+    },
+    {
       "name": "get_emi_settings",
       "description": "Read-only snapshot of the EMI module configuration: standard, scan sequence, scan table, detectors, search and trigger settings."
     },

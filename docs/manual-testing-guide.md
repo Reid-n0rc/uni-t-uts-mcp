@@ -247,6 +247,9 @@ Switch to EMI first (`select_instrument_module` with `module: "emi"`) and back t
 | AD5 | `enter_analog_demod`, then `get_ad_settings` | A full snapshot (`demod_type`, frequency, bandwidth, timing fields); confirms which getters answer and with what, since most are not yet live-verified | Reply or error for every field |
 | AD6 | `set_ad_frequency` with `span_hz` and `rbw_hz` set | Reads back; note whether it clamped or errored out of range (ranges are from the manual, not yet live-verified) | Pass/fail, and any `warnings` |
 | AD7 | `set_ad_demod_timing` with `average_count` and `window_sweep_time_s` set | Reads back; note any instrument-adjusted value | Pass/fail, and any `warnings` |
+| AD8 | `set_ad_filters` with `low_pass_filter: "LPF3K"`, then again with `band_pass_filter` set to any non-`OFF` value | Second call's result shows `low_pass_filter: "OFF"` with a `warnings` entry saying so (mutual exclusion) | Pass/fail, and the exact `warnings` text |
+| AD9 | `set_ad_audio` with `speaker: true` and no `confirm` | Refused with an error naming `confirm: true`; nothing sent to the instrument | Pass/fail |
+| AD10 | `set_ad_audio` with `speaker: true, confirm: true` | Briefly audible, then `restored: true` and `speaker: false` in the result; confirm the speaker is actually off afterward | Pass/fail; note if anything was left on |
 
 ### G14. Discovery
 

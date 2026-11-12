@@ -250,6 +250,19 @@ export const E2E: Record<string, Entry> = {
       "ranges/clamp-vs-error behavior have not been live-verified. Covered with a dedicated fake in " +
       "tests/integration/ad-settings-tools.test.ts.",
   },
+  set_ad_filters: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the AD module's filter subsystem (docs/research/analog-demodulation.md); the filter " +
+      "mutual-exclusion behavior has not been live-verified. Covered with a dedicated fake in tests/integration/ad-audio-tools.test.ts.",
+  },
+  set_ad_audio: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the AD module's speaker/volume subsystem (docs/research/analog-demodulation.md risk 3); " +
+      "intentionally never exercised against the real analyzer outside a confirmed, supervised live session. Covered with a " +
+      "dedicated fake in tests/integration/ad-audio-tools.test.ts.",
+  },
   get_emi_settings: {
     steps: [],
     skip:
@@ -459,7 +472,7 @@ export const ORDER = [
   "set_marker_ndb", "get_marker_ndb", "set_frequency_counter", "get_frequency_counter",
   "set_limit_line", "get_limit_line", "delete_limit_line", "set_tracking_generator", "get_tracking_generator",
   "get_instrument_module", "select_instrument_module", "enter_analog_demod", "exit_analog_demod",
-  "get_ad_settings", "set_ad_frequency", "set_ad_demod_timing",
+  "get_ad_settings", "set_ad_frequency", "set_ad_demod_timing", "set_ad_filters", "set_ad_audio",
   "get_emi_settings", "set_emi_scan_table", "set_emi_measurement",
   "get_emi_limit_line", "set_emi_limit_line", "delete_emi_limit_line",
   "get_measurement", "configure_measurement", "read_measurement", "exit_measurement", "measure",

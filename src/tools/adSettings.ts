@@ -21,9 +21,10 @@ import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 // example without a live probe").
 
 const DEMOD_TYPES = { AM: "AM", FM: "FM" } as const;
-type DemodType = keyof typeof DEMOD_TYPES;
+export type DemodType = keyof typeof DEMOD_TYPES;
 
-async function readDemodType(): Promise<DemodType> {
+/** Shared with adAudio.ts (#194): every AD SENSe-style command takes the AM|FM prefix, read fresh each call. */
+export async function readDemodType(): Promise<DemodType> {
   return queryParsed(":CONFigure?", (reply) => {
     const text = reply.trim().toUpperCase();
     if (text === "AM" || text === "FM") return text;
