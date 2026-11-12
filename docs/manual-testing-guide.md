@@ -251,6 +251,11 @@ Switch to EMI first (`select_instrument_module` with `module: "emi"`) and back t
 | AD9 | `set_ad_audio` with `speaker: true` and no `confirm` | Refused with an error naming `confirm: true`; nothing sent to the instrument | Pass/fail |
 | AD10 | `set_ad_audio` with `speaker: true, confirm: true` | Briefly audible, then `restored: true` and `speaker: false` in the result; confirm the speaker is actually off afterward | Pass/fail; note if anything was left on |
 | AD11 | `enter_analog_demod`, then `get_demod_result` | 15 named fields (center frequency, carrier power, carrier frequency error, modulation rate, SINAD, distortion/total Vrms, THD, current and max-hold peak+/peak-/(pk-pk)/2/RMS); already live-verified once, confirm it still matches `:FETCh:AM?`/`:FETCh:FM?` | Reply for every field; compare `carrier_frequency_error_hz` against whether a real signal is present (`NaN`/`null` with none) |
+| AD12 | `set_ad_display` with `window: 1, reference_level: -10, per_division: 10`, then again with `window: 3, af_spacing: "linear"` | Reads back; note any instrument-adjusted value, and whether window 3's `reference_level`/`per_division` unit matches the manual's ambiguous description | Pass/fail, and any `warnings` |
+| AD13 | `ad_marker` with `marker: 1, mode: "normal", trace: "rf_spectrum", x: <a frequency in span>` | Reads back `x`/`y` with `x_unit: "Hz"`, `y_unit: "dBm"` | Pass/fail; confirm the trace-dependent unit labels look right |
+| AD14 | `ad_marker` with `marker: 2, mode: "normal", trace: "demod"` | `x_unit: "s"`; `y_unit` modulation depth in AM or Hz deviation in FM, matching the current `:CONFigure?` type | Pass/fail; record the actual `y` value against what the screen shows |
+| AD15 | `ad_marker_search` with `marker: 1, action: "peak"`, then `action: "peak_to_peak"` | First turns marker 1 on at the RF peak; second leaves it in delta mode with a `note` about the peak-to-peak reading | Pass/fail |
+| AD16 | `get_ad_marker` (default marker 1), then `ad_markers_all_off` | First reflects whatever AD13-15 left; second reports `all_off: true` with no `warnings` | Pass/fail |
 
 ### G14. Discovery
 
