@@ -456,4 +456,18 @@ Ran every merged EMI tool (module switch, settings snapshot, scan table, measure
 
 **Confidence:** CONFIRMED (live) for the EMI limit-line 12-point cap, the marker X/Y FSCan-prefix requirement, and the trigger group's three silent fields. CONFIRMED (live, spot-check) for the settings/scan-table/measurement fields listed above; not every field or every scan-table band was individually exercised.
 
-**Actionable for uni-t-uts-mcp:** with this pass merged, the EMI proposal chain (#176-#187) is complete except `emi_run`/`emi_stop` (#186), which was still in progress elsewhere at the time of this pass.
+**Actionable for uni-t-uts-mcp:** with this pass and `emi_run`/`emi_stop` (#186, below) both merged, the EMI proposal chain (#176-#187) is complete.
+
+## EMI run control: cold scan stalls 25 s+, STOP/PAUSe/RESume accepted, `:INITiate2:CONTinuous?` silent (issue #186, 2026-11-12)
+
+**Live-verified with the owner present.** Switched into EMI (`:INSTrument:SELect EMI`, confirmed by readback), sequence `SCAN`. Sending `:INITiate:IMMediate` on a cold/first scan left the instrument **silent to every command, including `:SYSTem:ERRor?`, for over 25 seconds** - not an error reply, literally no reply at all, the same "stall" pattern already documented elsewhere in this project for other long operations. After roughly 25-30 s it answered again on its own with a clean error queue, matching the manual's note that a scan-only sequence stops by itself when it finishes. The owner, watching the panel, confirmed it showed "EMI" and an active scan/sweep-like display during this window (visually similar to an SA sweep, just inside the EMI module).
+
+On a second scan started shortly after the first completed, the instrument stayed fully responsive the whole time: `:INITiate:PAUSe` and `:INITiate:RESume`, sent shortly after `:INITiate:IMMediate`, both completed instantly with `:SYSTem:ERRor?` returning `0,"No error"` after each - **STOP/PAUSe/RESume are accepted without an instrument error in EMI**, unlike SA where all three give `-113` ("Undefined header", already documented). Whether PAUSe actually paused anything was **not independently confirmed** (the second scan may have already been near completion); treat this as "accepted without error", not as "confirmed to work".
+
+`:INITiate2:CONTinuous?` got **no reply at all** in EMI mode, tried multiple times with retries - the same silent-timeout pattern as the cold-scan stall, not an error reply. This query appears unsupported/silent in EMI, unlike in SA where it answers.
+
+Restored cleanly afterward: `:INSTrument:SELect SA` confirmed, center/span matched the pre-probe values, error queue clean, panel left unlocked via `:SYSTem:LOCK OFF` + a `*IDN?` sync (no Esc needed).
+
+**Confidence:** CONFIRMED (live) for the cold-scan stall duration and self-recovery, for STOP/PAUSe/RESume being accepted without an instrument error, and for `:INITiate2:CONTinuous?` being silent. NOT independently confirmed: that PAUSe/RESume actually change scan behavior (no visual or state check beyond the clean error queue).
+
+**Actionable for uni-t-uts-mcp:** `emi_run` cannot assume a quick reply - it sends `:INITiate2:CONTinuous OFF` unconditionally (its prior state cannot be read first) then `:INITiate:IMMediate`/`:INITiate:FSCan:CLEar:IMMediate`, and infers completion by polling `*OPC?` until anything answers again, within `timeout_s` (default 45 s, given the one observed 25 s+ stall). A timeout is reported as `finished: false`, not as an error - silence during a scan is expected, not a fault. `emi_stop` sends `:INITiate:STOP` with no read-back to confirm it halted anything. PAUSe/RESume are not exposed as tools (outside this issue's scope, and not independently confirmed to do anything observable).

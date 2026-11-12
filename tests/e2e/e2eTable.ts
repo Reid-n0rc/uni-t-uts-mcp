@@ -413,6 +413,18 @@ export const E2E: Record<string, Entry> = {
       "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
       "Covered with a dedicated fake in tests/integration/emi-signal-list-tools.test.ts.",
   },
+  emi_run: {
+    steps: [{ args: { timeout_s: 0.3 }, check: () => {} }], // see set_ad_display's comment
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
+      "Covered with a dedicated fake in tests/integration/emi-run-tools.test.ts.",
+  },
+  emi_stop: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
+      "Covered with a dedicated fake in tests/integration/emi-run-tools.test.ts.",
+  },
   select_instrument_module: {
     steps: [
       { args: { module: "emi" }, check: (r, c) => { ok(r); expect(r.json.module).toBe("EMI"); expect(m(c).str("module")).toBe("EMI"); } },
@@ -594,6 +606,7 @@ export const ORDER = [
   "get_emi_marker", "set_emi_marker", "emi_marker_search", "emi_markers_all_off",
   "get_emi_peak_criteria", "set_emi_peak_criteria",
   "emi_signal_list", "get_emi_signal_list_sort", "set_emi_signal_list_sort",
+  "emi_run", "emi_stop",
   "get_measurement", "configure_measurement", "read_measurement", "exit_measurement", "measure",
   "discover_instruments", "list_instruments", "disconnect",
 ];

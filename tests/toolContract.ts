@@ -214,6 +214,23 @@ export const CONTRACT: Record<string, ContractEntry> = {
     ],
     requireModule: "EMI",
   },
+  emi_run: {
+    kind: "setter",
+    args: { timeout_s: 0.3 },
+    invalid: [{ timeout_s: 0 }, { timeout_s: 700 }],
+    requireModule: "EMI",
+    skip: {
+      instrumentError:
+        "the final :SYSTem:ERRor? read after the scan answers is reported as a result field (error_queue), not thrown: " +
+        "the scan's own commands were live-verified not to raise instrument errors, so whatever is in the queue afterward " +
+        "is informational, by design",
+    },
+  },
+  emi_stop: {
+    kind: "setter",
+    args: {},
+    requireModule: "EMI",
+  },
   get_emi_signal_list_sort: { kind: "getter", args: {}, requireModule: "EMI" },
   set_emi_signal_list_sort: {
     kind: "setter",

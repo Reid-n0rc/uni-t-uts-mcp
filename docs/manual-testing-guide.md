@@ -245,6 +245,10 @@ Switch to EMI first (`select_instrument_module` with `module: "emi"`) and back t
 | EM23 | `emi_signal_list` with `action: "mark_all"`, then `action: "clear_marks"` | Both accepted | Whether a screenshot shows marks appear and clear |
 | EM24 | `set_emi_signal_list_sort` with `sort_type: "amplitude1"`; `get_emi_signal_list_sort` | Sort type round-trips | Pass/fail |
 | EM25 | `emi_signal_list`/`get_emi_signal_list_sort`/`set_emi_signal_list_sort` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
+| EM26 | `emi_run` with `timeout_s: 60` | `finished: true` after the scan answers again (already live-verified to stall 25 s+ then self-recover, see `docs/verified-hardware.md`'s EMI run-control entry) | How long the scan actually took, and whether the signal list changed (check with `emi_signal_list` or a screenshot) |
+| EM27 | `emi_run` with `clear_list: true` | Signal list cleared first, then scanned | Pass/fail |
+| EM28 | `emi_stop` shortly after starting `emi_run` | Accepted with no instrument error (already live-verified); no way to confirm it actually halted anything | Whether a screenshot taken right after shows the scan stopped early |
+| EM29 | `emi_run`/`emi_stop` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
 
 ### G13c. Analog demodulation module (only if the AD option is licensed)
 
