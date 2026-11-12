@@ -282,6 +282,14 @@
       "description": "Delete the points of one EMI module limit line or of all EMI module limit lines."
     },
     {
+      "name": "get_emi_correction",
+      "description": "Read an EMI module correction (antenna/cable) factor set: whether it is enabled and its point list."
+    },
+    {
+      "name": "set_emi_correction",
+      "description": "Edit an EMI module correction factor set: points, enabled, delete, or turn off/clear every set."
+    },
+    {
       "name": "get_peak_criteria",
       "description": "Read the peak search threshold and excursion."
     },
