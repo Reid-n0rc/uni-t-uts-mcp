@@ -210,6 +210,10 @@
       "description": "Read-only snapshot of the EMI module configuration: standard, scan sequence, scan table, detectors, search and trigger settings."
     },
     {
+      "name": "set_emi_scan_table",
+      "description": "Edit the EMI module's 10-band scan table, or load a CISPR band preset; reports instrument adjustments and neighbor-band coupling."
+    },
+    {
       "name": "get_peak_criteria",
       "description": "Read the peak search threshold and excursion."
     },

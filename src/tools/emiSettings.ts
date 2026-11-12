@@ -28,7 +28,7 @@ const DEFAULT_GROUPS: readonly EmiSettingGroup[] = EMI_SETTING_GROUPS.filter((g)
 
 const TRACE_COUNT = 3; // EMI has 3 traces, not the SA module's 6 (docs/research/emi-function.md 3.3).
 const METER_COUNT = 3;
-const BAND_COUNT = 10;
+export const BAND_COUNT = 10;
 
 function upper(reply: string): string {
   return reply.trim().toUpperCase();
@@ -71,7 +71,7 @@ async function readSequence() {
   return { sequence, remeasure };
 }
 
-interface Band {
+export interface Band {
   band: number;
   enabled: boolean;
   start_hz: number;
@@ -86,7 +86,7 @@ interface Band {
   preamp: boolean;
 }
 
-async function readBand(n: number): Promise<Band> {
+export async function readBand(n: number): Promise<Band> {
   const p = `:SENSe:FSCan:SCAN${n}`;
   return {
     band: n,

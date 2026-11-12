@@ -15,6 +15,7 @@ The text of a release's section is also used as its GitHub release notes.
 ### Added
 - `get_instrument_module` and `select_instrument_module`: read and switch the active measurement function module (spectrum analyzer, EMI, analog demodulation). (#177)
 - `get_emi_settings`: read-only snapshot of the EMI module configuration (standard, scan sequence, scan table, meters, detectors, traces, search, frequency, amplitude, trigger), grouped so one call can stay short. Research-stage: not yet verified on real hardware (EMI-12, #187). (#179)
+- `set_emi_scan_table`: edit the EMI module's 10-band scan table (enabled, start/stop, RBW, sweep time, attenuation, points, preamp), or load a CISPR band preset. Reports instrument-adjusted fields and the manual's documented neighbor-band coupling on overlap or crossing as `warnings`. Research-stage: not yet verified on real hardware (EMI-12, #187). (#180)
 
 ### Changed
 - Every tool that talks to the instrument now refuses before sending anything if the analyzer is not in the spectrum analyzer module, naming `select_instrument_module` to switch (same-named commands like `:SENSe:FREQuency:CENTer` mean something different under EMI/AD). Does not apply to `get_instrument_module`, `select_instrument_module`, `identify`, the raw `scpi_*` tools, or the connection tools, which already work in any module. (#178, #191)

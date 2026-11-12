@@ -89,6 +89,18 @@ export const CONTRACT: Record<string, ContractEntry> = {
     invalid: [{ groups: ["bogus"] }],
     requireModule: "EMI",
   },
+  set_emi_scan_table: {
+    kind: "setter",
+    args: { bands: [{ band: 1, points: 1001 }] },
+    invalid: [
+      {},
+      { bands: [{ band: 1, start_hz: 1e6, stop_hz: 1e6 + 10 }] },
+      { bands: [{ band: 1, attenuation_db: 11 }] },
+      { bands: [{ band: 1, points: 1001 }, { band: 1, preamp: true }] },
+    ],
+    warn: [{ bands: [{ band: 2, points: 999 }] }, { bands: [{ band: 3, start_hz: 2e6 }] }],
+    requireModule: "EMI",
+  },
   get_frequency: { kind: "getter", args: {} },
   set_frequency: {
     kind: "setter",
