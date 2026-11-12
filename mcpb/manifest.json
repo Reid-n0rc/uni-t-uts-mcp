@@ -214,6 +214,18 @@
       "description": "Leave the analog demodulation module and restore the spectrum analyzer settings saved by enter_analog_demod."
     },
     {
+      "name": "get_ad_settings",
+      "description": "Read-only snapshot of the AD module's demodulation type, frequency, bandwidth and demod-timing settings."
+    },
+    {
+      "name": "set_ad_frequency",
+      "description": "Configure the AD module's center frequency, RF span, resolution bandwidth and demodulation bandwidth."
+    },
+    {
+      "name": "set_ad_demod_timing",
+      "description": "Configure the AD module's demodulation window sweep time, demodulation time and averaging."
+    },
+    {
       "name": "get_emi_settings",
       "description": "Read-only snapshot of the EMI module configuration: standard, scan sequence, scan table, detectors, search and trigger settings."
     },

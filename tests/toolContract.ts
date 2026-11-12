@@ -345,6 +345,27 @@ export const CONTRACT: Record<string, ContractEntry> = {
     invalid: [{}, { gate_time_s: 0 }, { gate_time_s: 1 }],
     warn: [{ enabled: false }, { gate_time_s: 0.01 }],
   },
+  get_ad_settings: { kind: "getter", args: {}, requireModule: "AD" },
+  set_ad_frequency: {
+    kind: "setter",
+    args: { center_hz: 70e6 },
+    invalid: [{}, { center_hz: 10 }, { center_step_hz: 1e3, center_step_auto: true }],
+    warn: [
+      { center_hz: 70e6 }, { span_hz: 5e5 }, { rbw_hz: 5e5 }, { rbw_auto: false },
+      { demod_bandwidth_hz: 1e4 }, { center_step_hz: 5e5 }, { center_step_auto: false },
+    ],
+    requireModule: "AD",
+  },
+  set_ad_demod_timing: {
+    kind: "setter",
+    args: { average_count: 50 },
+    invalid: [{}, { demod_time_s: 10e-3, demod_time_auto: true }, { average_count: 1000 }],
+    warn: [
+      { window_sweep_time_s: 5e-3 }, { demod_time_s: 1e-1 }, { demod_time_auto: false },
+      { average_state: false }, { average_count: 50 },
+    ],
+    requireModule: "AD",
+  },
   get_tracking_generator: { kind: "getter", args: {} },
   set_tracking_generator: {
     kind: "setter",
@@ -380,6 +401,7 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   // `fakeConnection.query` above (keyed by CONTRACT[toolName].requireModule) takes precedence for the
   // in-process fake used by tool-contract.test.ts.
   [/^:INSTrument(:SELect)?\?$/, "SA"],
+  [/^:CONFigure\?$/, "AM"],
   [/^:SENSe:EMC:STANdard:SELect\?$/, "NONE"],
   [/^:SENSe:FSCan:SEQuence\?$/, "SCAN"],
   [/^:SENSe:FSCan:SEQuence:REMeasure\?$/, "CURRent"],
