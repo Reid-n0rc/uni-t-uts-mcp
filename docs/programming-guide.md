@@ -274,7 +274,7 @@ Newer manual adds numbered forms `:READ:CHPower<n>?`, `:READ:ACPower<n>?`, `:REA
 | limit/tracking-gen (optional) | `CALCulate:LLINe*`, `OUTPut`, `SOURce:POWer`, `CALCulate:NTData` |
 | raw_scpi | pass-through with newline termination; auto-detect `?` to read a reply; handle both `#`-block header styles; optional timeout; denylist `:SYSTem:COMMunicate:LAN:*` setters and `:SYSTem:CONFigure` unless explicitly confirmed |
 
-Safety notes: `*RST`, `:SYSTem:DEFault`, `:SYSTem:LOCK`, `:KEY:*:LOCK`, LAN setters, and `MMEMory:STORe` (overwrites on-instrument files) should require explicit confirmation or be omitted from typed tools.
+Safety notes: `*RST`, `:SYSTem:DEFault`, `:SYSTem:LOCK`, `:KEY:*:LOCK`, LAN setters, and `MMEMory:STORe` (overwrites on-instrument files) should require explicit confirmation or be omitted from typed tools. **Added 2026-11-11 (confirmed by firmware disassembly, private `uts3036b-firmware` repo, full audit of all 1262 handlers):** `SYSTem:INFo` (setter form — can rewrite factory model/bandwidth configuration behind a debug flag), `FACTORY:*`, `CALibration:*`, `:SERVice:LATCh:VALue`, `MOUSE`, and `:MMEMory:*:CALibration` also need confirmation. `*TST?` and the PNA-mode `[:SENSe]:LPLot:ODRive`/`:ODRive:ATTenuation:ZERO` setters do nothing (no reply, or silently ignored) — don't rely on them. `SYSTem:INFo?` and `SYSTem:COMMunicate:MAC?` replies contain identifiers and must not be logged. See `docs/verified-hardware.md` for the full writeup and `docs/scpi-command-reference.md` (in the private firmware repo) for the per-command audit.
 
 ## 11. Ambiguities and items to verify on hardware
 
