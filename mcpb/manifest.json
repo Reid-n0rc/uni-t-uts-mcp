@@ -198,6 +198,14 @@
       "description": "Switch the tracking generator on or off and set its level, offset, reference trace and normalization."
     },
     {
+      "name": "get_instrument_module",
+      "description": "Read the active measurement function module: spectrum analyzer, EMI or analog demodulation."
+    },
+    {
+      "name": "select_instrument_module",
+      "description": "Switch the active measurement function module (spectrum analyzer, EMI or analog demodulation)."
+    },
+    {
       "name": "get_peak_criteria",
       "description": "Read the peak search threshold and excursion."
     },
