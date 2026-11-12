@@ -241,6 +241,10 @@ Switch to EMI first (`select_instrument_module` with `module: "emi"`) and back t
 | EM19 | `emi_markers_all_off` after at least one marker is on | Every marker reads off afterward | Pass/fail |
 | EM20 | `set_emi_peak_criteria` with `threshold_dbm: -40`; `get_emi_peak_criteria` | Threshold set, automatic flag off, excursion unaffected | Pass/fail |
 | EM21 | `get_emi_marker`/`set_emi_marker`/`emi_marker_search`/`emi_markers_all_off`/`get_emi_peak_criteria`/`set_emi_peak_criteria` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
+| EM22 | `emi_signal_list` with `action: "add_marker", marker: 1` after a marker search; then `screenshot` over VXI-11 | Command accepted, no instrument error | Whether the screenshot shows a new row in the signal table |
+| EM23 | `emi_signal_list` with `action: "mark_all"`, then `action: "clear_marks"` | Both accepted | Whether a screenshot shows marks appear and clear |
+| EM24 | `set_emi_signal_list_sort` with `sort_type: "amplitude1"`; `get_emi_signal_list_sort` | Sort type round-trips | Pass/fail |
+| EM25 | `emi_signal_list`/`get_emi_signal_list_sort`/`set_emi_signal_list_sort` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
 
 ### G13c. Analog demodulation module (only if the AD option is licensed)
 
