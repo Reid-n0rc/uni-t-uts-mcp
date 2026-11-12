@@ -227,6 +227,9 @@ Switch to EMI first (`select_instrument_module` with `module: "emi"`) and back t
 | EM5 | `set_emi_scan_table` with `presets: [{band: 3, cis: "B"}]` | Band 3 loaded to the CISPR B range (150 kHz-30 MHz) | Pass/fail; exact start/stop returned |
 | EM6 | `set_emi_scan_table` with `bands: [{band: 1, start_hz: 1e6, stop_hz: 1e6 + 1e5}]` where band 2 already starts near there | Band 1 set; check `warnings` for a note about band 2 moving | Whether the manual's documented coupling (p.21) shows up this way |
 | EM7 | `set_emi_scan_table` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
+| EM8 | `set_emi_measurement` with `standard: "cispr"`, `average_count: 50` | Both read back; RBW legality for CISPR worth a follow-up check | Whether the instrument adjusted either value |
+| EM9 | `set_emi_measurement` with `trace_detectors: [{index: 1, detector: "quasi_peak"}, {index: 2, detector: "average"}, {index: 3, detector: "average_continuous"}]` (three exclusive detectors across the three traces) | Rejected before sending, naming the "at most two" rule | Pass/fail; whether the manual's exclusivity (UM p.15) matches this grouping on real hardware |
+| EM10 | `set_emi_measurement` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
 
 ### G14. Discovery
 

@@ -101,6 +101,23 @@ export const CONTRACT: Record<string, ContractEntry> = {
     warn: [{ bands: [{ band: 2, points: 999 }] }, { bands: [{ band: 3, start_hz: 2e6 }] }],
     requireModule: "EMI",
   },
+  set_emi_measurement: {
+    kind: "setter",
+    args: { average_count: 50 },
+    invalid: [
+      {},
+      {
+        trace_detectors: [
+          { index: 1, detector: "quasi_peak" },
+          { index: 2, detector: "average_continuous" },
+          { index: 3, detector: "average" },
+        ],
+      },
+      { final_detectors: [{ index: 1 }] },
+      { trace_detectors: [{ index: 1, detector: "positive" }, { index: 1, detector: "negative" }] },
+    ],
+    requireModule: "EMI",
+  },
   get_frequency: { kind: "getter", args: {} },
   set_frequency: {
     kind: "setter",
@@ -331,6 +348,7 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/^:SENSe:FSCan:SEARch:MODE\?$/, "PONLy"],
   [/^:SENSe:METer\d:DETector\?$/, "POSitive"],
   [/^:SENSe:FSCan:DETector:TRACe\d\?$/, "POSitive"],
+  [/^:SENSe:FSCan:FINal:DETector\d\?$/, "POSitive"],
   [/^:SENSe:METer:PHOLd:TYPE\?$/, "ADJustable"],
   [/^:TRACe\d:DISPlay\?$/, "1"],
   [/DETector:TRACe\d\?$/, "NORMal"],

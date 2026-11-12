@@ -214,6 +214,10 @@
       "description": "Edit the EMI module's 10-band scan table, or load a CISPR band preset; reports instrument adjustments and neighbor-band coupling."
     },
     {
+      "name": "set_emi_measurement",
+      "description": "Configure the EMI module's measurement: standard, sequence, detectors, meter dwell, averaging and search; reports instrument adjustments."
+    },
+    {
       "name": "get_peak_criteria",
       "description": "Read the peak search threshold and excursion."
     },
