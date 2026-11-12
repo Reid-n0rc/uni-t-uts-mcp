@@ -8,10 +8,10 @@ import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 // Commands: docs/research/analog-demodulation.md section 2 "Scope / time-domain display" and
 // "Markers" (programming manual pp.142-150). AD module must be active. Every command here takes
 // the AM|FM demod-type prefix, read fresh from :CONFigure? each call (same pattern as adSettings.ts
-// / adAudio.ts / adResults.ts). NOT yet live-verified on this firmware (docs/verified-hardware.md
-// has no AD display/marker entries): every range, unit and clamp-vs-error behavior below comes
-// from the programming manual via the research doc and is UNKNOWN until probed live (research doc
-// section 4, risk 5: "trust no example without a live probe").
+// / adAudio.ts / adResults.ts). Live-verified on real hardware (2026-11-12, docs/verified-hardware.md):
+// window 1 (RF spectrum) and window 3's linear/log spacing commands, and the full marker set
+// (mode, trace, reference marker/delta mode, peak search against a real signal, AOFF) all work as
+// coded. Window 2's exact unit, and window 3's Y-axis ambiguity, were not separately exercised.
 //
 // Display: the AD screen has three windows (UM p.13, PM p.149): 1 RF spectrum, 2 demodulation
 // waveform (time-domain "scope"), 3 modulation (AF) spectrum. Y-axis reference level and
@@ -163,7 +163,8 @@ export function registerAdDisplayMarkerTools(server: McpServer): void {
     "Configure one AD display window's Y-axis reference level and/or per-division value, and (window 3 only) the AF " +
       "spectrum's linear/log spacing. AD module must be active. The unit of reference_level/per_division depends on the " +
       "window and current demod type (AM/FM, read fresh from :CONFigure? each call) — see each parameter's description. " +
-      "Not yet live-verified: ranges, clamp-vs-error behavior and window 3's exact Y-axis unit are UNKNOWN. Everything " +
+      "Live-verified (2026-11-12) for window 1 and window 3's spacing setter; window 2's unit and exact clamp-vs-error " +
+      "behavior were not separately exercised. Everything " +
       "requested is re-read afterwards and any instrument-adjusted value is reported in 'warnings'. Leaves the new state.",
     DISPLAY_SHAPE,
     { readOnlyHint: false, idempotentHint: true },
@@ -204,7 +205,7 @@ export function registerAdDisplayMarkerTools(server: McpServer): void {
       "must be active. Commands apply in the order mode, trace, reference, x. AD has six markers per demod type (not SA's " +
       "ten) and AD-specific traces (rf_spectrum, demod, demod_average, demod_max, demod_min, af_spectrum); x's unit is Hz " +
       "for the spectrum traces and seconds for the demodulation-waveform traces. A position set on a marker that is off " +
-      "has no effect: set mode normal (or use ad_marker_search) first. Not yet live-verified.",
+      "has no effect: set mode normal (or use ad_marker_search) first. Live-verified (2026-11-12) against a real signal.",
     {
       marker: MARKER,
       mode: z.enum(["off", "normal", "delta", "fixed"]).optional().describe("off, normal (position), delta or fixed"),
@@ -265,7 +266,8 @@ export function registerAdDisplayMarkerTools(server: McpServer): void {
     "ad_marker_search",
     "Move an AD marker with a search and return its new state. AD module must be active. Actions: peak (highest), " +
       "next_peak, next_left / next_right (next peak left/right of the marker), minimum, peak_to_peak (the marker becomes " +
-      "a delta marker). A search turns a marker that is off on. Not yet live-verified.",
+      "a delta marker). A search turns a marker that is off on. Live-verified (2026-11-12): peak search found a real " +
+      "external signal exactly.",
     { marker: MARKER, action: z.enum(["peak", "next_peak", "next_left", "next_right", "minimum", "peak_to_peak"]).describe("Which search to run") },
     { readOnlyHint: false },
     async ({ marker, action }) => {
@@ -291,7 +293,7 @@ export function registerAdDisplayMarkerTools(server: McpServer): void {
     "get_ad_marker",
     "Read one AD marker: mode (off, normal, delta, fixed), trace, and its position (x) and value (y) together, with " +
       "their units (which depend on the trace and current demod type). AD module must be active. A delta marker's x/y " +
-      "are relative to its reference marker. An off marker has x and y null. Not yet live-verified.",
+      "are relative to its reference marker. An off marker has x and y null. Live-verified (2026-11-12).",
     { marker: MARKER.default(1) },
     { readOnlyHint: true },
     async ({ marker }) => {
@@ -309,7 +311,7 @@ export function registerAdDisplayMarkerTools(server: McpServer): void {
     server,
     "ad_markers_all_off",
     "Turn every AD marker off (:CALCulate:AM|FM:MARKer:AOFF for the current demod type) and confirm it by reading each " +
-      "of the six markers' mode. AD module must be active. Not yet live-verified.",
+      "of the six markers' mode. AD module must be active. Live-verified (2026-11-12).",
     {},
     { readOnlyHint: false, idempotentHint: true },
     async () => {

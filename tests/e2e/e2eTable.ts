@@ -253,8 +253,9 @@ export const E2E: Record<string, Entry> = {
   set_ad_filters: {
     steps: [],
     skip:
-      "fakeUts.ts does not model the AD module's filter subsystem (docs/research/analog-demodulation.md); the filter " +
-      "mutual-exclusion behavior has not been live-verified. Covered with a dedicated fake in tests/integration/ad-audio-tools.test.ts.",
+      "fakeUts.ts does not model the AD module's filter subsystem (docs/research/analog-demodulation.md). The filter " +
+      "mutual-exclusion behavior is live-verified (2026-11-12): low-pass and high-pass can be set together, band-pass is " +
+      "mutually exclusive with both. Covered with a dedicated fake in tests/integration/ad-audio-tools.test.ts.",
   },
   set_ad_audio: {
     steps: [],
@@ -276,32 +277,35 @@ export const E2E: Record<string, Entry> = {
     // a required field (window) with no default.
     steps: [{ args: { window: 1, reference_level: -10 }, check: () => {} }],
     skip:
-      "fakeUts.ts does not model the AD module's display/window subsystem (docs/research/analog-demodulation.md section 2); not " +
-      "yet live-verified. Covered with a dedicated fake in tests/integration/ad-display-marker-tools.test.ts.",
+      "fakeUts.ts does not model the AD module's display/window subsystem (docs/research/analog-demodulation.md section 2). " +
+      "Windows 1 and 3's commands are live-verified (2026-11-12); window 2's unit was not separately exercised. Covered " +
+      "with a dedicated fake in tests/integration/ad-display-marker-tools.test.ts.",
   },
   ad_marker: {
     steps: [{ args: { marker: 1, mode: "normal" }, check: () => {} }], // see set_ad_display's comment
     skip:
-      "fakeUts.ts does not model the AD module's marker subsystem (docs/research/analog-demodulation.md section 2); not yet " +
-      "live-verified. Covered with a dedicated fake in tests/integration/ad-display-marker-tools.test.ts.",
+      "fakeUts.ts does not model the AD module's marker subsystem (docs/research/analog-demodulation.md section 2). " +
+      "Live-verified (2026-11-12) against a real signal on the rf_spectrum trace, including delta mode. Covered with a " +
+      "dedicated fake in tests/integration/ad-display-marker-tools.test.ts.",
   },
   ad_marker_search: {
     steps: [{ args: { marker: 1, action: "peak" }, check: () => {} }], // see set_ad_display's comment
     skip:
-      "fakeUts.ts does not model the AD module's marker subsystem; not yet live-verified. Covered with a dedicated fake in " +
+      "fakeUts.ts does not model the AD module's marker subsystem. Live-verified (2026-11-12): a peak search on the " +
+      "rf_spectrum trace found a real external CW signal exactly. Covered with a dedicated fake in " +
       "tests/integration/ad-display-marker-tools.test.ts.",
   },
   get_ad_marker: {
     steps: [],
     skip:
-      "fakeUts.ts does not model the AD module's marker subsystem; not yet live-verified. Covered with a dedicated fake in " +
-      "tests/integration/ad-display-marker-tools.test.ts.",
+      "fakeUts.ts does not model the AD module's marker subsystem. Live-verified (2026-11-12). Covered with a dedicated " +
+      "fake in tests/integration/ad-display-marker-tools.test.ts.",
   },
   ad_markers_all_off: {
     steps: [],
     skip:
-      "fakeUts.ts does not model the AD module's marker subsystem; not yet live-verified. Covered with a dedicated fake in " +
-      "tests/integration/ad-display-marker-tools.test.ts.",
+      "fakeUts.ts does not model the AD module's marker subsystem. Live-verified (2026-11-12). Covered with a dedicated " +
+      "fake in tests/integration/ad-display-marker-tools.test.ts.",
   },
   get_emi_settings: {
     steps: [],

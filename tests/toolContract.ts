@@ -452,7 +452,7 @@ export const CONTRACT: Record<string, ContractEntry> = {
   set_ad_filters: {
     kind: "setter",
     args: { low_pass_filter: "LPF300" },
-    invalid: [{}, { low_pass_filter: "LPF300", high_pass_filter: "HPF20" }],
+    invalid: [{}, { low_pass_filter: "LPF300", band_pass_filter: "CCIR1k" }],
     warn: [{ low_pass_filter: "LPF3K" }, { high_pass_filter: "HPF50" }, { band_pass_filter: "CCIR1k" }],
     requireModule: "AD",
   },
