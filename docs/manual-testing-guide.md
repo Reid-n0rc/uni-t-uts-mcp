@@ -234,6 +234,17 @@ Switch to EMI first (`select_instrument_module` with `module: "emi"`) and back t
 | EM12 | `get_emi_limit_line` with `line: 1`; `set_emi_limit_line` with `build_from_trace: 1`; `set_emi_limit_line` with `copy_from: 1, line: 2` | Points built from the trace, then copied to line 2; both readbacks match | Pass/fail |
 | EM13 | `get_emi_limit_line`/`set_emi_limit_line`/`delete_emi_limit_line` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
 
+### G13c. Analog demodulation module (only if the AD option is licensed)
+
+`exit_analog_demod` is the only documented way back; **always call it at the end of this group**, even if a step warns or errors.
+
+| Step | Action | Expected | Record |
+|------|--------|----------|--------|
+| AD1 | `exit_analog_demod` before ever entering | `module: "spectrum_analyzer"`, `restored: false`, a warning saying nothing was saved here (not an error - it still sends the switch) | Pass/fail |
+| AD2 | `get_instrument_module`, then `enter_analog_demod` | `module: "analog_demod"`, `saved_settings: true`; no warnings if the option is licensed | Whether the switch took, and how long it took |
+| AD3 | Change something that would normally be visible (e.g. the front panel) while in AD, then `exit_analog_demod` | `module: "spectrum_analyzer"`, `restored: true`, the frequency/span/RBW/sweep settings back to what G1-G4 left them | Whether anything failed to restore (a `warnings` entry says what, after one resend) |
+| AD4 | `enter_analog_demod`, then `exit_analog_demod` with `restore_settings: false` | `restored: false`; the settings are left as AD left them, not put back | Pass/fail |
+
 ### G14. Discovery
 
 | Step | Action | Expected | Record |

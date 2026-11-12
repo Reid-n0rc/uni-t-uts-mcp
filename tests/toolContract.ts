@@ -83,6 +83,26 @@ export const CONTRACT: Record<string, ContractEntry> = {
     warn: [{ module: "emi" }], // canned reply stays "SA": models the real firmware's silent refusal of an unlicensed module
     skip: { wrongModule: "this is the tool that switches module, requireModule: false" },
   },
+  // enter_analog_demod/exit_analog_demod (#192): both are requireModule: false (they switch into/out of SA
+  // themselves), so wrongModule's refuse-before-sending assertion does not apply to either - same reason as
+  // select_instrument_module above. The canned :INSTrument:SELect? reply is fixed at "SA" for the whole
+  // session (this fake has no real per-command state), so both naturally warn in the baseline case: enter
+  // sends the switch to AD but reads "SA" back (a mismatch, same shape as select_instrument_module's warn
+  // case), and exit sends the switch back to SA, reads "SA" back fine, but has nothing saved to restore
+  // (nothing called enter_analog_demod first in this test). Both still send a real command first, so
+  // writeFailure/instrumentError exercise normally.
+  enter_analog_demod: {
+    kind: "setter",
+    args: {},
+    warn: [{}],
+    skip: { wrongModule: "requireModule: false; does its own module check and warns rather than refusing" },
+  },
+  exit_analog_demod: {
+    kind: "setter",
+    args: {},
+    warn: [{}],
+    skip: { wrongModule: "requireModule: false; does its own module check and errors with different wording" },
+  },
   get_emi_settings: {
     kind: "getter",
     args: {},

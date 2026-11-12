@@ -240,8 +240,10 @@ function notSpectrumAnalyzer(misses: string[]): string {
 }
 
 // ---------------- spectrum analyzer state (what a measurement preset overwrites) ----------------
+// Exported for reuse by src/tools/analogDemod.ts (#192): entering/leaving the AD module saves and restores the
+// same SA state and tracking generator, by the same read-back-twice-then-fail pattern, as leaving a measurement.
 
-interface SaState {
+export interface SaState {
   center_hz: number;
   span_hz: number;
   rbw_hz: number;
@@ -253,7 +255,7 @@ interface SaState {
   continuous: boolean;
 }
 
-async function readSa(): Promise<SaState> {
+export async function readSa(): Promise<SaState> {
   return {
     center_hz: await queryNumber(":FREQuency:CENTer?"),
     span_hz: await queryNumber(":FREQuency:SPAN?"),
@@ -268,7 +270,7 @@ async function readSa(): Promise<SaState> {
 }
 
 /** Manual values are set (which turns the auto flag off); auto values are re-enabled and follow the span. */
-function saCommands(s: SaState): string[] {
+export function saCommands(s: SaState): string[] {
   return [
     `:FREQuency:CENTer ${formatNumber(s.center_hz)}`,
     `:FREQuency:SPAN ${formatNumber(s.span_hz)}`,
@@ -280,7 +282,7 @@ function saCommands(s: SaState): string[] {
 }
 
 /** Fields of `got` that differ from `want`: `name` plus a description naming the actual and the wanted value. */
-function saMismatches(want: SaState, got: SaState): Array<{ name: string; text: string }> {
+export function saMismatches(want: SaState, got: SaState): Array<{ name: string; text: string }> {
   const out: Array<{ name: string; text: string }> = [];
   const add = (name: string, g: unknown, w: unknown) => out.push({ name, text: `${name} is ${g}, was ${w}` });
   const num = (name: string, w: number, g: number) => { if (!close(w, g)) add(name, g, w); };
@@ -305,7 +307,7 @@ function saMismatches(want: SaState, got: SaState): Array<{ name: string; text: 
  * (verified-hardware.md, "Measurements"), so the output is read before entering and put back after leaving. The level and offset
  * are only read (and restored) when the output was on. An analyzer without the option leaves the query unanswered: nothing is saved.
  */
-interface TgState {
+export interface TgState {
   enabled: boolean;
   level_dbm?: number;
   level_offset_db?: number;
@@ -323,7 +325,7 @@ async function readTgNow(): Promise<TgState> {
 }
 
 /** The generator state before a measurement, or undefined when the analyzer does not answer (no tracking generator option). */
-async function readTg(): Promise<TgState | undefined> {
+export async function readTg(): Promise<TgState | undefined> {
   try {
     return await readTgNow();
   } catch (err) {
@@ -348,7 +350,7 @@ function tgMismatches(want: TgState, got: TgState): Array<{ name: string; text: 
 }
 
 /** Put the generator back and verify by readback; one resend like the analyzer settings. Returns warnings, throws when it stays wrong. */
-async function restoreTg(want: TgState): Promise<string[]> {
+export async function restoreTg(want: TgState): Promise<string[]> {
   const attempt = async (retry: boolean) => {
     const commands = want.enabled ? tgCommands(want) : retry ? [`${TG_OUT} OFF`] : [];
     if (commands.length > 0) await applyCommands(commands);
@@ -385,7 +387,7 @@ export function forgetSavedSettings(): void {
   measurementEntered = false;
 }
 
-async function restoreSa(restore: SaState): Promise<string[]> {
+export async function restoreSa(restore: SaState): Promise<string[]> {
   await applyCommands(saCommands(restore));
   let mismatches = saMismatches(restore, await readBack(readSa));
   if (mismatches.length === 0) return [];

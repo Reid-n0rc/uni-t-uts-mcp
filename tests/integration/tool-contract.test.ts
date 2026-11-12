@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { createServer } from "../../src/server.js";
 import { probeTuning, forgetSavedSettings } from "../../src/tools/measurement.js";
+import { forgetAnalogDemodState } from "../../src/tools/analogDemod.js";
 import { callTool, getText, type ToolResult } from "../helpers.js";
 import { APPLICABLE, CONTRACT, fake, type ContractEntry, type Mode } from "../toolContract.js";
 import { readdirSync, readFileSync } from "node:fs";
@@ -44,6 +45,7 @@ afterAll(async () => {
 beforeEach(() => {
   fake.reset();
   forgetSavedSettings();
+  forgetAnalogDemodState();
   // The "first setter" stale-error-queue check (src/instrument.ts) is a one-time-per-connection
   // flag: whichever applyCommands call takes it runs one extra query. Left enabled, which call
   // takes it (a baseline call vs. one of the parallel calls, or an earlier/later CONTRACT entry
