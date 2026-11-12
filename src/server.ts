@@ -23,6 +23,7 @@ import { registerAnalogDemodTools } from "./tools/analogDemod.js";
 import { registerAdSettingsTools } from "./tools/adSettings.js";
 import { registerAdAudioTools } from "./tools/adAudio.js";
 import { registerAdResultTools } from "./tools/adResults.js";
+import { registerAdDisplayMarkerTools } from "./tools/adDisplayMarker.js";
 import { guardToolRegistration } from "./tools/util.js";
 
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -54,5 +55,6 @@ export function createServer(): McpServer {
   registerAdSettingsTools(server);
   registerAdAudioTools(server);
   registerAdResultTools(server);
+  registerAdDisplayMarkerTools(server);
   return server;
 }

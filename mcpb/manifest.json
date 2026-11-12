@@ -238,6 +238,26 @@
       "description": "Read the AD module's numeric result window (carrier power, SINAD, THD, peak/pk-pk/RMS) without a screenshot."
     },
     {
+      "name": "set_ad_display",
+      "description": "Configure one AD display window's Y-axis reference level, per-division value, and (window 3) linear/log spacing."
+    },
+    {
+      "name": "ad_marker",
+      "description": "Set an AD marker's mode, trace, reference marker or position (AD has six markers per demod type with AD-specific trace names)."
+    },
+    {
+      "name": "ad_marker_search",
+      "description": "Move an AD marker with a peak/minimum/peak-to-peak search."
+    },
+    {
+      "name": "get_ad_marker",
+      "description": "Read one AD marker's mode, trace, position and value with their units."
+    },
+    {
+      "name": "ad_markers_all_off",
+      "description": "Turn every AD marker off and confirm it."
+    },
+    {
       "name": "get_emi_settings",
       "description": "Read-only snapshot of the EMI module configuration: standard, scan sequence, scan table, detectors, search and trigger settings."
     },
