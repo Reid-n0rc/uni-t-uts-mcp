@@ -442,6 +442,38 @@ The live probe also hit the known flaky-network pattern (several fresh-connectio
 
 **Actionable for uni-t-uts-mcp:** `set_emi_correction` (#183) refuses a request over 10 points locally, before sending anything, rather than relying on the instrument's silent rejection.
 
+## EMI live probe: module entry, SA state round trip (2026-11-12, issue #176, owner present)
+
+Ran the batched live probe from `docs/research/emi-function.md` section 8, with the owner
+physically present at the analyzer, over raw SCPI:
+
+1. `*IDN?` confirmed the unit (`UNI-TREND,UTS3036B,...,V1.04.0040`).
+2. `:INSTrument:SELect?` read `SA`. SA snapshot taken: center 50 Hz, span 100 Hz, RBW 1 Hz,
+   reference level 0 dB, attenuation 10 dB.
+3. `:INSTrument:SELect EMI`, waited ~3 s, then `:SYSTem:ERRor?` read `0,"No error"`.
+4. `:INSTrument:SELect?` read back `EMI`. Two EMI-only queries on fresh connections both
+   answered: `:SENSe:EMC:STANdard?` → `CISPr`, `:SENSe:FSCan:SEQuence?` → `SCAN`.
+5. Per the research doc's own decision table ("select answers EMI and the EMI queries answer" →
+   EMI available), **this confirms the EMI module can be entered and its option is licensed on
+   this unit** — consistent with, and now the formal source for, what every downstream EMI tool
+   issue (#177-#187) already assumed.
+6. `:INSTrument:SELect SA` switched back; `:INSTrument:SELect?` confirmed `SA`. The SA snapshot
+   was re-read and **matched the pre-probe values exactly** (center 50 Hz, span 100 Hz, RBW 1 Hz,
+   reference level 0 dB, attenuation 10 dB) — the SA↔EMI round trip does not disturb SA state.
+   `:SYSTem:ERRor?` read `0,"No error"` after the round trip.
+
+This probe deliberately does not touch the front-panel lock (by design, to observe default
+behavior unmodified), so the owner was asked to check the panel afterward rather than relying on
+an automatic unlock. The owner reported the screen showing "EMI," matching the SCPI state exactly
+— an initial impression of "SA sweeping" turned out to be EMI's own frequency-scan display, which
+looks visually similar to an SA sweep but is a different module, not a discrepancy.
+
+**Confidence:** CONFIRMED (live, owner present) for EMI module entry, the two EMI-only query
+replies, and the SA-state round trip being lossless.
+
+**Actionable for uni-t-uts-mcp:** none beyond what's already shipped — every EMI tool issue this
+probe was a prerequisite for (#177-#187) is now built and separately hardware-verified.
+
 ## EMI hardware verification pass (2026-11-12, issue #187, owner present)
 
 Ran every merged EMI tool (module switch, settings snapshot, scan table, measurement, limit lines, correction factors, markers, signal list) against the real analyzer, with the owner physically present. `emi_run`/`emi_stop` (#186) was not yet merged during this pass and was not verified here.
