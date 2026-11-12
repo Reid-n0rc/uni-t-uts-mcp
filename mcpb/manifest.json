@@ -290,6 +290,30 @@
       "description": "Edit an EMI module correction factor set: points, enabled, delete, or turn off/clear every set."
     },
     {
+      "name": "get_emi_marker",
+      "description": "Read one EMI module marker: mode, trace, frequency and level."
+    },
+    {
+      "name": "set_emi_marker",
+      "description": "Set an EMI module marker's mode, trace, reference marker or frequency."
+    },
+    {
+      "name": "emi_marker_search",
+      "description": "Move an EMI module marker with a peak search: peak, next, left, right or minimum."
+    },
+    {
+      "name": "emi_markers_all_off",
+      "description": "Turn every EMI module marker off."
+    },
+    {
+      "name": "get_emi_peak_criteria",
+      "description": "Read the EMI module peak search threshold and excursion."
+    },
+    {
+      "name": "set_emi_peak_criteria",
+      "description": "Set the EMI module peak search threshold and excursion."
+    },
+    {
       "name": "get_peak_criteria",
       "description": "Read the peak search threshold and excursion."
     },
