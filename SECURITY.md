@@ -34,3 +34,5 @@ Out of scope: vulnerabilities in the analyzer's own firmware (report those to th
 ## Note for users
 
 The server can change instrument settings. Only connect it to instruments on networks you trust, and don't expose it to untrusted MCP clients.
+
+**The UTS3036B itself (V1.04.0040, confirmed by firmware disassembly, out of this project's scope to fix) has its own exposure independent of this server:** it runs the Eclipse/Xilinx TCF debug agent as root with no authentication at all (reachable over the network on the TCP port its UDP beacon on port 1534 advertises — full remote shell and filesystem access), enables SSH with blank passwords allowed and a root password hash that is identical on every unit, and starts a vendor `frpc` reverse tunnel unconditionally at every boot that publishes the web UI, the SCPI control websocket and the screen stream to a UNI-T server with no auth token (there is no way to disable this from the instrument's UI). Keep this analyzer, like any lab instrument, on an isolated or trusted network segment; block outbound TCP/7000 at your firewall if you don't want it reaching UNI-T's servers.
