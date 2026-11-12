@@ -12,6 +12,9 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+### Documentation
+- Front-panel lock: firmware disassembly confirms the SCPI-layer root cause (one byte, re-checked and re-locked on every non-exempt command) and corrects issue #172's "screenshot is a safe check" claim — the screenshot query is not exempt either, so it likely re-locks the panel on every call. (#209)
+
 ## [0.5.0] - 2026-11-11
 
 ### Added
