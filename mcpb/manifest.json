@@ -314,6 +314,18 @@
       "description": "Set the EMI module peak search threshold and excursion."
     },
     {
+      "name": "emi_signal_list",
+      "description": "Act on the EMI module's signal table: add, replace, delete, mark or zoom entries."
+    },
+    {
+      "name": "get_emi_signal_list_sort",
+      "description": "Read the EMI module signal list's sort type and order."
+    },
+    {
+      "name": "set_emi_signal_list_sort",
+      "description": "Set the EMI module signal list's sort type and/or order."
+    },
+    {
       "name": "get_peak_criteria",
       "description": "Read the peak search threshold and excursion."
     },
