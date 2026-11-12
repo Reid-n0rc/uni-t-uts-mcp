@@ -156,6 +156,26 @@ export const CONTRACT: Record<string, ContractEntry> = {
     },
     requireModule: "EMI",
   },
+  get_emi_correction: { kind: "getter", args: { slot: 2 }, invalid: [{ slot: 0 }, { slot: 11 }], requireModule: "EMI" },
+  set_emi_correction: {
+    kind: "setter",
+    args: { slot: 1, points: [{ frequency_hz: 1e8, gain_db: 2 }, { frequency_hz: 5e8, gain_db: -1 }] },
+    invalid: [
+      {},
+      { slot: 11, enabled: true },
+      { points: [] },
+      { all_off: true, slot: 1 },
+      { all_off: true, delete_all: true },
+      { delete: true, points: [{ frequency_hz: 1e8, gain_db: 2 }] },
+      { slot: 1, points: [{ frequency_hz: 5e8, gain_db: -1 }, { frequency_hz: 1e8, gain_db: 2 }] },
+    ],
+    warn: [{ slot: 1, enabled: true }],
+    skip: {
+      timeout: "a slot with no points leaves DATA? unanswered, so a timeout there is the delete's success signal",
+      empty: "an empty DATA? reply means the same (no points)",
+    },
+    requireModule: "EMI",
+  },
   get_frequency: { kind: "getter", args: {} },
   set_frequency: {
     kind: "setter",
@@ -419,6 +439,8 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/LLINe\d:TRACe\?$/, "1"],
   [/LLINe\d:MARGin\?$/, "0.000000e+00"],
   [/LLINe\d:DATA\?$/, ""], // an empty line (the real instrument stays silent there; "" is read the same way)
+  [/CSET\d+:STATe\?$/, "0"],
+  [/CSET\d+:DATA\?$/, ""], // an empty correction slot (the real instrument stays silent there; "" is read the same way)
   [/MARKer\d+:MODE\?$/, "POSition"],
   [/:CALCulate:(AM|FM):MARKer\d+:TRACe\?$/, "RFSPectrum"], // AD marker traces are named (RFSPectrum/DEMod/...), not SA's numeric 1-6
   [/MARKer\d+:TRACe\?$/, "1"],

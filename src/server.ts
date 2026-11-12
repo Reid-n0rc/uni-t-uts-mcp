@@ -19,6 +19,7 @@ import { registerEmiSettingsTools } from "./tools/emiSettings.js";
 import { registerEmiScanTableTools } from "./tools/emiScanTable.js";
 import { registerEmiMeasurementTools } from "./tools/emiMeasurement.js";
 import { registerEmiLimitLineTools } from "./tools/emiLimitLines.js";
+import { registerEmiCorrectionTools } from "./tools/emiCorrection.js";
 import { registerAnalogDemodTools } from "./tools/analogDemod.js";
 import { registerAdSettingsTools } from "./tools/adSettings.js";
 import { registerAdAudioTools } from "./tools/adAudio.js";
@@ -51,6 +52,7 @@ export function createServer(): McpServer {
   registerEmiScanTableTools(server);
   registerEmiMeasurementTools(server);
   registerEmiLimitLineTools(server);
+  registerEmiCorrectionTools(server);
   registerAnalogDemodTools(server);
   registerAdSettingsTools(server);
   registerAdAudioTools(server);

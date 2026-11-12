@@ -233,6 +233,9 @@ Switch to EMI first (`select_instrument_module` with `module: "emi"`) and back t
 | EM11 | `set_emi_limit_line` with `line: 1`, `points` of 10 or 11 pairs | Confirms (or refutes) the inferred 10-point cap from `docs/verified-hardware.md`'s EMI limit-line entry | Whether the instrument keeps exactly 10, and whether 11 is silently truncated like the SA tool |
 | EM12 | `get_emi_limit_line` with `line: 1`; `set_emi_limit_line` with `build_from_trace: 1`; `set_emi_limit_line` with `copy_from: 1, line: 2` | Points built from the trace, then copied to line 2; both readbacks match | Pass/fail |
 | EM13 | `get_emi_limit_line`/`set_emi_limit_line`/`delete_emi_limit_line` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
+| EM14 | `set_emi_correction` with `slot: 1`, `points` of 10 pairs; `get_emi_correction` with `slot: 1` | Points round-trip exactly (already live-verified, see `docs/verified-hardware.md`'s EMI correction entry) | Pass/fail |
+| EM15 | `set_emi_correction` with `slot: 1`, `enabled: true`; then `all_off: true`; then `delete_all: true` | Slot enabled, then every slot off, then every slot's points cleared | Pass/fail |
+| EM16 | `get_emi_correction`/`set_emi_correction` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
 
 ### G13c. Analog demodulation module (only if the AD option is licensed)
 

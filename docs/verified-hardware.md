@@ -428,3 +428,13 @@ The private firmware-RE repo checked the handler code of all 1262 SCPI commands 
 **Confidence:** CONFIRMED (disassembly) that the callback functions are shared. LIKELY, not independently live-verified: that the point cap therefore matches SA's.
 
 **Actionable for uni-t-uts-mcp:** re-verify the EMI limit-line point cap live once hardware access is stable (EMI-12, #187), and drop the "inferred" caveat from `set_emi_limit_line`'s code comment and `docs/tools-reference.md` if it's confirmed to match.
+
+## EMI correction factors: 10-point cap live-verified, silent rejection above it (issue #183, 2026-11-12)
+
+**Confirmed live** (this unit, EMI module licensed): `:SENSe:CORRection:CSET1:DATA` with 10 frequency/gain pairs round-trips exactly on readback. Writing 11 pairs is **silently rejected** — no error on `*ESR?`, `*STB?` or `:SYSTem:ERRor?` (same silent-reject pattern already documented for other out-of-range setters) — and leaves the slot's `DATA?` silent afterward, the same way an empty slot behaves, meaning the rejected write emptied the slot's data rather than leaving the previous 10 points in place. `[:SENSe]:CORRection:SELect` was not needed: writing and reading `CSET<n>:DATA`/`:STATe` directly, by number, worked without ever sending `SELect`.
+
+The live probe also hit the known flaky-network pattern (several fresh-connection queries timed out in a row after the 11-point write, recovering a few seconds later) — attributed to the network path, not the instrument; `*IDN?` kept answering normally once the path recovered.
+
+**Confidence:** CONFIRMED (live) for the 10-point cap and the silent-rejection behavior above it. CONFIRMED (live) that `SELect` is unnecessary for direct `CSET<n>` addressing.
+
+**Actionable for uni-t-uts-mcp:** `set_emi_correction` (#183) refuses a request over 10 points locally, before sending anything, rather than relying on the instrument's silent rejection.

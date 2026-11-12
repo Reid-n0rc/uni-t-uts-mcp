@@ -339,6 +339,20 @@ export const E2E: Record<string, Entry> = {
       "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); EMI-12 (#187) hardware verification has not run. " +
       "Covered with a dedicated fake in tests/integration/emi-limit-line-tools.test.ts.",
   },
+  get_emi_correction: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); the 10-point cap was live-verified " +
+      "(2026-11-12) but EMI-12 (#187)'s full hardware verification pass has not run. Covered with a dedicated fake in " +
+      "tests/integration/emi-correction-tools.test.ts.",
+  },
+  set_emi_correction: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (docs/research/emi-function.md); the 10-point cap was live-verified " +
+      "(2026-11-12) but EMI-12 (#187)'s full hardware verification pass has not run. Covered with a dedicated fake in " +
+      "tests/integration/emi-correction-tools.test.ts.",
+  },
   select_instrument_module: {
     steps: [
       { args: { module: "emi" }, check: (r, c) => { ok(r); expect(r.json.module).toBe("EMI"); expect(m(c).str("module")).toBe("EMI"); } },
@@ -516,6 +530,7 @@ export const ORDER = [
   "set_ad_display", "ad_marker", "ad_marker_search", "get_ad_marker", "ad_markers_all_off",
   "get_emi_settings", "set_emi_scan_table", "set_emi_measurement",
   "get_emi_limit_line", "set_emi_limit_line", "delete_emi_limit_line",
+  "get_emi_correction", "set_emi_correction",
   "get_measurement", "configure_measurement", "read_measurement", "exit_measurement", "measure",
   "discover_instruments", "list_instruments", "disconnect",
 ];
