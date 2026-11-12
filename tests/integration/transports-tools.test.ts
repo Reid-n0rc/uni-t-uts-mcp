@@ -13,8 +13,13 @@ import { startFakeVxi11Instrument, type FakeVxi11Instrument } from "../fakeVxi11
  * against the fake instruments (raw TCP and VXI-11), and the connect tool reports the transport.
  */
 const PNG_HEAD = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
-const reply = (cmd: string): string | undefined => {
+const reply = (cmd: string, requireModule?: "SA" | "EMI" | "AD"): string | undefined => {
   if (cmd === ":SYSTem:ERRor?") return '0,"No error"';
+  // Module-guard check (#178, #191): this fake has no per-call session concept, so it answers
+  // whatever module the entry under test declares (default SA), same idea as tests/toolContract.ts's
+  // session-aware fake. A tool whose own args switch module (select_instrument_module) is unaffected:
+  // it sends its own setter before this query runs.
+  if (/^:INSTrument(:SELect)?\?$/.test(cmd)) return requireModule ?? "SA";
   // queries: "?" at the end, or before a parameter (":TRACe:DATA? TRACE1")
   if (cmd.includes("?")) return defaultReply(cmd);
   return undefined;
@@ -48,17 +53,17 @@ describe.each(["raw", "vxi11"] as const)("all tools over the %s transport", (tra
     raw = vxi = undefined;
   });
 
-  async function start(): Promise<string> {
+  async function start(requireModule?: "SA" | "EMI" | "AD"): Promise<string> {
     if (transport === "raw") {
       raw = await startFakeScpi((line, socket) => {
-        const r = reply(line);
+        const r = reply(line, requireModule);
         if (r !== undefined) socket.write(r + "\r\n");
       });
       const res = await callTool(client, "connect", { host: "127.0.0.1", port: raw.port, transport: "raw" });
       return getText(res) + (res.isError ? " [error]" : "");
     }
     vxi = await startFakeVxi11Instrument({
-      scpi: (c) => (c === ":DISPlay:DATA?" ? Buffer.concat([Buffer.from("#216"), PNG_HEAD]) : reply(c)),
+      scpi: (c) => (c === ":DISPlay:DATA?" ? Buffer.concat([Buffer.from("#216"), PNG_HEAD]) : reply(c, requireModule)),
     });
     // the portmapper port is not a tool parameter (VXI-11 uses port 111); connect directly for the fake
     await connection.connect("127.0.0.1", 5025, { transport: "vxi11", vxi11PortmapperPort: vxi.port });
@@ -76,7 +81,7 @@ describe.each(["raw", "vxi11"] as const)("all tools over the %s transport", (tra
   });
 
   it.each(entries)("%s runs with its valid arguments", async (name, entry) => {
-    await start();
+    await start(entry.requireModule);
     const res = await callTool(client, name, entry.args);
     if (name === "screenshot" && transport === "raw") {
       // raw TCP truncates large replies (issue #42): the tool refuses with instructions instead of hanging

@@ -284,6 +284,14 @@ Read-only, safe in any module. Returns `module`: `spectrum_analyzer`, `emi` or `
 
 **Every other tool that talks to the instrument is spectrum-analyzer-only** (#178, #191): the same-named command often means something different per module (for example `:SENSe:FREQuency:CENTer` under EMI), so before sending anything each one checks the module fresh (no caching across calls) and refuses with an actionable message naming `select_instrument_module` if it is not SA. `get_instrument_module`, `select_instrument_module`, `identify`, `scpi_query`, `scpi_command`, `connect`, `disconnect`, `discover_instruments` and `list_instruments` are exempt, since they must work in any module or send none of their own.
 
+## EMI function
+
+Research-stage: field names, ranges and groupings come from the programming manual via [docs/research/emi-function.md](research/emi-function.md); none of it has been verified live yet (EMI-12, #187, needs the owner present at the analyzer). Requires the EMI module (`select_instrument_module`); every tool here refuses with an actionable message otherwise.
+
+### `get_emi_settings`
+
+Read-only snapshot, grouped so one call can stay short: `standard`, `sequence`, `scan_table` (10 bands), `meters`, `detectors`, `traces`, `search`, `frequency`, `amplitude`, `trigger`. The optional `groups` argument selects which to read; by default `scan_table` is omitted (10 bands x ~11 queries each, by far the most expensive group) and every other group is included. A silent or malformed reply to any query is an error naming that command - no partial snapshot is ever returned.
+
 ## Measurements
 
 Channel power, time-domain power, occupied bandwidth (OBW), adjacent channel power (ACPR), third-order intercept (TOI), carrier-to-noise ratio (C/N) and harmonics. The instrument has **no query for the active measurement**, and `:CONFigure:<meas>` presets the span, RBW and sweep time (for example span 3 MHz) which `:CONFigure:SANalyzer` does not put back, so these tools save and restore that state and never scan for the active mode (queries the instrument does not answer stall it, and over VXI-11 can drop the link). Spectrum analyzer mode is told by `:SENSe:DETector:TRACe1?`, which only it answers; one measurement is told by `:SENSe:<meas>:AVERage:STATe?`. While a measurement is active most spectrum analyzer queries (detector, trace type) get no reply. A probe that gets no reply costs about 4.5 s (the 1.5 s timeout plus a 3 s pause while the instrument recovers). Measurement names: `channel_power`, `time_power`, `obw`, `acpr` (`:SENSe:ACPower`), `toi`, `cn` (`CNRatio`), `harmonics`.

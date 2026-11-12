@@ -214,6 +214,16 @@ Connect the tracking generator output to the RF input. **Always switch the outpu
 | IM3 | `select_instrument_module` with `module: "sa"` | `module: "SA"`, back to the normal state | Pass/fail |
 | IM4 | `select_instrument_module` with `module: "iq"` (an invalid enum value) | Rejected before anything is sent | Pass/fail |
 
+### G13b. EMI settings (research-stage; only if the EMI option is licensed)
+
+Switch to EMI first (`select_instrument_module` with `module: "emi"`) and back to `sa` at the end, even if a step warns or errors.
+
+| Step | Action | Expected | Record |
+|------|--------|----------|--------|
+| EM1 | `get_emi_settings` with no arguments (default groups) | A snapshot without `scan_table`; every other group present | Whether every query answers, and with what |
+| EM2 | `get_emi_settings` with `groups: ["scan_table"]` | 10 bands | Whether all 10 answer, and how long it takes |
+| EM3 | `get_emi_settings` while still in the `sa` module | Rejected, naming `select_instrument_module` | Pass/fail |
+
 ### G14. Discovery
 
 | Step | Action | Expected | Record |
