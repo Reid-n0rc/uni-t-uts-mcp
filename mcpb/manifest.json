@@ -206,6 +206,10 @@
       "description": "Switch the active measurement function module (spectrum analyzer, EMI or analog demodulation)."
     },
     {
+      "name": "get_emi_settings",
+      "description": "Read-only snapshot of the EMI module configuration: standard, scan sequence, scan table, detectors, search and trigger settings."
+    },
+    {
       "name": "get_peak_criteria",
       "description": "Read the peak search threshold and excursion."
     },

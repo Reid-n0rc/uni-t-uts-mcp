@@ -33,6 +33,13 @@ export interface ContractEntry {
   warn?: Array<Record<string, unknown>>;
   /** Modes that do not apply to this tool, with the reason. */
   skip?: Partial<Record<Mode, string>>;
+  /**
+   * The module this tool requires (defineTool's `requireModule`, default "sa"). Drives the fake's
+   * `:INSTrument:SELect?` reply for this tool's own sessions (looked up by session label, see
+   * `fakeConnection.query`), so a non-SA tool's baseline/parallel/"all tools at once" runs see the
+   * module they need, and only the dedicated `wrongModule` mode sees a mismatch.
+   */
+  requireModule?: "SA" | "EMI" | "AD";
 }
 
 export const APPLICABLE: Record<Kind, Mode[]> = {
@@ -75,6 +82,12 @@ export const CONTRACT: Record<string, ContractEntry> = {
     invalid: [{}, { module: "iq" }],
     warn: [{ module: "emi" }], // canned reply stays "SA": models the real firmware's silent refusal of an unlicensed module
     skip: { wrongModule: "this is the tool that switches module, requireModule: false" },
+  },
+  get_emi_settings: {
+    kind: "getter",
+    args: {},
+    invalid: [{ groups: ["bogus"] }],
+    requireModule: "EMI",
   },
   get_frequency: { kind: "getter", args: {} },
   set_frequency: {
@@ -295,10 +308,22 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/SWEep:TIME:AUTO:RULes\?$/, "NORMal"],
   [/SWEep:TYPE\?$/, "SWEep"],
   [/SOURce\?$/, "IMMediate"],
+  // Static fallback for defaultReply() (used directly by tests/integration/transports-tools.test.ts's real
+  // fake SCPI/VXI-11 servers, which have no session concept): always SA. The session-aware override in
+  // `fakeConnection.query` above (keyed by CONTRACT[toolName].requireModule) takes precedence for the
+  // in-process fake used by tool-contract.test.ts.
+  [/^:INSTrument(:SELect)?\?$/, "SA"],
+  [/^:SENSe:EMC:STANdard:SELect\?$/, "NONE"],
+  [/^:SENSe:FSCan:SEQuence\?$/, "SCAN"],
+  [/^:SENSe:FSCan:SEQuence:REMeasure\?$/, "CURRent"],
+  [/^:SENSe:FSCan:SEARch:MODE\?$/, "PONLy"],
+  [/^:SENSe:METer\d:DETector\?$/, "POSitive"],
+  [/^:SENSe:FSCan:DETector:TRACe\d\?$/, "POSitive"],
+  [/^:SENSe:METer:PHOLd:TYPE\?$/, "ADJustable"],
+  [/^:TRACe\d:DISPlay\?$/, "1"],
   [/DETector:TRACe\d\?$/, "NORMal"],
   [/^:TRACe\d:TYPE\?$/, "WRITe"],
   [/^:SYSTem:PICture:FORMat\?$/, "BMP"],
-  [/^:INSTrument(:SELect)?\?$/, "SA"],
   [/^:(READ|FETCh):CHPower\?$/, "-7.366048e+01,-1.366708e+02"],
   [/^:(READ|FETCh):TPOWer\?$/, "-9.206767e+01"],
   [/AVERage:TCONtrol\?$/, "EXPonential"],
@@ -420,7 +445,13 @@ export const fakeConnection = {
         return "";
       }
     }
-    if (fake.mode === "wrongModule" && /^:INSTrument(:SELect)?\?$/.test(cmd)) return "EMI";
+    if (/^:INSTrument(:SELect)?\?$/.test(cmd)) {
+      const session = sessionIds.getStore() ?? 0;
+      const toolName = fake.sessionLabels.get(session);
+      const required = (toolName && CONTRACT[toolName]?.requireModule) || "SA";
+      if (fake.mode === "wrongModule") return required === "SA" ? "EMI" : "SA";
+      return required;
+    }
     return defaultReply(cmd);
   },
   async queryBinary(cmd: string, timeoutMs = 30000): Promise<Buffer> {

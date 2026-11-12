@@ -227,6 +227,12 @@ export const E2E: Record<string, Entry> = {
   // Measurement function module (#177): :INSTrument[:SELect]. The fake always accepts the switch (ASSUMED: unlike the real
   // analyzer, every module is licensed in the fake; no settle delay).
   get_instrument_module: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.json.module).toBe("spectrum_analyzer"); } }], timeoutMs: 30_000 },
+  get_emi_settings: {
+    steps: [],
+    skip:
+      "fakeUts.ts does not model the EMI subsystem (its ~30 undocumented-live-behavior SCPI queries, docs/research/emi-function.md); " +
+      "EMI-12 (#187) hardware verification has not run. Covered with a dedicated fake in tests/integration/emi-settings-tools.test.ts.",
+  },
   select_instrument_module: {
     steps: [
       { args: { module: "emi" }, check: (r, c) => { ok(r); expect(r.json.module).toBe("EMI"); expect(m(c).str("module")).toBe("EMI"); } },
@@ -351,7 +357,7 @@ export const ORDER = [
   "set_peak_criteria", "get_peak_criteria", "set_marker_function", "get_marker_function",
   "set_marker_ndb", "get_marker_ndb", "set_frequency_counter", "get_frequency_counter",
   "set_limit_line", "get_limit_line", "delete_limit_line", "set_tracking_generator", "get_tracking_generator",
-  "get_instrument_module", "select_instrument_module",
+  "get_instrument_module", "select_instrument_module", "get_emi_settings",
   "get_measurement", "configure_measurement", "read_measurement", "exit_measurement", "measure",
   "discover_instruments", "list_instruments", "disconnect",
 ];

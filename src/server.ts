@@ -15,6 +15,7 @@ import { registerLimitLineTools } from "./tools/limitLines.js";
 import { registerTrackingGeneratorTools } from "./tools/trackingGenerator.js";
 import { registerMeasurementTools } from "./tools/measurement.js";
 import { registerInstrumentModuleTools } from "./tools/instrumentModule.js";
+import { registerEmiSettingsTools } from "./tools/emiSettings.js";
 import { guardToolRegistration } from "./tools/util.js";
 
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -38,5 +39,6 @@ export function createServer(): McpServer {
   registerMeasurementTools(server);
   registerTrackingGeneratorTools(server);
   registerInstrumentModuleTools(server);
+  registerEmiSettingsTools(server);
   return server;
 }
