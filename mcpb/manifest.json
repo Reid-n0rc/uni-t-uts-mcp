@@ -234,6 +234,10 @@
       "description": "Set the AD module's speaker and/or volume. Turning the speaker on requires confirm=true and is restored afterward by default."
     },
     {
+      "name": "get_demod_result",
+      "description": "Read the AD module's numeric result window (carrier power, SINAD, THD, peak/pk-pk/RMS) without a screenshot."
+    },
+    {
       "name": "get_emi_settings",
       "description": "Read-only snapshot of the EMI module configuration: standard, scan sequence, scan table, detectors, search and trigger settings."
     },

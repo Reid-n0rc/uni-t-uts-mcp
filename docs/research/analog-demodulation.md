@@ -100,7 +100,7 @@ Naming: `ad_*`. All go through `defineTool`, `validate` first (nothing sent when
 | `ad_marker_search` | state-changing | `marker`, `action: peak\|next\|left\|right\|min\|pkpk` | |
 | `get_ad_marker` | read-only | `marker?` | X, Y, trace; returns the unit by trace and mode (Hz/s/dBm/fraction), strict parse |
 | `ad_markers_all_off` | state-changing | none | |
-| `read_modulation` (name tentative) | measures | `type`, `trace`, `window` | wraps marker peak/pkpk readings into depth (AM) or deviation (FM); only worth building if no documented result query turns up. Leaves marker state changed unless restored |
+| `get_demod_result` | read-only | none | **shipped (#196)**: wraps the undocumented `:FETCh:AM?`/`:FETCh:FM?` metrics-line readback (section 6a), confirmed live. `read_modulation` (marker-based depth/deviation via peak/pkpk) was not built: the results query answers this need directly |
 
 Not proposed: `:CONFigure:AM/FM` as a free-standing tool (destructive preset; only as `preset: true` on `enter_analog_demod`), `:INSTrument:DEFault`, `SELect EMI`, PM/FM-stereo (undocumented), MMEMory.
 
@@ -171,5 +171,5 @@ Each fits one context window; each is tests first with docs in the same PR.
 4. **AD frequency, bandwidth and timing tools** (`get_ad_settings`, `set_ad_frequency`, `set_ad_demod_timing`).
 5. **AD filters and audio** (`set_ad_filters`, `set_ad_audio` with confirmation and volume restore).
 6. **AD display and markers** (`set_ad_display`, marker tools and `read_modulation`).
-7. **AD results investigation**: find out whether depth, deviation, SINAD, THD and carrier power can be read remotely; screenshot-based fallback; adds AD to the manual testing guide.
+7. **AD results investigation**: find out whether depth, deviation, SINAD, THD and carrier power can be read remotely; screenshot-based fallback; adds AD to the manual testing guide. **Done (#196)**: `get_demod_result` wraps the confirmed-live `:FETCh:AM?`/`:FETCh:FM?` metrics readback (section 6a); the screenshot fallback stays only for the RF/waveform/AF-spectrum trace views, which this tool does not expose.
 8. **AD docs and wiki**: tools reference, README table, wiki pages, manual-testing-guide group, roadmap entries (kept small, after the tools exist).
