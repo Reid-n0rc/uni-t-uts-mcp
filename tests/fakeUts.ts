@@ -207,6 +207,10 @@ const SPECS: Spec[] = [
   // --- acquisition (docs: "Acquisition and sweep completion")
   { id: "cont", path: ":INITiate:CONTinuous", kind: "bool", def: true },
 
+  // --- measurement function module (docs: "Front-panel lock", issue #177; ASSUMED: every module always licensed in the fake,
+  // no settle delay, unlike the real analyzer's unlicensed-module no-op and possible switch delay)
+  { id: "module", path: ":INSTrument[:SELect]", kind: "enum", values: ["SA", "EMI", "AD"], upper: true, def: "SA" },
+
   // --- trace (docs: "Trace configuration")
   { id: "tr.type", path: ":TRACe<n>:TYPE", kind: "enum", suffixMax: 6, values: ["WRITe", "AVERage", "MAXHold", "MINHold"],
     def: "WRITe", saOnly: true, onSet: () => {} },
@@ -407,7 +411,6 @@ function privateQuery(header: string, m: UtsModel): string | undefined {
     case "*STB?": return "0";
     case "*ESE?": return String(m.num("ese"));
     case "*SRE?": return String(m.num("sre"));
-    case ":INSTrument:SELect?".toUpperCase(): return "SA";
     default: return undefined;
   }
 }

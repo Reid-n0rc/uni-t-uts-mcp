@@ -270,6 +270,18 @@ Read-only. Returns `enabled` (output on/off), `level_dbm`, `level_offset_db`, `r
 
 Takes at least one of `enabled`, `level_dbm` (-40 to 0), `level_offset_db` (-200 to 200), `reference_trace`, `normalize` and `normalize_ref_level_db` (-100 to 100); ranges are checked before anything is sent (the instrument clamps silently outside them). Level and offset are set before the output is switched on. `reference_trace` only takes while the output is on (otherwise a warning says so). Switching the output off also re-asserts automatic RBW and VBW when they were automatic: the instrument otherwise leaves the RBW at a stale 300 kHz (auto sweep time 264 ms instead of 2.6 ms) with both auto flags still reading on; the tool waits 0.6 s, re-sends the auto commands and warns if the RBW did not return. With the output on the auto sweep time is about 2.15 s. Readback differences are `warnings`. On some benches the output is wired to the analyzer input: switch it off when done.
 
+## Measurement function module
+
+Command syntax: [programming-guide.md](programming-guide.md) section 1 (`:INSTrument[:SELect] {SA|EMI|AD}`). The owner's UTS3036B has the spectrum analyzer (SA), EMI and analog demodulation (AD) modules licensed: see [verified-hardware.md](verified-hardware.md#installed-options-and-ad-results-readback-2026-11-11-firmware-v1040040). No SCPI query reports which modules are licensed; switching to an unlicensed one is refused silently by the firmware (no SCPI error, module unchanged), which is indistinguishable here from a link glitch, so `select_instrument_module` reports a mismatch as a warning, never a guess at the cause.
+
+### `get_instrument_module`
+
+Read-only, safe in any module. Returns `module`: `spectrum_analyzer`, `emi` or `analog_demod`. A reply other than SA/EMI/AD is an error quoting it.
+
+### `select_instrument_module`
+
+`module`: `sa`, `emi` or `ad`. Sends the select and reads it back; does not restore the previous module afterwards (the caller chose the switch) and does not change the front-panel lock behavior beyond that of an ordinary command (see "Front-panel lock" in verified-hardware.md). If the readback does not match what was requested, that is reported as a `warnings` entry, not an error - this is expected when the module is not licensed. A timeout reading the module back names the analyzer's own documented quirk right after a mode switch (a reply can be silently dropped on the same connection even though the switch took); call `get_instrument_module` again, ideally after reconnecting.
+
 ## Measurements
 
 Channel power, time-domain power, occupied bandwidth (OBW), adjacent channel power (ACPR), third-order intercept (TOI), carrier-to-noise ratio (C/N) and harmonics. The instrument has **no query for the active measurement**, and `:CONFigure:<meas>` presets the span, RBW and sweep time (for example span 3 MHz) which `:CONFigure:SANalyzer` does not put back, so these tools save and restore that state and never scan for the active mode (queries the instrument does not answer stall it, and over VXI-11 can drop the link). Spectrum analyzer mode is told by `:SENSe:DETector:TRACe1?`, which only it answers; one measurement is told by `:SENSe:<meas>:AVERage:STATe?`. While a measurement is active most spectrum analyzer queries (detector, trace type) get no reply. A probe that gets no reply costs about 4.5 s (the 1.5 s timeout plus a 3 s pause while the instrument recovers). Measurement names: `channel_power`, `time_power`, `obw`, `acpr` (`:SENSe:ACPower`), `toi`, `cn` (`CNRatio`), `harmonics`.

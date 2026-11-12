@@ -63,6 +63,13 @@ export const CONTRACT: Record<string, ContractEntry> = {
     args: { command: ":FREQuency:CENTer 1 GHz" },
     invalid: [{ command: "*RST" }, { command: "*IDN?" }],
   },
+  get_instrument_module: { kind: "getter", args: {} },
+  select_instrument_module: {
+    kind: "setter",
+    args: { module: "sa" }, // matches the canned :INSTrument:SELect? reply "SA": no warning in the baseline case
+    invalid: [{}, { module: "iq" }],
+    warn: [{ module: "emi" }], // canned reply stays "SA": models the real firmware's silent refusal of an unlicensed module
+  },
   get_frequency: { kind: "getter", args: {} },
   set_frequency: {
     kind: "setter",
@@ -282,6 +289,7 @@ export const QUERY_REPLIES: Array<[RegExp, string]> = [
   [/DETector:TRACe\d\?$/, "NORMal"],
   [/^:TRACe\d:TYPE\?$/, "WRITe"],
   [/^:SYSTem:PICture:FORMat\?$/, "BMP"],
+  [/^:INSTrument(:SELect)?\?$/, "SA"],
   [/^:(READ|FETCh):CHPower\?$/, "-7.366048e+01,-1.366708e+02"],
   [/^:(READ|FETCh):TPOWer\?$/, "-9.206767e+01"],
   [/AVERage:TCONtrol\?$/, "EXPonential"],

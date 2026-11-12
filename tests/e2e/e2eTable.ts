@@ -224,6 +224,16 @@ export const E2E: Record<string, Entry> = {
     ],
     timeoutMs: 60_000,
   },
+  // Measurement function module (#177): :INSTrument[:SELect]. The fake always accepts the switch (ASSUMED: unlike the real
+  // analyzer, every module is licensed in the fake; no settle delay).
+  get_instrument_module: { steps: [{ args: {}, check: (r) => { ok(r); expect(r.json.module).toBe("spectrum_analyzer"); } }], timeoutMs: 30_000 },
+  select_instrument_module: {
+    steps: [
+      { args: { module: "emi" }, check: (r, c) => { ok(r); expect(r.json.module).toBe("EMI"); expect(m(c).str("module")).toBe("EMI"); } },
+      { args: { module: "sa" }, check: (r, c) => { ok(r); expect(r.json.module).toBe("SA"); expect(m(c).str("module")).toBe("SA"); } },
+    ],
+    timeoutMs: 30_000,
+  },
   // Measurements (#150). The fake models the modes of docs/verified-hardware.md "Measurements". Over raw TCP the tools use
   // FETCh (READ has no line terminator there) and `measure` settles 1.5 s after entering, so these entries take a few seconds.
   get_measurement: {
@@ -341,6 +351,7 @@ export const ORDER = [
   "set_peak_criteria", "get_peak_criteria", "set_marker_function", "get_marker_function",
   "set_marker_ndb", "get_marker_ndb", "set_frequency_counter", "get_frequency_counter",
   "set_limit_line", "get_limit_line", "delete_limit_line", "set_tracking_generator", "get_tracking_generator",
+  "get_instrument_module", "select_instrument_module",
   "get_measurement", "configure_measurement", "read_measurement", "exit_measurement", "measure",
   "discover_instruments", "list_instruments", "disconnect",
 ];
