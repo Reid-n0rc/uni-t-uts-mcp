@@ -259,7 +259,7 @@ describe("set_emi_limit_line", () => {
       { points: [{ frequency_hz: 5e8, amplitude_dbm: -30 }, { frequency_hz: 1e8, amplitude_dbm: -50 }] },
       { points: [{ frequency_hz: -1, amplitude_dbm: -50 }, { frequency_hz: 1e8, amplitude_dbm: -40 }] },
       { points: [{ frequency_hz: 1e8, amplitude_dbm: Number.NaN }, { frequency_hz: 2e8, amplitude_dbm: -40 }] },
-      { points: Array.from({ length: 11 }, (_, i) => ({ frequency_hz: (i + 1) * 1e6, amplitude_dbm: -50 })) },
+      { points: Array.from({ length: 13 }, (_, i) => ({ frequency_hz: (i + 1) * 1e6, amplitude_dbm: -50 })) },
       { type: "middle" },
     ];
     for (const args of bad) {

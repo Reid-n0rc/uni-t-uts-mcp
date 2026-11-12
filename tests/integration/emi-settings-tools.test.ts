@@ -18,7 +18,10 @@ const fake = vi.hoisted(() => {
     if (/^:SENSe:METer:PHOLd:TYPE\?$/.test(cmd)) return "ADJustable";
     if (/^:SENSe:AVERage:TYPE\?$/.test(cmd)) return "LOG";
     if (/^:TRACe\d:TYPE\?$/.test(cmd)) return "WRITe";
-    if (/^:TRIGger:SEQuence:SOURce\?$/.test(cmd)) return "IMMediate";
+    // Live firmware (verified 2026-11-12, #187): SOURce/SLOPe/DELay never reply in EMI mode, only
+    // VIDeo:LEVel does. Reflected in DEFAULT_GROUPS excluding "trigger".
+    if (/^:TRIGger:SEQuence:(SOURce|EXTernal:SLOPe|EXTernal:DELay)\?$/.test(cmd)) throw new Error("timeout");
+    if (/^:TRIGger:SEQuence:VIDeo:LEVel\?$/.test(cmd)) return "-25";
     if (/\?$/.test(cmd)) return "1"; // every other query: a boolean/numeric field
     throw new Error(`fake: no reply for ${cmd}`);
   }
@@ -69,6 +72,12 @@ describe("get_emi_settings", () => {
     expect(data.average_type).toBe("log");
     expect(data.trace_type).toEqual(["write", "write", "write"]);
     expect(data.scan_table).toBeUndefined();
+    expect(data.trigger_source).toBeUndefined();
+  });
+
+  it("errors when trigger is explicitly requested, matching live firmware's silent SOURce? query", async () => {
+    const res = await callTool(client, "get_emi_settings", { groups: ["trigger"] });
+    expect(res.isError).toBe(true);
   });
 
   it("reads scan_table only when explicitly requested, and reads all 10 bands", async () => {

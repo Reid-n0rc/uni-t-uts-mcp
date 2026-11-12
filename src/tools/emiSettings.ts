@@ -7,8 +7,9 @@ import { errorResult, textResult, defineTool } from "./util.js";
 // Read-only snapshot of the EMI configuration, grouped so a caller can ask for only what it needs
 // (the issue's own "group parameter so one call stays short"). `scan_table` is excluded from the
 // default group set: it is 10 bands x ~8 queries each, by far the most expensive group, so a caller
-// must opt in explicitly. None of this has been verified live (EMI-12, #187, needs the owner present);
-// field names and ranges come from the programming manual via docs/research/emi-function.md.
+// must opt in explicitly. `trigger` is also excluded by default (live-verified, see below). Most
+// fields were spot-checked live 2026-11-12 (EMI-12, #187, owner present) and matched the programming
+// manual's documented names and ranges; the trigger-source finding above is the one real divergence.
 
 export const EMI_SETTING_GROUPS = [
   "standard",
@@ -24,7 +25,13 @@ export const EMI_SETTING_GROUPS = [
 ] as const;
 export type EmiSettingGroup = (typeof EMI_SETTING_GROUPS)[number];
 
-const DEFAULT_GROUPS: readonly EmiSettingGroup[] = EMI_SETTING_GROUPS.filter((g) => g !== "scan_table");
+// "trigger" is excluded by default alongside "scan_table": live-verified 2026-11-12 (#187, owner
+// present) that `:TRIGger:SEQuence:SOURce?`/`:EXTernal:SLOPe?`/`:EXTernal:DELay?` never reply in
+// EMI mode (only `:VIDeo:LEVel?` does), so including it by default would make every ordinary call
+// fail. Pass it explicitly only to hit that error deliberately.
+const DEFAULT_GROUPS: readonly EmiSettingGroup[] = EMI_SETTING_GROUPS.filter(
+  (g) => g !== "scan_table" && g !== "trigger",
+);
 
 const TRACE_COUNT = 3; // EMI has 3 traces, not the SA module's 6 (docs/research/emi-function.md 3.3).
 const METER_COUNT = 3;

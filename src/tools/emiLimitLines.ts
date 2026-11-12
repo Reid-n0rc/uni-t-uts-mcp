@@ -12,11 +12,11 @@ import { errorResult, setterFailure, textResult, defineTool } from "./util.js";
 // same callback functions as the SA limit-line tool in src/tools/limitLines.ts (SCPI_SetLimitData /
 // SCPI_GetLimitData, SCPI_SetLimitXData / SCPI_GetLimitXData, SCPI_SetLimitYUpData / SCPI_GetLimitYUpData,
 // SCPI_BuildFromTrace and parm_meas::set_limitCopy are literally the same addresses for the EMI-prefixed
-// `:CALCulate:FSCan:LLINe<n>...` commands and these plain `:CALCulate:LLINe<n>...` ones). Point cap could
-// not be live-verified on this pass (the analyzer was unreachable), but since the SA limit-line tool
-// verified a 10-point cap against this same underlying implementation, that cap is inferred to apply here
-// too; re-verify live and drop this comment once confirmed. The manual documents no pass/fail read-back,
-// so there is no tool for it, matching the SA limit-line tool's own gap.
+// `:CALCulate:FSCan:LLINe<n>...` commands and these plain `:CALCulate:LLINe<n>...` ones). Despite the
+// shared callback, the point cap is NOT the same as SA's: live-verified 2026-11-12 (issue #187, owner
+// present) at 12 points, not 10 — 10, 11 and 12 all round-trip exactly; 15 and 20 both get silently
+// truncated to the same 12. The manual documents no pass/fail read-back, so there is no tool for it,
+// matching the SA limit-line tool's own gap.
 
 const LINE = z.number().int().min(1).max(6).describe("Limit line number, 1 to 6 (EMI mode has only 3 traces to test against, see 'trace')");
 const L = (n: number) => `:CALCulate:LLINe${n}`;
@@ -24,10 +24,10 @@ const TYPES = { upper: "UPPer", lower: "LOWer" } as const;
 type TypeName = keyof typeof TYPES;
 
 /**
- * Inferred, not live-verified on this pass: the EMI module's `:CALCulate:LLINe<n>:DATA` shares the
- * exact same callback as the SA limit-line tool, which verified this cap live on the UTS3036B.
+ * Live-verified 2026-11-12 (issue #187, owner present): the EMI module's cap is 12 points, not the
+ * SA module's 10, despite sharing the exact same `:CALCulate:LLINe<n>:DATA` callback.
  */
-const MAX_POINTS = 10;
+const MAX_POINTS = 12;
 /** The instrument sends no reply at all to DATA? on a line without points, so this wait is the "empty" signal. */
 const DATA_TIMEOUT_MS = 1500;
 
@@ -181,7 +181,7 @@ export function registerEmiLimitLineTools(server: McpServer): void {
     server,
     "set_emi_limit_line",
     "Create or edit an EMI limit line. EMI module must be active (select_instrument_module). Give any of: displayed, " +
-      "type (upper/lower), trace, margin_db and margin_enabled, points (replaces the whole point list; 1 to 10 points " +
+      "type (upper/lower), trace, margin_db and margin_enabled, points (replaces the whole point list; 1 to 12 points " +
       "in ascending frequency order, equal frequencies make a vertical step, each with frequency_hz, amplitude_dbm and " +
       "optional connected), copy_from (copy another line's points into this one) or build_from_trace (build points " +
       "from a trace's current data). copy_from/build_from_trace are sent first, then the other settings. The line is " +
