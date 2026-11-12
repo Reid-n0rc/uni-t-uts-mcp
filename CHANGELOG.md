@@ -15,6 +15,9 @@ The text of a release's section is also used as its GitHub release notes.
 ### Added
 - `get_instrument_module` and `select_instrument_module`: read and switch the active measurement function module (spectrum analyzer, EMI, analog demodulation). (#177)
 
+### Changed
+- Every tool that talks to the instrument now refuses before sending anything if the analyzer is not in the spectrum analyzer module, naming `select_instrument_module` to switch (same-named commands like `:SENSe:FREQuency:CENTer` mean something different under EMI/AD). Does not apply to `get_instrument_module`, `select_instrument_module`, `identify`, the raw `scpi_*` tools, or the connection tools, which already work in any module. (#178, #191)
+
 ### Documentation
 - Front-panel lock: firmware disassembly confirms the SCPI-layer root cause (one byte, re-checked and re-locked on every non-exempt command) and corrects issue #172's "screenshot is a safe check" claim — the screenshot query is not exempt either, so it likely re-locks the panel on every call. (#209)
 
