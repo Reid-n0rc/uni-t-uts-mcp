@@ -304,6 +304,14 @@ Research-stage: field names and ranges come from the programming manual via [doc
 
 `set_ad_frequency` configures `center_hz` (50 Hz to the instrument's max minus 50 Hz, per the manual), `span_hz` (100 Hz-12.8 MHz), `rbw_hz`/`rbw_auto` (100 Hz-1 MHz), `demod_bandwidth_hz` (400 Hz-25 MHz), `center_step_hz`/`center_step_auto`. `set_ad_demod_timing` configures `window_sweep_time_s` (1 us-500 ms), `demod_time_s`/`demod_time_auto`, `average_state`, `average_count` (1-999). Both require at least one parameter, reject `..._auto: true` combined with its matching explicit value, re-read everything requested afterwards, and report any instrument-adjusted value as a `warnings` entry. Neither restores the previous state (the caller chose the change). Both require the AD module.
 
+### `set_ad_filters`
+
+Sets one AD audio filter family: `low_pass_filter` (`OFF`, `LPF300`, `LPF3K`, `LPF15K`, `LPF30K`, `LPF80K`, `LPF100K`, `LPF300K`), `high_pass_filter` (`OFF`, `HPF20`, `HPF50`, `HPF300`, `HPF400`), or `band_pass_filter`/weighting (`OFF`, `AWEighting`, `CWEighting`, `CCIR1k`, `CCIR2k`, `CUNWeighting`) - at most one per call. Per the programming manual, choosing a low- or high-pass filter turns the band-pass filter off and choosing a band-pass filter turns both the low- and high-pass filters off; this tool reads all three before and after the change and reports whichever other family the instrument turned off as a `warnings` entry. The AM/FM prefix is read fresh from `:CONFigure?` each call. Requires the AD module. Not yet live-verified.
+
+### `set_ad_audio`
+
+Sets the AD module's `speaker` (on/off) and/or `volume_pct` (0-100), both read from and shared with the rest of the instrument. **Turning the speaker on, or raising the volume while it is already on, requires `confirm: true`** - `:SPEaker ON` plays the demodulated signal on the loudspeaker and headphones immediately, which would be an unexpected tone in a shared lab ([research doc](research/analog-demodulation.md), risk 3). By default, once the requested change is confirmed by read-back, this tool restores the speaker and volume to what they were immediately before the call (`restored: true` in the result); pass `keep: true` to leave the new state in place instead. Requires the AD module. Not yet live-verified, and intentionally not exercised against real hardware outside a confirmed, supervised live session.
+
 ## EMI function
 
 Research-stage: field names, ranges and groupings come from the programming manual via [docs/research/emi-function.md](research/emi-function.md); none of it has been verified live yet (EMI-12, #187, needs the owner present at the analyzer). Requires the EMI module (`select_instrument_module`); every tool here refuses with an actionable message otherwise.
