@@ -9,7 +9,7 @@ Source: https://code.claude.com/docs/en/plugins/marketplace-reference.md and htt
 
 Verification: Plugin, marketplace and `.mcp.json` formats checked against the Claude Code docs and validated with `claude plugin validate`. `claude plugin marketplace add` and `claude plugin install` were run against a local checkout in an isolated Claude Code config directory (install and listing succeeded). Not yet verified: adding the marketplace from GitHub, and starting the server inside a Claude Code session (the pinned npm version must be published first).
 
-- Recommended: add this repository as a marketplace and install the plugin (two commands, inside Claude Code or with `claude plugin ...` in a shell). The plugin runs `npx -y uni-t-uts-mcp` pinned to this release (0.5.0) and asks for the analyzer address, port and transport (all optional; they are stored in your Claude Code settings).
+- Recommended: add this repository as a marketplace and install the plugin (two commands, inside Claude Code or with `claude plugin ...` in a shell). The plugin runs `npx -y uni-t-uts-mcp` pinned to this release (1.1.0) and asks for the analyzer address, port and transport (all optional; they are stored in your Claude Code settings).
 - Or run the `claude mcp add` command once in a terminal. Add `--scope user` to make it available in every project (`local` is the default, `project` writes `.mcp.json`).
 - UTS_IP is optional: without it, tell the assistant "connect to the analyzer at 192.168.1.100".
 
@@ -42,7 +42,7 @@ claude mcp add uni-t-uts -e UTS_IP=192.168.1.100 -- cmd /c npx -y uni-t-uts-mcp
 Docker:
 
 ```sh
-claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0
+claude mcp add uni-t-uts -- docker run -i --rm -e UTS_IP=192.168.1.100 ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0
 ```
 
 .mcp.json (project scope):
@@ -70,9 +70,9 @@ Source: https://modelcontextprotocol.io/docs/develop/connect-local-servers
 
 Verification: The `claude_desktop_config.json` format and paths are from the MCP docs. Installing the `.mcpb` in Claude Desktop itself is NOT verified yet (issue #86 tracks the manual check).
 
-One-click: [Download the .mcpb (GitHub releases)](https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v0.5.0)
+One-click: [Download the .mcpb (GitHub releases)](https://github.com/Reid-n0rc/uni-t-uts-mcp/releases/tag/v1.1.0)
 
-- Easiest: download `uni-t-uts-mcp-0.5.0.mcpb` from the release and double-click it; the install dialog asks for the analyzer address. (Not verified in Claude Desktop yet.)
+- Easiest: download `uni-t-uts-mcp-1.1.0.mcpb` from the release and double-click it; the install dialog asks for the analyzer address. (Not verified in Claude Desktop yet.)
 - Or edit the config file (Settings > Developer > Edit Config): macOS `~/Library/Application Support/Claude/claude_desktop_config.json`, Windows `%APPDATA%\Claude\claude_desktop_config.json`, Linux `~/.config/Claude/claude_desktop_config.json`. Restart Claude Desktop completely afterwards.
 - UTS_IP is optional: without it, tell the assistant "connect to the analyzer at 192.168.1.100".
 
@@ -129,7 +129,7 @@ Docker:
         "--rm",
         "-e",
         "UTS_IP=192.168.1.100",
-        "ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0"
+        "ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0"
       ]
     }
   }
@@ -200,7 +200,7 @@ Docker:
         "--rm",
         "-e",
         "UTS_IP=192.168.1.100",
-        "ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0"
+        "ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0"
       ]
     }
   }
@@ -326,7 +326,7 @@ Docker:
         "--rm",
         "-e",
         "UTS_IP=192.168.1.100",
-        "ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0"
+        "ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0"
       ]
     }
   }
@@ -395,7 +395,7 @@ Docker:
         "--rm",
         "-e",
         "UTS_IP=192.168.1.100",
-        "ghcr.io/reid-n0rc/uni-t-uts-mcp:0.5.0"
+        "ghcr.io/reid-n0rc/uni-t-uts-mcp:1.1.0"
       ]
     }
   }

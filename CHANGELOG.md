@@ -12,6 +12,17 @@ The text of a release's section is also used as its GitHub release notes.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-12
+
+The tool set and its results are considered stable: every tool group from the roadmap (frequency,
+amplitude, bandwidth/sweep, acquisition, trace, markers and marker functions, measurements,
+screenshot, limit lines, tracking generator, multi-instrument support, VXI-11 transport, and now
+EMI and analog demodulation) is implemented, tested, and documented. Every AD tool has now been
+live-verified against real hardware at least once, including a pre-release verification pass that
+caught and fixed a real bug in `set_ad_filters` (see below) before it shipped. The one exception
+is `set_ad_audio`'s speaker-on/volume-raise write path, intentionally not exercised outside a
+confirmed, supervised session (a real audible side effect) — its read path is verified.
+
 ### Added
 - `get_instrument_module` and `select_instrument_module`: read and switch the active measurement function module (spectrum analyzer, EMI, analog demodulation). (#177)
 - `get_emi_settings`: read-only snapshot of the EMI module configuration (standard, scan sequence, scan table, meters, detectors, traces, search, frequency, amplitude, trigger), grouped so one call can stay short. Live-verified on real hardware (EMI-12, #187); the `trigger` group is excluded from the default set because three of its four fields never reply in EMI mode (request it explicitly to see the error). (#179, #187)
@@ -19,7 +30,7 @@ The text of a release's section is also used as its GitHub release notes.
 - `set_emi_measurement`: configure the EMI module's measurement (standard, sweep sequence and re-measure mode, trace/meter/final detectors, meter dwell time, averaging, search mode and counts). Enforces the manual's detector-exclusivity rule (at most two of quasi-peak/EMI-average/average per detector group) and reports instrument-adjusted values as `warnings`. Spot-checked on real hardware (EMI-12, #187). (#181, #187)
 - `get_emi_limit_line`/`set_emi_limit_line`/`delete_emi_limit_line`: the EMI module's limit lines, reusing the SA limit-line tool's design plus `copy_from` and `build_from_trace`. The point cap is **12, live-verified on real hardware (EMI-12, #187)** — not SA's 10, despite the EMI and SA limit-line commands sharing the exact same callback functions. (#182, #187)
 - `enter_analog_demod`/`exit_analog_demod`: switch to the analog demodulation (AD) module and back, saving and restoring the frequency, bandwidth, sweep time and continuous-sweep settings by read-back, the same way `exit_measurement` does. `exit_analog_demod` always sends the switch back, even if this server never called `enter_analog_demod`, and warns clearly rather than guessing when there is nothing saved to restore. (#192)
-- `get_ad_settings`/`set_ad_frequency`/`set_ad_demod_timing`: read and configure the AD module's demodulation type, center frequency, RF span/resolution bandwidth/demodulation bandwidth, and demod window sweep time/demod time/averaging. The AM/FM prefix is read fresh from `:CONFigure?` each call. Research-stage: a handful of the getters are live-verified, but `:CONFigure?`, the demod-time/averaging getters and every setter are not yet (needs the owner present at the analyzer). (#193)
+- `get_ad_settings`/`set_ad_frequency`/`set_ad_demod_timing`: read and configure the AD module's demodulation type, center frequency, RF span/resolution bandwidth/demodulation bandwidth, and demod window sweep time/demod time/averaging. The AM/FM prefix is read fresh from `:CONFigure?` each call. `get_ad_settings`'s getters, including `:CONFigure?` and the demod-time/averaging fields, are live-verified (2026-11-12, #190); the `set_ad_frequency`/`set_ad_demod_timing` setters were not separately exercised live. (#193, #190)
 - `set_ad_filters`: set the AD module's low-pass and/or high-pass audio filter (both can be set together in one call) or band-pass/weighting (mutually exclusive with both low-pass and high-pass); reports whichever other family the instrument turned off as a `warnings` entry. Live-verified (2026-11-12): corrected an over-restrictive mutual-exclusion rule that wrongly refused setting low-pass and high-pass together. (#194)
 - `set_ad_audio`: set the AD module's speaker and/or volume. Turning the speaker on, or raising the volume while it is already on, requires `confirm: true` (an audible tone in a shared lab); restores the previous speaker/volume state afterward unless `keep: true` is given. Read path live-verified (2026-11-12); the speaker-on/volume-raise write path remains intentionally not exercised against real hardware outside a confirmed, supervised live session. (#194)
 - `get_demod_result`: read the AD module's numeric result window (center frequency, carrier power, carrier frequency error, modulation rate, SINAD, distortion/total Vrms, THD, peak+/peak-/(pk-pk)/2/RMS for current and max-hold) without a screenshot, via the undocumented bare `:FETCh:AM?`/`:FETCh:FM?` query, confirmed live on this firmware. Answers the research doc's open "AD results investigation" question. (#196)
@@ -294,7 +305,8 @@ latest published at the time) over LAN; see [docs/verified-hardware.md](docs/ver
 - Verified on one analyzer model and firmware (UTS3036B V1.04.0040); other UTS models are expected to be
   similar but are untested.
 
-[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.5.0...v1.1.0
 [0.5.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Reid-n0rc/uni-t-uts-mcp/compare/v0.2.0...v0.3.0
